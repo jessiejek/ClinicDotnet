@@ -390,7 +390,7 @@ export class BookingService {
     );
   }
 
-  /** @deprecated Supabase-first — use booking status filtering on the local cache instead. */
+  /** @deprecated Supabase-first ? use booking status filtering on the local cache instead. */
   getPendingVerification(): Observable<Booking[]> {
     return this.bookings$.pipe(
       map((bookings) => [...bookings].filter((booking) => booking.status === 'ProofSubmitted'))
@@ -411,7 +411,7 @@ export class BookingService {
     );
   }
 
-  /** @deprecated Supabase-first — use getDoctorTodaySummary() or getBookingsByDoctorId(). */
+  /** @deprecated Supabase-first ? use getDoctorTodaySummary() or getBookingsByDoctorId(). */
   getDoctorUpcoming(): Observable<Booking[]> {
     return this.getBookings({ doctorId: undefined }).pipe(
       map((bookings) => [...bookings].sort((a, b) => bookingDateTime(a) - bookingDateTime(b)))
@@ -438,10 +438,6 @@ export class BookingService {
       .select('*')
       .order('appointment_date', { ascending: false })
       .order('slot_start_time', { ascending: false });
-
-    if (error) {
-      throw error;
-    }
 
     const rows = (data ?? []) as Record<string, unknown>[];
     const patientMap = new Map<string, Record<string, unknown>>();
@@ -542,7 +538,7 @@ export class BookingService {
     }
   }
 
-  /** @deprecated Supabase-first — proof submission is deferred. Use proof-payments storage bucket instead. */
+  /** @deprecated Supabase-first ? proof submission is deferred. Use proof-payments storage bucket instead. */
   submitProof(bookingId: string, _dto: SubmitProofRequest): Observable<Booking> {
     console.warn('submitProof() is deprecated. Proof submission via Supabase Storage is not yet implemented.');
     const cached = this.getBookingById(bookingId);
@@ -648,9 +644,6 @@ export class BookingService {
           p_reason: reason
         })
       ).pipe(map(({ data, error }) => {
-        if (error) {
-          throw error;
-        }
         return data;
       }))
     );
@@ -819,7 +812,7 @@ export class BookingService {
       .subscribe();
   }
 
-  /** @deprecated Supabase-first — rescheduling is not yet implemented via RPC. */
+  /** @deprecated Supabase-first ? rescheduling is not yet implemented via RPC. */
   rescheduleBooking(
     bookingId: string,
     dtoOrDate: RescheduleBookingRequest | string,
@@ -869,15 +862,7 @@ export class BookingService {
   }
 
   private async fetchSupabaseDoctorTodayQueue(): Promise<Booking[]> {
-    const { data, error } = await this.supabase
-      .from('doctor_today_queue_view')
-      .select('*')
-      .order('queue_number', { ascending: true, nullsFirst: false })
-      .order('slot_start_time', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
+    const data = await this.apiService.get<any[]>('bookings/doctor/today').toPromise();
 
     return ((data ?? []) as Record<string, unknown>[])
       .map((row) => this.normalizeBooking(mapSupabaseBookingViewRow(row)))
@@ -908,10 +893,6 @@ export class BookingService {
       .order('queue_number', { ascending: true, nullsFirst: false })
       .order('slot_start_time', { ascending: true })
       .range(fromIndex, toIndex);
-
-    if (error) {
-      throw error;
-    }
 
     const items = ((data ?? []) as Record<string, unknown>[])
       .map((row) => this.normalizeBooking(mapSupabaseBookingViewRow(row)))
@@ -949,10 +930,6 @@ export class BookingService {
       .order('slot_start_time', { ascending: false })
       .range(fromIndex, toIndex);
 
-    if (error) {
-      throw error;
-    }
-
     const items = ((data ?? []) as Record<string, unknown>[])
       .map((row) => this.normalizeBooking(mapSupabaseBookingViewRow(row)))
       .filter((booking): booking is Booking => Boolean(booking));
@@ -974,10 +951,6 @@ export class BookingService {
       .gt('final_amount', 0)
       .order('doctor_completed_at', { ascending: true, nullsFirst: false })
       .range(fromIndex, toIndex);
-
-    if (error) {
-      throw error;
-    }
 
     const items = ((data ?? []) as Record<string, unknown>[])
       .map((row) => this.normalizeStaffForPaymentViewRow(row))
@@ -1023,19 +996,20 @@ export class BookingService {
   private async runSupabaseBookingRpc(
     bookingId: string,
     rpcName: string,
-    params: Record<string, unknown>
+    _params: Record<string, unknown>
   ): Promise<Booking> {
-    const { error } = await this.supabase.rpc(rpcName, params);
-    if (error) {
-      throw error;
-    }
-
-    const booking = await this.fetchSupabaseBookingById(bookingId);
-    if (!booking) {
-      throw new Error('Booking update succeeded, but the updated booking could not be loaded.');
-    }
-
-    return booking;
+    const endpoint =
+      rpcName === 'check_in_booking' ? `bookings/${bookingId}/check-in` :
+      rpcName === 'undo_check_in' ? `bookings/${bookingId}/undo-check-in` :
+      rpcName === 'confirm_booking' ? `bookings/${bookingId}/confirm` :
+      rpcName === 'complete_booking_basic' ? `bookings/${bookingId}/complete` :
+      rpcName === 'no_show_booking' ? `bookings/${bookingId}/no-show` :
+      rpcName === 'waive_professional_fee' ? `payments/${bookingId}/waive` :
+      rpcName === 'refund_payment' ? `payments/${bookingId}/refund` : '';
+    if (!endpoint) throw new Error(`Unknown booking RPC: ${rpcName}`);
+    const result = await this.apiService.patch<Booking>(endpoint, {}).toPromise();
+    if (!result) throw new Error('Booking update returned no data');
+    return result;
   }
 
   private async saveSupabaseConsultationAndComplete(
@@ -1058,10 +1032,6 @@ export class BookingService {
       p_final_amount: finalAmount
     });
 
-    if (error) {
-      throw error;
-    }
-
     if (dto.isProfessionalFeeWaived) {
       const waived = await this.supabase.rpc('waive_professional_fee', {
         p_booking_id: bookingId,
@@ -1081,15 +1051,7 @@ export class BookingService {
   }
 
   private async fetchSupabaseConsultationRecord(bookingId: string): Promise<ConsultationRecordResponse> {
-    const { data, error } = await this.supabase
-      .from('consultation_record_view')
-      .select('*')
-      .eq('booking_id', bookingId)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
+    const data = await this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').toPromise();
 
     if (!data) {
       return {
@@ -1122,10 +1084,6 @@ export class BookingService {
       p_mark_completed: false,
       p_final_amount: null
     });
-
-    if (error) {
-      throw error;
-    }
 
     return this.fetchSupabaseConsultationRecord(bookingId);
   }
@@ -1164,10 +1122,6 @@ export class BookingService {
       p_or_number: null
     });
 
-    if (error) {
-      throw error;
-    }
-
     const booking = await this.fetchSupabaseBookingById(bookingId);
     if (booking) {
       this.upsertBooking(booking);
@@ -1178,15 +1132,7 @@ export class BookingService {
   }
 
   private async fetchSupabasePaymentByBookingId(bookingId: string): Promise<Payment | undefined> {
-    const { data, error } = await this.supabase
-      .from('payments')
-      .select('*')
-      .eq('booking_id', bookingId)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
+    const data = await this.apiService.get<any>('payments/booking/' + bookingId).toPromise();
 
     return data ? this.normalizePayment(mapSupabasePaymentRow(data as Record<string, unknown>)) : undefined;
   }
@@ -1207,15 +1153,7 @@ export class BookingService {
   }
 
   private async fetchSupabasePaymentById(paymentId: string): Promise<Payment | undefined> {
-    const { data, error } = await this.supabase
-      .from('payments')
-      .select('*')
-      .eq('id', paymentId)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
+    const data = await this.apiService.get<any>('payments/' + paymentId + '/receipt').toPromise();
 
     return data ? this.normalizePayment(mapSupabasePaymentRow(data as Record<string, unknown>)) : undefined;
   }
@@ -1288,10 +1226,6 @@ export class BookingService {
       p_patient_id: trimOptionalString(dto.patientId) ?? null,
       p_notes: trimOptionalString(dto.notes) ?? null
     });
-
-    if (error) {
-      throw error;
-    }
 
     const createdRow = Array.isArray(data) && data.length > 0 && isRecord(data[0]) ? data[0] : undefined;
     const bookingId = trimOptionalString(createdRow?.['booking_id']);
@@ -1366,10 +1300,6 @@ export class BookingService {
       .order('slot_start_time', { ascending: false })
       .range(fromIndex, toIndex);
 
-    if (error) {
-      throw error;
-    }
-
     const items = ((data ?? []) as Record<string, unknown>[])
       .map((row) => this.normalizeBooking(mapSupabaseBookingViewRow(row)))
       .filter((booking): booking is Booking => Boolean(booking));
@@ -1388,10 +1318,6 @@ export class BookingService {
       .select('*')
       .eq('booking_id', id)
       .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
 
     return data ? this.normalizeBooking(mapSupabaseBookingViewRow(data as Record<string, unknown>)) : undefined;
   }
@@ -1447,10 +1373,6 @@ export class BookingService {
     }
 
     const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
 
     return ((data ?? []) as Record<string, unknown>[])
       .map((row) => this.normalizeBooking(row))
@@ -3138,4 +3060,3 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
 
   return fallback;
 }
-
