@@ -838,16 +838,10 @@ export class BookingService {
   private async fetchSupabaseDoctorTodaySummary(): Promise<DoctorTodaySummary> {
     const [queue, summaryResponse] = await Promise.all([
       this.fetchSupabaseDoctorTodayQueue(),
-      this.supabase.rpc('get_doctor_today_summary')
+      this.apiService.get<any>('bookings/doctor/today-summary').toPromise()
     ]);
 
-    if (summaryResponse.error) {
-      throw summaryResponse.error;
-    }
-
-    const row = Array.isArray(summaryResponse.data) && isRecord(summaryResponse.data[0])
-      ? summaryResponse.data[0]
-      : {};
+    const row = summaryResponse ?? {};
 
     return {
       bookedToday: normalizeNumber(row['today_total'], queue.length),
@@ -1033,13 +1027,7 @@ export class BookingService {
     });
 
     if (dto.isProfessionalFeeWaived) {
-      const waived = await this.supabase.rpc('waive_professional_fee', {
-        p_booking_id: bookingId,
-        p_reason: trimOptionalString(dto.professionalFeeWaivedReason) ?? 'Professional fee waived.'
-      });
-      if (waived.error) {
-        throw waived.error;
-      }
+      await this.apiService.patch(`payments/${bookingId}/waive`, { p_booking_id: bookingId, p_reason: trimOptionalString(dto.professionalFeeWaivedReason) ?? 'Professional fee waived.' });
     }
 
     const booking = await this.fetchSupabaseBookingById(bookingId);
@@ -1114,20 +1102,15 @@ export class BookingService {
 
   private async recordSupabasePayment(id: string, dto: ConfirmPaymentRequest): Promise<ReceiptData> {
     const bookingId = await this.resolveBookingIdForPayment(id);
-    const { data, error } = await this.supabase.rpc('record_payment', {
+    const payResult = await this.apiService.patch<ReceiptData>(`payments/${bookingId}/confirm`, {
       p_booking_id: bookingId,
       p_amount: dto.amountReceived,
       p_payment_method: dto.paymentMethod,
       p_reference_number: trimOptionalString(dto.referenceNumber) ?? null,
       p_or_number: null
-    });
-
+    }).toPromise();
     const booking = await this.fetchSupabaseBookingById(bookingId);
-    if (booking) {
-      this.upsertBooking(booking);
-    }
-
-    const row = Array.isArray(data) && isRecord(data[0]) ? data[0] : {};
+    const row = payResult ?? {};
     return buildReceiptFromBooking(booking, dto, row);
   }
 
@@ -1217,17 +1200,9 @@ export class BookingService {
       throw new Error('Please select at least one service.');
     }
 
-    const { data, error } = await this.supabase.rpc('create_booking', {
-      p_doctor_id: trimRequiredString(dto.doctorId),
-      p_service_ids: resolvedServiceIds,
-      p_appointment_date: trimRequiredString(dto.appointmentDate),
-      p_slot_start_time: normalizeTimeForSupabase(dto.slotStartTime),
-      p_slot_end_time: normalizeTimeForSupabase(dto.slotEndTime),
-      p_patient_id: trimOptionalString(dto.patientId) ?? null,
-      p_notes: trimOptionalString(dto.notes) ?? null
-    });
+    const bookResult = await this.apiService.post<any>('bookings', {}).toPromise()
 
-    const createdRow = Array.isArray(data) && data.length > 0 && isRecord(data[0]) ? data[0] : undefined;
+    const createdRow = bookResult ?? undefined;
     const bookingId = trimOptionalString(createdRow?.['booking_id']);
 
     if (!bookingId) {
