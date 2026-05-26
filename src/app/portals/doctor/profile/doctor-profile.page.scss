@@ -1,0 +1,356 @@
+:host {
+  display: block;
+}
+
+.page-loading {
+  min-height: 48vh;
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  color: var(--clinic-text-secondary);
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);
+  gap: var(--space-5);
+}
+
+.profile-form,
+.preview-card {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.profile-form h3,
+.preview-card h3 {
+  margin: 0;
+}
+
+.form-hint,
+.summary-subtitle,
+.bio,
+.profile-subtext {
+  margin: 0;
+  color: var(--clinic-text-secondary);
+}
+
+.profile-subtext {
+  font-size: 13px;
+}
+
+.completeness-row {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.completeness-label {
+  display: block;
+  font-size: 12px;
+  color: var(--clinic-text-muted);
+  font-weight: 600;
+}
+
+.completeness-bar {
+  height: 6px;
+  border-radius: 999px;
+  --background: #e2e8f0;
+  --progress-background: var(--color-primary-600);
+}
+
+.summary-eyebrow-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.summary-timing-note {
+  font-size: 11px;
+  color: var(--clinic-text-muted);
+}
+
+.profile-field {
+  display: grid;
+  gap: 6px;
+}
+
+.profile-field span {
+  font-size: 13px;
+  color: var(--clinic-text-secondary);
+}
+
+.label-with-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hint-icon {
+  font-size: 16px;
+  color: var(--clinic-text-muted);
+  cursor: help;
+}
+
+.photo-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.photo-preview {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  padding: 0;
+  border: 3px solid var(--color-primary-500);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-primary-50);
+}
+
+.photo-preview:hover .photo-overlay {
+  opacity: 1;
+}
+
+.photo-img,
+.photo-initials {
+  width: 100%;
+  height: 100%;
+}
+
+.photo-img {
+  object-fit: cover;
+}
+
+.photo-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-primary-700);
+}
+
+.photo-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.photo-overlay ion-icon {
+  font-size: 28px;
+  color: white;
+}
+
+.photo-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--clinic-text-muted);
+}
+
+.profile-input,
+.profile-textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--clinic-border);
+  border-radius: 12px;
+  background: white;
+  font: inherit;
+  color: var(--clinic-text-primary);
+}
+
+.warning-input {
+  border-color: var(--ion-color-warning);
+}
+
+.profile-textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.currency-input-wrapper {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--clinic-border);
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
+}
+
+.currency-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--clinic-text-secondary);
+  background: var(--clinic-bg-muted);
+  border-right: 1px solid var(--clinic-border);
+  white-space: nowrap;
+}
+
+.currency-input {
+  border: 0;
+  min-width: 0;
+}
+
+.field-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--ion-color-warning-shade);
+}
+
+.field-warning ion-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.field-warning ion-note {
+  font-size: 12px;
+  color: inherit;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profile-summary__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.summary-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.summary-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--clinic-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.summary-item span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--clinic-text-muted);
+}
+
+.summary-item strong {
+  font-size: 14px;
+  color: var(--clinic-text-primary);
+  word-break: break-word;
+}
+
+.summary-section-divider {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 8px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--clinic-border);
+}
+
+.summary-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--clinic-text-muted);
+}
+
+.edit-link {
+  font-size: 12px;
+  color: var(--color-primary-600);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.edit-link:hover {
+  text-decoration: underline;
+}
+
+.readonly-fields .summary-item {
+  background: var(--clinic-bg-muted);
+  border-color: var(--clinic-border);
+}
+
+.char-counter {
+  text-align: right;
+  font-size: 11px;
+  color: var(--clinic-text-muted);
+}
+
+.char-counter.near-limit {
+  color: var(--ion-color-warning-shade);
+  font-weight: 700;
+}
+
+.actions .btn-primary {
+  width: auto;
+}
+
+.preview-meta {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--clinic-text-secondary);
+}
+
+@media (max-width: 900px) {
+  .profile-grid,
+  .grid-2,
+  .summary-items {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    justify-content: stretch;
+  }
+
+  .actions .btn-primary {
+    width: 100%;
+  }
+
+  .profile-summary__header {
+    flex-direction: column;
+  }
+
+  .photo-preview {
+    width: 96px;
+    height: 96px;
+  }
+
+  .summary-section-divider {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

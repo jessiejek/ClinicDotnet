@@ -1,0 +1,49 @@
+:host {
+  display: block;
+}
+
+.section-card {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.section-card__head h3 {
+  margin: 0;
+}
+
+.section-card__head p {
+  margin: 4px 0 0;
+  color: var(--clinic-text-secondary);
+}
+
+:host {
+  display: block;
+  scroll-margin-top: 128px;
+}
+
+.follow-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.reminder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.field {
+  --background: transparent;
+}
+
+@media (max-width: 767px) {
+  .follow-grid {
+    gap: 10px;
+  }
+
+  .field {
+    min-height: 48px;
+  }
+}
