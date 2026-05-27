@@ -336,7 +336,7 @@ export class StaffBookingsPage implements OnInit {
   checkIn(booking: Booking, event?: Event): void {
     event?.stopPropagation();
     this.actionBookingId = booking.id;
-    this.bookingService.checkInBooking(booking.id, {}).subscribe({
+    this.apiService.patch('bookings/' + booking.id + '/check-in', {}).subscribe({
       next: async () => {
         this.actionBookingId = null;
         this.loadBookings();
@@ -352,7 +352,7 @@ export class StaffBookingsPage implements OnInit {
   undoCheckIn(booking: Booking, event?: Event): void {
     event?.stopPropagation();
     this.actionBookingId = booking.id;
-    this.bookingService.undoCheckInBooking(booking.id).subscribe({
+    this.apiService.patch('bookings/' + booking.id + '/undo-check-in', {}).subscribe({
       next: async () => {
         this.actionBookingId = null;
         this.loadBookings();

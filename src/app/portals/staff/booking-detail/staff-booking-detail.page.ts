@@ -530,7 +530,7 @@ export class StaffBookingDetailPage implements OnInit {
     }
 
     this.isActing = true;
-    this.bookingService.checkInBooking(this.booking.id, {}).subscribe({
+    this.apiService.patch('bookings/' + this.booking.id + '/check-in', {}).subscribe({
       next: async () => {
         this.isActing = false;
         this.refreshBooking();
@@ -549,7 +549,7 @@ export class StaffBookingDetailPage implements OnInit {
     }
 
     this.isActing = true;
-    this.bookingService.undoCheckInBooking(this.booking.id).subscribe({
+    this.apiService.patch('bookings/' + this.booking.id + '/undo-check-in', {}).subscribe({
       next: async () => {
         this.isActing = false;
         this.refreshBooking();
@@ -606,7 +606,27 @@ export class StaffBookingDetailPage implements OnInit {
     }
 
     this.isActing = true;
-    this.bookingService.confirmPayment(this.booking.payment.id, payload).subscribe({
+    const bookingId = this.booking.id;
+    this.apiService.patch<any>('payments/' + bookingId + '/confirm', {
+      p_booking_id: bookingId,
+      p_amount: payload.amountReceived,
+      p_payment_method: payload.paymentMethod,
+      p_reference_number: payload.referenceNumber ?? null,
+      p_or_number: null
+    }).pipe(
+      switchMap((payResult) =>
+        this.apiService.get<any>('bookings/' + bookingId).pipe(
+          map((bookingData) => {
+            const payment = payResult ? normalizePaymentRow(payResult) : undefined;
+            const booking = bookingData ? normalizeBookingRow(bookingData) : null;
+            return payment ? buildReceiptFromPaymentAndBooking(payment, booking) : buildEmptyReceipt();
+          })
+        )
+      ),
+      catchError((error: unknown) =>
+        throwError(() => new Error(extractApiErrorMessage(error, 'Failed to confirm payment.')))
+      )
+    ).subscribe({
       next: async (receipt) => {
         this.closePaymentModal();
         this.refreshBooking();
@@ -658,7 +678,7 @@ export class StaffBookingDetailPage implements OnInit {
     }
 
     this.isActing = true;
-    this.bookingService.waivePayment$(this.booking.id, waiveReason).subscribe({
+    this.apiService.patch('payments/' + this.booking.id + '/waive', { reason: waiveReason }).subscribe({
       next: async () => {
         this.closeWaiveModal();
         this.refreshBooking();

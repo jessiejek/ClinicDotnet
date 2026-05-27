@@ -409,7 +409,7 @@ export class StaffPaymentsPage implements OnInit {
     }
 
     this.isSubmitting = true;
-    this.bookingService.waivePayment$(this.waiveTarget.bookingId, waiveReason).subscribe({
+    this.apiService.patch('payments/' + this.waiveTarget.bookingId + '/waive', { reason: waiveReason }).subscribe({
       next: async () => {
         this.closeWaiveModal();
         this.loadQueue();

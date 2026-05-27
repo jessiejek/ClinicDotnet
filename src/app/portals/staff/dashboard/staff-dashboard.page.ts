@@ -198,10 +198,10 @@ export class StaffDashboardPage implements OnInit {
   onQueueAction(event: { action: string; bookingId: string }): void {
     switch (event.action) {
       case 'check-in':
-        this.bookingService.checkInBooking(event.bookingId).subscribe();
+        this.apiService.patch('bookings/' + event.bookingId + '/check-in', {}).subscribe();
         break;
       case 'undo-check-in':
-        this.bookingService.undoCheckInBooking(event.bookingId).subscribe();
+        this.apiService.patch('bookings/' + event.bookingId + '/undo-check-in', {}).subscribe();
         break;
       case 'collect-payment':
         void this.goToPaymentQueue();

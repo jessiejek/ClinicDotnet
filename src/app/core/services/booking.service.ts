@@ -454,22 +454,6 @@ export class BookingService {
     void this.submitProof(bookingId, { proofType, proofValue }).subscribe();
   }
 
-  checkInBooking(id: string, dto: CheckInBookingRequest = {}): Observable<Booking> {
-    return this.requestBookingUpdate(
-      id,
-      this.runBookingAction$(id, 'check_in_booking'),
-      'Failed to check in booking.'
-    );
-  }
-
-  undoCheckInBooking(id: string): Observable<Booking> {
-    return this.requestBookingUpdate(
-      id,
-      this.runBookingAction$(id, 'undo_check_in'),
-      'Failed to undo check-in.'
-    );
-  }
-
   doctorCompleteBooking(id: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
     return this.requestBookingUpdate(
       id,
@@ -526,41 +510,6 @@ export class BookingService {
           return of(null);
         }),
         finalize(() => this.endLoading())
-      )
-      .subscribe();
-  }
-
-  waivePayment$(bookingId: string, reason: string): Observable<void> {
-    const previous = this.getBookingById(bookingId);
-    if (previous) {
-      this.patchBooking(bookingId, { paymentStatus: 'Waived', finalAmount: 0, amountDue: 0 });
-    }
-
-    return defer(() => {
-      this.beginLoading();
-      return this.runBookingAction$(bookingId, 'waive_professional_fee').pipe(
-        tap(() => {
-          void this.requestBookingById(bookingId, false).subscribe();
-        }),
-        map(() => void 0),
-        catchError((error: unknown) => {
-          if (previous) {
-            this.upsertBooking(previous);
-          }
-          return throwError(() => new Error(extractApiErrorMessage(error, 'Failed to waive payment.')));
-        }),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  waivePayment(bookingId: string, reason: string): void {
-    void this.waivePayment$(bookingId, reason)
-      .pipe(
-        catchError((error: unknown) => {
-          console.error('Failed to waive payment.', error);
-          return of(void 0);
-        })
       )
       .subscribe();
   }
