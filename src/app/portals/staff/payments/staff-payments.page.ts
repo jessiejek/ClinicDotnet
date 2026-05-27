@@ -2,17 +2,12 @@ import { DecimalPipe, DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, map, throwError } from 'rxjs';
+import { catchError, map, of, switchMap, throwError } from 'rxjs';
 import { ToastController } from '@ionic/angular/standalone';
 import { ApiService } from '../../../core/services/api.service';
-import {
-  BookingService,
-  ConfirmPaymentRequest,
-  PagedResult,
-  StaffForPaymentItem
-} from '../../../core/services/booking.service';
+import { ConfirmPaymentRequest, PagedResult, StaffForPaymentItem } from '../../../core/services/booking.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
-import { ReceiptData } from '../../../core/models';
+import { Payment, ReceiptData } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
@@ -228,7 +223,6 @@ interface CollectPaymentMethodOption {
 })
 export class StaffPaymentsPage implements OnInit {
   private readonly apiService = inject(ApiService);
-  private readonly bookingService = inject(BookingService);
   private readonly toastCtrl = inject(ToastController);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
   private readonly destroyRef = inject(DestroyRef);
@@ -372,7 +366,23 @@ export class StaffPaymentsPage implements OnInit {
     }
 
     this.isSubmitting = true;
-    this.bookingService.confirmPayment(this.selectedItem.paymentId, payload).subscribe({
+    const bookingId = this.selectedItem.paymentId;
+    const selectedItem = this.selectedItem;
+    this.apiService.patch<any>('payments/' + bookingId + '/confirm', {
+      p_booking_id: bookingId,
+      p_amount: payload.amountReceived,
+      p_payment_method: payload.paymentMethod,
+      p_reference_number: payload.referenceNumber ?? null,
+      p_or_number: null
+    }).pipe(
+      map((payResult) => {
+        const payment = payResult ? normalizePaymentRow(payResult) : undefined;
+        return payment ? buildReceiptFromPaymentAndItem(payment, selectedItem) : buildEmptyReceipt();
+      }),
+      catchError((error: unknown) =>
+        throwError(() => new Error(extractApiErrorMessage(error, 'Failed to confirm payment.')))
+      )
+    ).subscribe({
       next: async (receipt) => {
         this.closePaymentModal();
         this.loadQueue();
@@ -550,6 +560,96 @@ function normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffFor
     doctorCompletedAt: trimOptionalString(row['doctor_completed_at'] ?? row['doctorCompletedAt']),
     paymentStatus: paymentStatus as StaffForPaymentItem['paymentStatus'],
     status: status as StaffForPaymentItem['status']
+  };
+}
+
+function normalizePaymentRow(payload: unknown): Payment | undefined {
+  if (!payload || typeof payload !== 'object') {
+    return undefined;
+  }
+
+  const row = payload as Record<string, unknown>;
+  const id = trimOptionalString(row['id'] ?? row['paymentId']);
+  if (!id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    bookingId: trimOptionalString(row['bookingId'] ?? row['booking_id']) ?? '',
+    amount: normalizeNumber(row['amount'] ?? row['payment_amount']),
+    paymentMethod: (trimOptionalString(row['paymentMethod'] ?? row['payment_method']) as Payment['paymentMethod']) ?? 'Cash',
+    referenceNumber: trimOptionalString(row['referenceNumber'] ?? row['reference_number']) ?? undefined,
+    orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']) ?? undefined,
+    verifiedAt: trimOptionalString(row['verifiedAt'] ?? row['verified_at']) ?? undefined,
+    waivedAt: trimOptionalString(row['waivedAt'] ?? row['waived_at']) ?? undefined,
+    waivedReason: trimOptionalString(row['waivedReason'] ?? row['waived_reason']) ?? undefined,
+    waivedByName: trimOptionalString(row['waivedByName'] ?? row['waived_by_name']) ?? undefined,
+    cashierName: trimOptionalString(row['cashierName'] ?? row['cashier_name']) ?? undefined,
+    verifiedByName: trimOptionalString(row['verifiedByName'] ?? row['verified_by_name']) ?? undefined,
+    status: (trimOptionalString(row['status'] ?? row['payment_status']) as Payment['status']) ?? 'Pending'
+  };
+}
+
+function buildReceiptFromPaymentAndItem(payment: Payment, item: StaffForPaymentItem | null): ReceiptData {
+  const services = item?.services?.length ? item.services : [];
+
+  return {
+    paymentId: payment.id,
+    bookingId: payment.bookingId || item?.bookingId || '',
+    orNumber: payment.orNumber ?? '-',
+    patientName: item?.patientName ?? 'Patient',
+    patientCode: '',
+    doctorName: item?.doctorName ?? 'Doctor',
+    services,
+    appointmentDate: item?.appointmentDate ?? '',
+    slotStartTime: item?.slotStartTime ?? '',
+    slotTime: item?.slotStartTime,
+    queueNumber: item?.queueNumber ?? null,
+    paymentStatus: item?.paymentStatus ?? 'Unpaid',
+    paymentMethod: payment.paymentMethod,
+    totalFee: item?.amountDue ?? payment.amount,
+    amountPaid: payment.amount,
+    referenceNumber: payment.referenceNumber ?? undefined,
+    paidAt: payment.verifiedAt ?? undefined,
+    cashierName: payment.cashierName ?? undefined,
+    verifiedByName: payment.verifiedByName ?? undefined,
+    doctorCompletedAt: item?.doctorCompletedAt ?? undefined,
+    isWaived: Boolean(payment.waivedAt),
+    waivedReason: payment.waivedReason ?? undefined,
+    waivedByName: payment.waivedByName ?? undefined,
+    waivedAt: payment.waivedAt ?? undefined
+  };
+}
+
+function buildEmptyReceipt(): ReceiptData {
+  return {
+    paymentId: '',
+    bookingId: '',
+    orNumber: '-',
+    patientName: 'Patient',
+    patientCode: '',
+    doctorName: 'Doctor',
+    services: [],
+    appointmentDate: '',
+    slotStartTime: '',
+    slotTime: '',
+    queueNumber: null,
+    paymentStatus: 'Unpaid',
+    paymentMethod: 'PayAtClinic',
+    totalFee: 0,
+    amountPaid: undefined,
+    referenceNumber: undefined,
+    paidAt: undefined,
+    cashierName: undefined,
+    verifiedByName: undefined,
+    doctorCompletedAt: undefined,
+    isWaived: false,
+    waivedReason: undefined,
+    waivedByName: undefined,
+    waivedAt: undefined,
+    clinicName: undefined,
+    clinicAddress: undefined
   };
 }
 

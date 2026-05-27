@@ -462,58 +462,6 @@ export class BookingService {
     );
   }
 
-  confirmPayment(paymentId: string, dto: ConfirmPaymentRequest): Observable<ReceiptData>;
-  confirmPayment(bookingId: string): void;
-  confirmPayment(id: string, dto?: ConfirmPaymentRequest): Observable<ReceiptData> | void {
-    if (dto) {
-      return defer(() => {
-        this.beginLoading();
-        return this.recordPayment$(id, dto).pipe(
-          catchError((error: unknown) =>
-            throwError(() => new Error(extractApiErrorMessage(error, 'Failed to confirm payment.')))
-          ),
-          finalize(() => this.endLoading())
-        );
-      });
-    }
-
-    const bookingId = id;
-    const previous = this.getBookingById(bookingId);
-    const amountDue = previous?.finalAmount ?? previous?.amountDue ?? previous?.totalFee ?? 0;
-
-    if (previous) {
-      this.patchBooking(bookingId, { paymentStatus: 'Paid' });
-    }
-
-    if (amountDue <= 0) {
-      console.warn('Cannot confirm payment without a positive amount due.');
-      if (previous) {
-        this.upsertBooking(previous);
-      }
-      return;
-    }
-
-    this.beginLoading();
-    this.recordPayment$(bookingId, {
-      paymentMethod: 'Cash',
-      amountReceived: amountDue
-    })
-      .pipe(
-        tap(() => {
-          void this.requestBookingById(bookingId, false).subscribe();
-        }),
-        catchError((error: unknown) => {
-          if (previous) {
-            this.upsertBooking(previous);
-          }
-          console.error('Failed to confirm payment.', error);
-          return of(null);
-        }),
-        finalize(() => this.endLoading())
-      )
-      .subscribe();
-  }
-
   refundPayment(bookingId: string, reason: string): void {
     const previous = this.getBookingById(bookingId);
     if (previous) {
@@ -773,91 +721,10 @@ export class BookingService {
     );
   }
 
-  private recordPayment$(id: string, dto: ConfirmPaymentRequest): Observable<ReceiptData> {
-    return this.resolveBookingIdForPaymentObservable(id).pipe(
-      switchMap((bookingId) =>
-        this.apiService.patch<ReceiptData>(`payments/${bookingId}/confirm`, {
-          p_booking_id: bookingId,
-          p_amount: dto.amountReceived,
-          p_payment_method: dto.paymentMethod,
-          p_reference_number: trimOptionalString(dto.referenceNumber) ?? null,
-          p_or_number: null
-        })
-      ),
-      switchMap((payResult) => {
-        const row = (payResult ?? {}) as unknown as Record<string, unknown>;
-        return this.fetchBookingByIdObservable(id).pipe(
-          map((booking) => buildReceiptFromBooking(booking, dto, row))
-        );
-      })
-    );
-  }
-
-  private resolveBookingIdForPaymentObservable(id: string): Observable<string> {
-    const cached = this.snapshot.find((booking) => booking.id === id || booking.payment?.id === id);
-    if (cached) {
-      return of(cached.id);
-    }
-
-    return this.apiService.get<any>('bookings/' + id + '/payment').pipe(
-      map((byPaymentId) => {
-        const record = byPaymentId as Record<string, unknown> | undefined;
-        return record && record['bookingId'] ? String(record['bookingId']) : id;
-      })
-    );
-  }
-
   private fetchBookingByIdObservable(id: string): Observable<Booking | undefined> {
     return this.apiService.get<any>('bookings/' + id).pipe(
       map((data) => data ? this.normalizeBooking(mapBookingViewRow(data as Record<string, unknown>)) : undefined)
     );
-  }
-
-  private buildEmptyReceipt(): ReceiptData {
-    return {
-      bookingId: '',
-      paymentId: '',
-      orNumber: '-',
-      patientName: 'Patient',
-      doctorName: 'Doctor',
-      appointmentDate: '',
-      paymentMethod: '',
-    };
-  }
-
-  private buildReceiptFromPaymentAndBooking(payment: Payment, booking: Booking | undefined): ReceiptData {
-    const services = booking?.serviceNames?.length
-      ? booking.serviceNames
-      : booking?.serviceName
-        ? [booking.serviceName]
-        : [];
-
-    return {
-      bookingId: booking?.id ?? payment.bookingId ?? '',
-      paymentId: payment.id ?? '',
-      orNumber: payment.orNumber ?? '-',
-      patientName: booking?.patientName ?? 'Patient',
-      doctorName: booking?.doctorName ?? 'Doctor',
-      services,
-      appointmentDate: booking?.appointmentDate ?? '',
-      slotStartTime: booking?.slotStartTime,
-      doctorCompletedAt: booking?.doctorCompletedAt,
-      paidAt: payment.paidAt,
-      amountPaid: payment.amount,
-      paymentMethod: payment.paymentMethod ?? 'Cash',
-      referenceNumber: payment.referenceNumber,
-      cashierName: payment.cashierName,
-      verifiedByName: payment.verifiedByName,
-      isWaived: payment.status === 'Waived',
-      waivedReason: payment.waivedReason,
-      waivedByName: payment.waivedByName,
-      waivedAt: payment.waivedAt,
-      totalFee: booking?.totalFee,
-      consultationFee: booking?.consultationFeeSnapshot,
-      serviceFee: booking?.serviceFeeSnapshot,
-      queueNumber: booking?.queueNumber,
-      paymentStatus: payment.status,
-    };
   }
 
   private replaceBookings(bookings: Booking[]): void {
