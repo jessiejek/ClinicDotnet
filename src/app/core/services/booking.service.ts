@@ -354,40 +354,6 @@ export class BookingService {
     );
   }
 
-  getUpcomingBookingsByPatientId(patientId: string): Observable<Booking[]> {
-    return this.getMyBookings(1, 100).pipe(
-      map(({ items }) =>
-        items
-          .filter(
-            (booking) =>
-              (!booking.patientId || booking.patientId === patientId) &&
-              ['Confirmed', 'CheckedIn'].includes(booking.status) &&
-              bookingDateTime(booking) >= Date.now()
-          )
-          .sort((a, b) => bookingDateTime(a) - bookingDateTime(b))
-      ),
-      catchError(() => of([]))
-    );
-  }
-
-  getPendingProofBookingsByPatientId(patientId: string): Observable<Booking[]> {
-    return this.getMyBookings(1, 100).pipe(
-      map(({ items }) =>
-        items
-          .filter(
-            (booking) =>
-              (!booking.patientId || booking.patientId === patientId) &&
-              booking.status === 'Completed' &&
-              booking.paymentStatus === 'Unpaid' &&
-              (booking.finalAmount ?? null) !== null &&
-              (booking.finalAmount ?? 0) > 0
-          )
-          .sort((a, b) => bookingDateTime(a) - bookingDateTime(b))
-      ),
-      catchError(() => of([]))
-    );
-  }
-
   /** @deprecated API-first ? use booking status filtering on the local cache instead. */
   getDoctorUpcoming(): Observable<Booking[]> {
     return this.getBookings({ doctorId: undefined }).pipe(
@@ -423,28 +389,6 @@ export class BookingService {
           console.warn('Failed to load doctor patients from API:', err);
           return of([]);
         }),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  getMyBookings(page = 1, pageSize = 20): Observable<MyBookingsPageResult> {
-    const currentPage = Math.max(1, page);
-    const safePageSize = Math.max(1, pageSize);
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any>('bookings?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
-        map((data: any) => {
-          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
-          const items = rows
-            .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-            .filter((booking): booking is Booking => Boolean(booking));
-          return { items, totalCount: data?.totalCount ?? items.length, page: currentPage, pageSize: safePageSize };
-        }),
-        tap((result) => this.mergeBookings(result.items)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load bookings from API.')))
-        ),
         finalize(() => this.endLoading())
       );
     });

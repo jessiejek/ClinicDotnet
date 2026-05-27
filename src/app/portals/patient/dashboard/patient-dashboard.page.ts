@@ -8,7 +8,6 @@ import { catchError, combineLatest, finalize, map, of, switchMap } from 'rxjs';
 import { AuthUser, Booking, Consultation, Doctor, Patient, Prescription } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { BookingService } from '../../../core/services/booking.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
 import { MedicalRecordsService } from '../../../core/services/medical-records.service';
@@ -218,7 +217,6 @@ export class PatientDashboardPage implements OnInit {
 
   private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
-  private readonly bookingService = inject(BookingService);
   private readonly clinicSettings = inject(ClinicSettingsService);
   private readonly doctorState = inject(DoctorStateService);
   private readonly medicalRecords = inject(MedicalRecordsService);
@@ -231,15 +229,43 @@ export class PatientDashboardPage implements OnInit {
     )
   );
 
-  readonly upcomingBookings$ = this.patient$.pipe(
+  readonly patientBookings$ = this.patient$.pipe(
     switchMap((patient) =>
-      patient ? this.bookingService.getUpcomingBookingsByPatientId(patient.id) : of([])
+      patient
+        ? this.apiService.get<any>('bookings?page=1&pageSize=100').pipe(
+            map((data) =>
+              mapDashboardBookings((data?.items ?? data ?? []) as Record<string, unknown>[], patient.id)
+                .filter((booking) => !booking.patientId || booking.patientId === patient.id)
+            ),
+            catchError(() => of([] as Booking[]))
+          )
+        : of([] as Booking[])
     )
   );
 
-  readonly pendingProofBookings$ = this.patient$.pipe(
-    switchMap((patient) =>
-      patient ? this.bookingService.getPendingProofBookingsByPatientId(patient.id) : of([])
+  readonly upcomingBookings$ = this.patientBookings$.pipe(
+    map((bookings) =>
+      bookings
+        .filter(
+          (booking) =>
+            ['Confirmed', 'CheckedIn'].includes(booking.status) &&
+            bookingDateTime(booking) >= Date.now()
+        )
+        .sort((a, b) => bookingDateTime(a) - bookingDateTime(b))
+    )
+  );
+
+  readonly pendingProofBookings$ = this.patientBookings$.pipe(
+    map((bookings) =>
+      bookings
+        .filter(
+          (booking) =>
+            booking.status === 'Completed' &&
+            booking.paymentStatus === 'Unpaid' &&
+            (booking.finalAmount ?? null) !== null &&
+            (booking.finalAmount ?? 0) > 0
+        )
+        .sort((a, b) => bookingDateTime(a) - bookingDateTime(b))
     )
   );
 
@@ -368,4 +394,159 @@ export class PatientDashboardPage implements OnInit {
   getWelcomeName(user: AuthUser | null): string {
     return user?.fullName?.split(' ')?.[0] ?? '';
   }
+}
+
+function mapDashboardBookings(rows: Record<string, unknown>[], patientId: string): Booking[] {
+  return rows
+    .map((row) => mapDashboardBookingRow(row, patientId))
+    .filter((booking): booking is Booking => Boolean(booking));
+}
+
+function mapDashboardBookingRow(row: Record<string, unknown>, patientId: string): Booking | undefined {
+  const id = trimOptionalString(row['booking_id']) ?? trimOptionalString(row['id']);
+  if (!id) {
+    return undefined;
+  }
+
+  const serviceNames = normalizeStringArray(row['service_names']);
+  const services = normalizeServices(row['services']);
+  const derivedServiceNames = serviceNames.length > 0
+    ? serviceNames
+    : services.map((service) => service.name).filter((name) => name.trim().length > 0);
+  const serviceName = trimOptionalString(row['service_name']) ?? derivedServiceNames[0] ?? 'Service';
+  const serviceId = trimOptionalString(row['service_id']) ?? services[0]?.id ?? '';
+  const slotStartTime = normalizeTimeOnly(row['slot_start_time']);
+  const slotEndTime = normalizeTimeOnly(row['slot_end_time']) || slotStartTime;
+
+  return {
+    id,
+    patientId: trimOptionalString(row['patient_id']) ?? patientId,
+    patientName: trimOptionalString(row['patient_name']) ?? undefined,
+    doctorId: trimOptionalString(row['doctor_id']) ?? '',
+    doctorName: trimOptionalString(row['doctor_name']) ?? undefined,
+    serviceId,
+    serviceIds: normalizeStringArray(row['service_ids']),
+    serviceName,
+    serviceNames: derivedServiceNames,
+    services,
+    appointmentDate: normalizeDateOnly(row['appointment_date']),
+    slotStartTime,
+    slotEndTime,
+    status: (trimOptionalString(row['booking_status']) ?? 'Pending') as Booking['status'],
+    paymentStatus: (trimOptionalString(row['payment_status']) ?? 'Unpaid') as Booking['paymentStatus'],
+    paymentMode: (trimOptionalString(row['payment_mode']) ?? 'PayAtClinic') as Booking['paymentMode'],
+    queueNumber: normalizeNullableNumber(row['queue_number']),
+    totalFee: normalizeNumber(row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amount_due']) ?? normalizeNullableNumber(row['final_amount']),
+    consultationFeeSnapshot: normalizeNumber(row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['is_walk_in'], false),
+    createdAt: trimOptionalString(row['created_at']) ?? new Date().toISOString()
+  };
+}
+
+function normalizeServices(value: unknown): Array<{ id: string; name: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const name = item.trim();
+        return name ? { id: '', name } : undefined;
+      }
+
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+        return undefined;
+      }
+
+      const row = item as Record<string, unknown>;
+      const id = trimOptionalString(row['id']) ?? trimOptionalString(row['serviceId']) ?? '';
+      const name = trimOptionalString(row['name']) ?? trimOptionalString(row['serviceName']) ?? '';
+      return id || name ? { id, name } : undefined;
+    })
+    .filter((item): item is { id: string; name: string } => Boolean(item));
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => trimOptionalString(item)).filter((item): item is string => Boolean(item));
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return '';
+  }
+
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+function normalizeTimeOnly(value: unknown): string {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return '';
+  }
+
+  return raw.length >= 5 ? raw.slice(0, 5) : raw;
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return fallback;
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function bookingDateTime(booking: Booking): number {
+  const date = booking.appointmentDate?.trim() || '1970-01-01';
+  const time = booking.slotStartTime?.trim() || '00:00';
+  return new Date(`${date}T${time}:00`).getTime();
 }
