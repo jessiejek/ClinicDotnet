@@ -2,12 +2,10 @@ import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, firstValueFrom } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { ToastController } from '@ionic/angular/standalone';
-import { takeUntil } from 'rxjs/operators';
 import { BaseComponent } from '../../../core/base/base.component';
-import { Booking, Doctor, Patient, Service, ReceiptData } from '../../../core/models';
-import { BookingService } from '../../../core/services/booking.service';
+import { Booking, Doctor, Patient, PaymentMethod, ReceiptData } from '../../../core/models';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
@@ -222,7 +220,6 @@ interface PatientDetails {
   styleUrl: './booking-detail.page.scss'
 })
 export class BookingDetailPage extends BaseComponent implements OnInit {
-  private readonly bookingService = inject(BookingService);
   private readonly apiService = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -250,9 +247,25 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
-    this.bookingService.isLoading$.subscribe((loading) => (this.isLoading = loading));
-    this.bookingService.getBookingById$(id).subscribe(async (booking) => {
-      this.booking = booking ?? null;
+    void this.loadBooking(id);
+  }
+
+  private async loadBooking(id: string, trackLoading = true): Promise<void> {
+    if (!id) {
+      this.booking = null;
+      this.doctor = null;
+      this.serviceName = '';
+      return;
+    }
+
+    if (trackLoading) {
+      this.isLoading = true;
+    }
+
+    try {
+      const data: unknown = await firstValueFrom(this.apiService.get('bookings/' + id));
+      const booking = normalizeAdminBookingDetail(data);
+      this.booking = booking;
 
       if (booking) {
         this.doctor = booking.doctor
@@ -266,8 +279,20 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
 
         this.serviceName = booking.serviceName || '—';
         await this.loadPatientDetails(booking.patientId);
+      } else {
+        this.doctor = null;
+        this.serviceName = '';
       }
-    });
+    } catch (err: any) {
+      console.warn('Could not load booking details:', err?.message);
+      this.booking = null;
+      this.doctor = null;
+      this.serviceName = '';
+    } finally {
+      if (trackLoading) {
+        this.isLoading = false;
+      }
+    }
   }
 
   private async loadPatientDetails(patientId: string): Promise<void> {
@@ -419,10 +444,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
 
   private async refreshBooking(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
-    this.bookingService.refresh();
-    this.bookingService.getBookingById$(id).subscribe((b) => {
-      this.booking = b ?? null;
-    });
+    await this.loadBooking(id, false);
   }
 
   async waivePayment(bookingId: string, reason: string): Promise<void> {
@@ -510,3 +532,235 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
     await toast.present();
   }
 }
+
+function normalizeAdminBookingDetail(payload: unknown): Booking | null {
+  const row = isRecord(payload) ? payload : null;
+  if (!row) {
+    return null;
+  }
+
+  const id = trimOptionalString(row['id'] ?? row['bookingId'] ?? row['booking_id']);
+  if (!id) {
+    return null;
+  }
+
+  const patient = normalizeBookingPatient(row['patient']);
+  const doctor = normalizeBookingDoctor(row['doctor']);
+  const payment = normalizePaymentRecord(row['payment']);
+  const appointmentDate = trimOptionalString(row['appointmentDate'] ?? row['appointment_date']) ?? '';
+  const slotStartTime = trimOptionalString(row['slotStartTime'] ?? row['slot_start_time']) ?? '';
+  const slotEndTime = trimOptionalString(row['slotEndTime'] ?? row['slot_end_time']) ?? slotStartTime;
+  const serviceId = trimOptionalString(row['serviceId'] ?? row['service_id']) ?? '';
+  const serviceName = trimOptionalString(row['serviceName'] ?? row['service_name']);
+
+  return {
+    id,
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? patient?.id ?? '',
+    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? patient?.fullName ?? '',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? doctor?.id ?? '',
+    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? doctor?.fullName ?? '',
+    serviceId,
+    serviceIds: serviceId ? [serviceId] : [],
+    serviceName,
+    serviceNames: serviceName ? [serviceName] : [],
+    services: [],
+    appointmentDate,
+    slotStartTime,
+    slotEndTime,
+    status: normalizeBookingStatus(row['status'] ?? row['booking_status']) ?? 'Pending',
+    paymentStatus: normalizePaymentStatus(row['paymentStatus'] ?? row['payment_status']) ?? payment?.status ?? 'Unpaid',
+    paymentMode: normalizePaymentMode(row['paymentMode'] ?? row['payment_mode']) ?? 'PayAtClinic',
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amountDue'] ?? row['amount_due']),
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in'], false),
+    proofType: normalizeProofType(row['proofType'] ?? row['proof_type']),
+    proofValue: trimOptionalString(row['proofValue'] ?? row['proof_value']),
+    proofSubmittedAt: trimOptionalString(row['proofSubmittedAt'] ?? row['proof_submitted_at']),
+    cancellationReason: trimOptionalString(row['cancellationReason'] ?? row['cancellation_reason']),
+    notes: trimOptionalString(row['notes']),
+    rescheduledFromBookingId: trimOptionalString(row['rescheduledFromBookingId'] ?? row['rescheduled_from_booking_id']),
+    receiptUrl: trimOptionalString(row['receiptUrl'] ?? row['receipt_url']),
+    createdAt: trimOptionalString(row['createdAt'] ?? row['created_at']) ?? new Date().toISOString(),
+    orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']) ?? payment?.orNumber,
+    checkedInAt: trimOptionalString(row['checkedInAt'] ?? row['checked_in_at']),
+    doctorCompletedAt: trimOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: trimOptionalString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']),
+    patient,
+    doctor,
+    payment
+  };
+}
+
+function normalizeBookingPatient(payload: unknown): Booking['patient'] | undefined {
+  const row = isRecord(payload) ? payload : null;
+  if (!row) {
+    return undefined;
+  }
+
+  const id = trimOptionalString(row['id'] ?? row['patientId']);
+  if (!id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    patientCode: trimOptionalString(row['patientCode'] ?? row['patient_code']),
+    firstName: trimOptionalString(row['firstName'] ?? row['first_name']),
+    middleName: trimOptionalString(row['middleName'] ?? row['middle_name']),
+    lastName: trimOptionalString(row['lastName'] ?? row['last_name']),
+    fullName: trimOptionalString(row['fullName'] ?? row['full_name']),
+    dateOfBirth: trimOptionalString(row['dateOfBirth'] ?? row['date_of_birth']),
+    sex: trimOptionalString(row['sex']),
+    contactNumber: trimOptionalString(row['contactNumber'] ?? row['contact_number']),
+    email: trimOptionalString(row['email']),
+    isGuest: normalizeBooleanOrUndefined(row['isGuest'] ?? row['is_guest'])
+  };
+}
+
+function normalizeBookingDoctor(payload: unknown): Booking['doctor'] | undefined {
+  const row = isRecord(payload) ? payload : null;
+  if (!row) {
+    return undefined;
+  }
+
+  const id = trimOptionalString(row['id'] ?? row['doctorId']);
+  if (!id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    userId: trimOptionalString(row['userId'] ?? row['user_id']),
+    fullName: trimOptionalString(row['fullName'] ?? row['full_name']),
+    specialization: trimOptionalString(row['specialization']),
+    consultationFee: normalizeNullableNumber(row['consultationFee'] ?? row['consultation_fee']) ?? undefined,
+    status: trimOptionalString(row['status']),
+    profilePhotoUrl: trimOptionalString(row['profilePhotoUrl'] ?? row['profile_photo_url'])
+  };
+}
+
+function normalizePaymentRecord(payload: unknown): Booking['payment'] | undefined {
+  const row = isRecord(payload) ? payload : null;
+  if (!row) {
+    return undefined;
+  }
+
+  const id = trimOptionalString(row['id']);
+  const bookingId = trimOptionalString(row['bookingId'] ?? row['booking_id']);
+  if (!id || !bookingId) {
+    return undefined;
+  }
+
+  return {
+    id,
+    bookingId,
+    amount: normalizeNumber(row['amount']),
+    paymentMethod: normalizePaymentMethod(row['paymentMethod'] ?? row['payment_method']) ?? 'PayAtClinic',
+    referenceNumber: trimOptionalString(row['referenceNumber'] ?? row['reference_number']),
+    proofImageUrl: trimOptionalString(row['proofImageUrl'] ?? row['proof_image_url']),
+    status: normalizePaymentStatus(row['status']) ?? 'Unpaid',
+    orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']),
+    verifiedByUserId: trimOptionalString(row['verifiedByUserId'] ?? row['verified_by_user_id']),
+    verifiedAt: trimOptionalString(row['verifiedAt'] ?? row['verified_at']),
+    verifiedByName: trimOptionalString(row['verifiedByName'] ?? row['verified_by_name']),
+    cashierName: trimOptionalString(row['cashierName'] ?? row['cashier_name']),
+    paidAt: trimOptionalString(row['paidAt'] ?? row['paid_at']),
+    waivedByUserId: trimOptionalString(row['waivedByUserId'] ?? row['waived_by_user_id']),
+    waivedAt: trimOptionalString(row['waivedAt'] ?? row['waived_at']),
+    waivedByName: trimOptionalString(row['waivedByName'] ?? row['waived_by_name']),
+    waivedReason: trimOptionalString(row['waivedReason'] ?? row['waived_reason']),
+    refundedByUserId: trimOptionalString(row['refundedByUserId'] ?? row['refunded_by_user_id']),
+    refundedAt: trimOptionalString(row['refundedAt'] ?? row['refunded_at']),
+    refundReason: trimOptionalString(row['refundReason'] ?? row['refund_reason'])
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return fallback;
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  return normalizeBoolean(value);
+}
+
+function normalizeBookingStatus(value: unknown): Booking['status'] | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? (normalized as Booking['status']) : undefined;
+}
+
+function normalizePaymentStatus(value: unknown): Booking['paymentStatus'] | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? (normalized as Booking['paymentStatus']) : undefined;
+}
+
+function normalizePaymentMode(value: unknown): Booking['paymentMode'] | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? (normalized as Booking['paymentMode']) : undefined;
+}
+
+function normalizePaymentMethod(value: unknown): PaymentMethod | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? (normalized as PaymentMethod) : undefined;
+}
+
+function normalizeProofType(value: unknown): Booking['proofType'] | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? (normalized as Booking['proofType']) : undefined;
+}
+
