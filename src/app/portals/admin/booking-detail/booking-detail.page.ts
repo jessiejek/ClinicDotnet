@@ -369,7 +369,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
 
       switch (action) {
         case 'confirm':
-          await this.bookingService.confirmBooking(bookingId);
+          await firstValueFrom(this.apiService.patch('bookings/' + bookingId + '/confirm', {}));
           await this.recordAuditLog(bookingId, 'Confirmed booking', currentUserId, reason);
           break;
         case 'reject':

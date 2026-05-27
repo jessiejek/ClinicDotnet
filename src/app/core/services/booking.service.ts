@@ -478,46 +478,6 @@ export class BookingService {
     );
   }
 
-  confirmBooking(bookingId: string): void {
-    this.runVoidMutation(
-      bookingId,
-      { status: 'Confirmed' },
-      this.runBookingAction$(bookingId, 'confirm_booking')
-    );
-  }
-
-  cancelBooking(bookingId: string, reason: string): void {
-    this.runVoidMutation(
-      bookingId,
-      { status: 'Cancelled', cancellationReason: reason },
-      this.apiService.patch('bookings/' + bookingId + '/cancel', { reason })
-    );
-  }
-
-  completeBooking(bookingId: string): void {
-    this.runVoidMutation(
-      bookingId,
-      { status: 'Completed' },
-      this.runBookingAction$(bookingId, 'complete_booking_basic')
-    );
-  }
-
-  markComplete(bookingId: string): void {
-    this.completeBooking(bookingId);
-  }
-
-  markNoShow(bookingId: string): void {
-    this.runVoidMutation(
-      bookingId,
-      { status: 'NoShow' },
-      this.runBookingAction$(bookingId, 'no_show_booking')
-    );
-  }
-
-  rejectBooking(bookingId: string, reason: string): void {
-    this.cancelBooking(bookingId, reason);
-  }
-
   confirmPayment(paymentId: string, dto: ConfirmPaymentRequest): Observable<ReceiptData>;
   confirmPayment(bookingId: string): void;
   confirmPayment(id: string, dto?: ConfirmPaymentRequest): Observable<ReceiptData> | void {
@@ -762,30 +722,6 @@ export class BookingService {
         finalize(() => this.endLoading())
       );
     });
-  }
-
-  private runVoidMutation(bookingId: string, optimisticPatch: Partial<Booking>, request$: Observable<unknown>): void {
-    const previous = this.getBookingById(bookingId);
-    if (previous) {
-      this.patchBooking(bookingId, optimisticPatch);
-    }
-
-    this.beginLoading();
-    request$
-      .pipe(
-        tap(() => {
-          void this.requestBookingById(bookingId, false).subscribe();
-        }),
-        catchError((error: unknown) => {
-          if (previous) {
-            this.upsertBooking(previous);
-          }
-          console.error('Booking update failed.', error);
-          return of(null);
-        }),
-        finalize(() => this.endLoading())
-      )
-      .subscribe();
   }
 
   private requestPaymentByBookingId(bookingId: string): Observable<Payment | undefined> {
