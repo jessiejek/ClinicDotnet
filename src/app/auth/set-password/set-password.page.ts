@@ -2,9 +2,12 @@ import { NgIf } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { IonInput, IonItem, IonLabel, ToastController } from '@ionic/angular/standalone';
-import { AuthService } from '../../core/services/auth.service';
+import { catchError, finalize, map, of } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
 import { AuthStateService } from '../../core/services/auth-state.service';
+import { AuthService, AuthUserDto } from '../../core/services/auth.service';
 import { ClinicSettingsService } from '../../core/services/clinic-settings.service';
+import { TokenService } from '../../core/services/token.service';
 import { passwordStrengthValidator } from '../../shared/validators/password-strength.validator';
 import { AuthLayoutComponent } from '../components/auth-layout/auth-layout.component';
 
@@ -24,7 +27,9 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
 export class SetPasswordPage {
   private readonly fb = inject(FormBuilder);
   private readonly authState = inject(AuthStateService);
+  private readonly apiService = inject(ApiService);
   private readonly authService = inject(AuthService);
+  private readonly tokenService = inject(TokenService);
   private readonly clinicSettings = inject(ClinicSettingsService);
   private readonly toast = inject(ToastController);
   private readonly currentUser = this.authState.currentUser;
@@ -51,9 +56,21 @@ export class SetPasswordPage {
     }
     this.saving = true;
     const { newPassword, confirmPassword } = this.form.getRawValue();
-    this.authState.setPassword(newPassword, confirmPassword).subscribe({
+    this.apiService
+      .post<AuthUserDto>('auth/set-password', { newPassword, confirmPassword })
+      .pipe(
+        map((user) => this.authService.toAuthUser(user, this.tokenService.getAccessToken() ?? undefined)),
+        catchError(() => of(null)),
+        finalize(() => {
+          this.saving = false;
+        })
+      )
+      .subscribe({
       next: async (user) => {
-        this.saving = false;
+        if (!user) {
+          return;
+        }
+        this.authState.setUser(user);
         const t = await this.toast.create({
           message: 'Password set successfully. Welcome!',
           duration: 2500,
@@ -62,9 +79,7 @@ export class SetPasswordPage {
         await t.present();
         this.authService.navigateByRole(user);
       },
-      error: () => {
-        this.saving = false;
-      }
+      error: () => undefined
     });
   }
 }

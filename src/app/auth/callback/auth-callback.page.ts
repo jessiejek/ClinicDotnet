@@ -1,8 +1,11 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { AuthService } from '../../core/services/auth.service';
+import { ApiService } from '../../core/services/api.service';
+import { AuthUser } from '../../core/models';
 import { AuthStateService } from '../../core/services/auth-state.service';
+import { AuthService, AuthUserDto } from '../../core/services/auth.service';
+import { TokenService } from '../../core/services/token.service';
 
 @Component({
   selector: 'app-auth-callback',
@@ -20,15 +23,16 @@ import { AuthStateService } from '../../core/services/auth-state.service';
   `]
 })
 export class AuthCallbackPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly authService = inject(AuthService);
   private readonly authState = inject(AuthStateService);
+  private readonly tokenService = inject(TokenService);
   private readonly router = inject(Router);
 
   statusText = 'Completing sign in...';
 
   async ngOnInit(): Promise<void> {
     try {
-      // Check if there's a JWT token in the URL hash (from .NET OAuth redirect)
       const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
       const tokenFromHash = hashParams.get('access_token');
       const errorFromHash = hashParams.get('error');
@@ -40,13 +44,12 @@ export class AuthCallbackPage implements OnInit {
         return;
       }
 
-      // If .NET redirected back with a token, store it and load user
       if (tokenFromHash) {
         const refreshToken = hashParams.get('refresh_token') ?? '';
-        this.authService['storeTokens'](tokenFromHash, refreshToken);
+        this.tokenService.setTokens(tokenFromHash, refreshToken);
 
         this.statusText = 'Loading your account...';
-        const user = await firstValueFrom(this.authService.restoreSession());
+        const user = await this.restoreSession();
         if (user) {
           this.authState.setUser(user);
           this.authService.navigateByRole(user);
@@ -54,15 +57,13 @@ export class AuthCallbackPage implements OnInit {
         }
       }
 
-      // No token in URL — try restoring existing session
-      const user2 = await firstValueFrom(this.authService.restoreSession());
+      const user2 = await this.restoreSession();
       if (user2) {
         this.authState.setUser(user2);
         this.authService.navigateByRole(user2);
         return;
       }
 
-      // No session at all — redirect to login
       this.statusText = 'No active session. Redirecting...';
       await new Promise((r) => setTimeout(r, 1000));
       void this.router.navigate(['/auth/login']);
@@ -71,6 +72,22 @@ export class AuthCallbackPage implements OnInit {
       this.statusText = 'Sign in failed.';
       await new Promise((r) => setTimeout(r, 2000));
       void this.router.navigate(['/auth/login']);
+    }
+  }
+
+  private async restoreSession(): Promise<AuthUser | null> {
+    const hasTokens = this.tokenService.hasAccessToken() || this.tokenService.hasRefreshToken();
+    if (!hasTokens) {
+      this.authService.clearSession();
+      return null;
+    }
+
+    try {
+      const user = await firstValueFrom(this.apiService.get<AuthUserDto>('auth/me'));
+      return this.authService.toAuthUser(user, this.tokenService.getAccessToken() ?? undefined);
+    } catch (error) {
+      this.authService.clearSession();
+      throw error;
     }
   }
 }

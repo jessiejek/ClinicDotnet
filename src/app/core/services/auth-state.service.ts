@@ -1,7 +1,6 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { BehaviorSubject, Observable, catchError, finalize, map, of, tap, throwError } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { AuthUser, Role } from '../models';
 import { AuthService } from './auth.service';
 
@@ -26,109 +25,23 @@ export class AuthStateService {
     return this.userSubject.value;
   }
 
-  restoreSession(): Observable<AuthUser | null> {
-    return this.authService.restoreSession().pipe(
-      tap((user) => {
-        this.userSubject.next(user);
-        if (user) {
-          this.authService.persistUser(user);
-        }
-      }),
-      catchError((err: unknown) => {
-        this.clearState();
-        return of(null);
-      })
-    );
+  setLoading(isLoading: boolean): void {
+    this.loadingSubject.next(isLoading);
   }
 
-  login(email: string, password: string): Observable<AuthUser> {
-    this.loadingSubject.next(true);
+  setError(message: string | null): void {
+    this.errorSubject.next(message);
+  }
+
+  clearError(): void {
     this.errorSubject.next(null);
-
-    return this.authService.login(email, password).pipe(
-      tap((user) => {
-        this.setUser(user);
-        this.authService.navigateByRole(user);
-      }),
-      catchError((err: unknown) => this.handleAuthError(err, 'Login failed.')),
-      finalize(() => this.loadingSubject.next(false))
-    );
   }
 
-  loginWithGoogle(): Observable<AuthUser> {
-    this.loadingSubject.next(true);
-    this.errorSubject.next(null);
-
-    return this.authService.loginWithGoogle().pipe(
-      tap((user) => {
-        this.setUser(user);
-        this.authService.navigateByRole(user);
-      }),
-      catchError((err: unknown) => this.handleAuthError(err, 'Google login failed.')),
-      finalize(() => this.loadingSubject.next(false))
-    );
-  }
-
-  loginWithFacebook(): Observable<AuthUser> {
-    this.loadingSubject.next(true);
-    this.errorSubject.next(null);
-
-    return this.authService.loginWithFacebook().pipe(
-      tap((user) => {
-        this.setUser(user);
-        this.authService.navigateByRole(user);
-      }),
-      catchError((err: unknown) => this.handleAuthError(err, 'Facebook login failed.')),
-      finalize(() => this.loadingSubject.next(false))
-    );
-  }
-
-  register(
-    firstName: string,
-    middleName: string | undefined,
-    lastName: string,
-    email: string,
-    password: string
-  ): Observable<AuthUser> {
-    this.loadingSubject.next(true);
-    this.errorSubject.next(null);
-
-    return this.authService.registerPatient(firstName, middleName, lastName, email, password).pipe(
-      tap((user) => {
-        this.setUser(user);
-        this.authService.navigateByRole(user);
-      }),
-      catchError((err: unknown) => this.handleAuthError(err, 'Registration failed.')),
-      finalize(() => this.loadingSubject.next(false))
-    );
-  }
-
-  setPassword(newPassword: string, confirmPassword: string): Observable<AuthUser> {
-    this.loadingSubject.next(true);
-    this.errorSubject.next(null);
-
-    return this.authService.setPassword(newPassword, confirmPassword).pipe(
-      tap((user) => {
-        this.setUser(user);
-      }),
-      catchError((err: unknown) => this.handleAuthError(err, 'Password update failed.')),
-      finalize(() => this.loadingSubject.next(false))
-    );
-  }
-
-  logout(): void {
-    this.clearState();
-    this.authService.logout();
-  }
-
-  /** @description Ensure a patients row exists for the logged-in user. .NET backend handles this on register. */
-  async ensurePatientRecord(): Promise<void> {
-    return; // .NET handles patient record creation server-side
-  }
-
-  setUser(user: AuthUser): void {
+  setUser(user: AuthUser | null): void {
     this.userSubject.next(user);
-    this.authService.persistUser(user);
+    if (user) {
+      this.authService.persistUser(user);
+    }
   }
 
   patchUser(changes: Partial<AuthUser>): void {
@@ -140,55 +53,30 @@ export class AuthStateService {
     this.setUser({ ...current, ...changes });
   }
 
-  clearError(): void {
-    this.errorSubject.next(null);
-  }
-
-  hasRole(roles: Role[]): Observable<boolean> {
-    return this.currentUser$.pipe(map((user) => !!user && roles.includes(user.role)));
-  }
-
-  private clearState(): void {
+  logout(): void {
     this.userSubject.next(null);
     this.errorSubject.next(null);
+    this.loadingSubject.next(false);
+    this.authService.clearSession();
   }
 
-  private handleAuthError(err: unknown, fallback: string): Observable<never> {
-    const message = this.extractErrorMessage(err, fallback);
-    this.errorSubject.next(message);
-    return throwError(() => new Error(message));
+  /** @description Ensure a patients row exists for the logged-in user. .NET backend handles this on register. */
+  async ensurePatientRecord(): Promise<void> {
+    return; // .NET handles patient record creation server-side
   }
 
-  private extractErrorMessage(err: unknown, fallback: string): string {
-    if (err instanceof HttpErrorResponse) {
-      const errorBody = err.error as {
-        message?: string;
-        errors?: Record<string, string[] | string>;
-      } | null;
+  clearState(): void {
+    this.userSubject.next(null);
+    this.errorSubject.next(null);
+    this.loadingSubject.next(false);
+  }
 
-      if (typeof errorBody?.message === 'string' && errorBody.message.trim()) {
-        return errorBody.message;
-      }
+  clearUser(): void {
+    this.userSubject.next(null);
+  }
 
-      if (errorBody?.errors) {
-        for (const value of Object.values(errorBody.errors)) {
-          const values = Array.isArray(value) ? value : [value];
-          const firstValidationError = values.find((item) => typeof item === 'string' && item.trim().length > 0);
-          if (typeof firstValidationError === 'string') {
-            return firstValidationError;
-          }
-        }
-      }
-
-      if (typeof err.message === 'string' && err.message.trim()) {
-        return err.message;
-      }
-    }
-
-    if (err instanceof Error) {
-      return err.message || fallback;
-    }
-
-    return fallback;
+  hasRole(roles: Role[]): boolean {
+    const user = this.userSubject.value;
+    return !!user && roles.includes(user.role);
   }
 }

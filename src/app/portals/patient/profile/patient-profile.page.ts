@@ -22,8 +22,8 @@ import { alertCircleOutline, lockClosedOutline } from 'ionicons/icons';
 import { catchError, finalize, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthUser, Patient, UpdatePatientRequest } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { AuthService } from '../../../core/services/auth.service';
 import { PatientService } from '../services/patient.service';
 import {
   getPasswordStrength,
@@ -347,7 +347,7 @@ interface NameParts {
 })
 export class PatientProfilePage implements OnInit {
   private readonly authState = inject(AuthStateService);
-  private readonly authService = inject(AuthService);
+  private readonly apiService = inject(ApiService);
   private readonly patientService = inject(PatientService);
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
@@ -509,7 +509,12 @@ export class PatientProfilePage implements OnInit {
     this.changingPassword = true;
     const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
 
-    this.authService.changePassword(currentPassword, newPassword, confirmPassword)
+    this.apiService
+      .post<void>('auth/change-password', {
+        currentPassword,
+        newPassword,
+        confirmPassword
+      })
       .pipe(
         finalize(() => { this.changingPassword = false; }),
         catchError((err: unknown) => {

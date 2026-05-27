@@ -6,7 +6,7 @@ import { ToastController, IonIcon, IonNote, IonProgressBar, IonSpinner } from '@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, finalize, of } from 'rxjs';
 import { Doctor } from '../../../core/models';
-import { AuthService } from '../../../core/services/auth.service';
+import { ApiService } from '../../../core/services/api.service';
 import { passwordStrengthValidator, getPasswordStrength } from '../../../shared/validators/password-strength.validator';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
@@ -257,7 +257,7 @@ interface SummaryItem {
 export class DoctorProfilePage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly doctorService = inject(DoctorService);
-  private readonly authService = inject(AuthService);
+  private readonly apiService = inject(ApiService);
   private readonly toastController = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -457,7 +457,12 @@ export class DoctorProfilePage implements OnInit {
     this.changingPassword = true;
     const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
 
-    this.authService.changePassword(currentPassword, newPassword, confirmPassword)
+    this.apiService
+      .post<void>('auth/change-password', {
+        currentPassword,
+        newPassword,
+        confirmPassword
+      })
       .pipe(
         finalize(() => { this.changingPassword = false; }),
         takeUntilDestroyed(this.destroyRef)

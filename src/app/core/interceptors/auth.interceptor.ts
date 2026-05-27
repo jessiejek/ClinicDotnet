@@ -2,7 +2,8 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, switchMap, throwError } from 'rxjs';
-import { AuthService } from '../services/auth.service';
+import { ApiService } from '../services/api.service';
+import { AuthService, RefreshTokenDto } from '../services/auth.service';
 import { TokenService } from '../services/token.service';
 import { AUTH_RETRY_ATTEMPTED, SKIP_AUTH_INTERCEPTOR } from './auth-http.tokens';
 
@@ -25,6 +26,7 @@ function shouldAttachAuthHeader(url: string): boolean {
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const tokenService = inject(TokenService);
   const authService = inject(AuthService);
+  const apiService = inject(ApiService);
   const router = inject(Router);
 
   if (req.context.get(SKIP_AUTH_INTERCEPTOR)) {
@@ -54,8 +56,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       }
 
-      return authService.refreshTokens().pipe(
-        switchMap(() => {
+      return apiService.post<RefreshTokenDto>('auth/refresh-token', { refreshToken }).pipe(
+        switchMap((res) => {
+          tokenService.setTokens(res.accessToken, res.refreshToken);
           const refreshedToken = tokenService.getAccessToken();
           if (!refreshedToken) {
             authService.clearSession();

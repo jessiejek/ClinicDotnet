@@ -7,10 +7,32 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
+import { ApiService } from './core/services/api.service';
 import { AuthStateService } from './core/services/auth-state.service';
+import { AuthService, AuthUserDto } from './core/services/auth.service';
+import { TokenService } from './core/services/token.service';
 
-function initializeAuthSession(authState: AuthStateService): () => Promise<void> {
-  return () => firstValueFrom(authState.restoreSession()).then(() => undefined).catch(() => undefined);
+function initializeAuthSession(
+  authState: AuthStateService,
+  apiService: ApiService,
+  tokenService: TokenService,
+  authService: AuthService
+): () => Promise<void> {
+  return async () => {
+    const hasTokens = tokenService.hasAccessToken() || tokenService.hasRefreshToken();
+    if (!hasTokens) {
+      authState.logout();
+      return;
+    }
+
+    try {
+      const user = await firstValueFrom(apiService.get<AuthUserDto>('auth/me'));
+      const authUser = authService.toAuthUser(user, tokenService.getAccessToken() ?? undefined);
+      authState.setUser(authUser);
+    } catch {
+      authState.logout();
+    }
+  };
 }
 
 export const appConfig: ApplicationConfig = {
@@ -20,7 +42,7 @@ export const appConfig: ApplicationConfig = {
       provide: APP_INITIALIZER,
       multi: true,
       useFactory: initializeAuthSession,
-      deps: [AuthStateService]
+      deps: [AuthStateService, ApiService, TokenService, AuthService]
     },
     {
       provide: DATE_PIPE_DEFAULT_OPTIONS,

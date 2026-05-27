@@ -8,7 +8,7 @@ import {
   inject
 } from '@angular/core';
 import { ActivatedRoute, ActivationEnd, NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { filter } from 'rxjs';
+import { catchError, filter, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { addIcons } from 'ionicons';
 import {
@@ -49,10 +49,12 @@ import {
   warningOutline
 } from 'ionicons/icons';
 import { NavItem } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { RealtimeInitService } from '../../../core/services/realtime-init.service';
+import { TokenService } from '../../../core/services/token.service';
 import { SidebarComponent } from '../../../portals/admin/components/sidebar/sidebar.component';
 import { TopbarComponent } from '../../../portals/admin/components/topbar/topbar.component';
 
@@ -109,6 +111,7 @@ export class PortalLayoutComponent implements OnInit {
   @HostBinding('style.display') readonly display = 'block';
 
   private readonly authState = inject(AuthStateService);
+  private readonly apiService = inject(ApiService);
   private readonly notificationService = inject(NotificationService);
 
   readonly currentUser$ = this.authState.currentUser$;
@@ -117,6 +120,7 @@ export class PortalLayoutComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
+  private readonly tokenService = inject(TokenService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly realtimeInit = inject(RealtimeInitService);
 
@@ -191,7 +195,17 @@ export class PortalLayoutComponent implements OnInit {
   }
 
   logout(): void {
-    this.authState.logout();
+    const refreshToken = this.tokenService.getRefreshToken();
+    const request$ = refreshToken
+      ? this.apiService.post('auth/logout', { refreshToken }).pipe(catchError(() => of(void 0)))
+      : of(void 0);
+
+    request$.subscribe({
+      next: () => {
+        this.authState.logout();
+        void this.router.navigate(['/auth/login'], { replaceUrl: true });
+      }
+    });
   }
 
   private updatePageTitle(): void {

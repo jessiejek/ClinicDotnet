@@ -5,8 +5,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ToastController } from '@ionic/angular/standalone';
 import { catchError, finalize, of } from 'rxjs';
 import { AuthUser } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { AuthService } from '../../../core/services/auth.service';
+import { AuthUserDto } from '../../../core/services/auth.service';
 import { passwordStrengthValidator, getPasswordStrength } from '../../../shared/validators/password-strength.validator';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 
@@ -82,7 +83,7 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
 })
 export class StaffProfilePage implements OnInit {
   private readonly authState = inject(AuthStateService);
-  private readonly authService = inject(AuthService);
+  private readonly apiService = inject(ApiService);
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
   private readonly currentUserSignal = this.authState.currentUser;
@@ -146,10 +147,11 @@ export class StaffProfilePage implements OnInit {
 
     const { fullName, contactNumber } = this.personalForm.getRawValue();
 
-    this.authService.updateProfile({
-      fullName: fullName.trim(),
-      phoneNumber: contactNumber.trim() || undefined
-    })
+    this.apiService
+      .put<AuthUserDto>('auth/me', {
+        fullName: fullName.trim(),
+        phoneNumber: contactNumber.trim() || undefined
+      })
       .pipe(
         catchError((err: HttpErrorResponse) => {
           const msg = err.error?.message || err.message || 'Failed to update profile.';
@@ -178,7 +180,12 @@ export class StaffProfilePage implements OnInit {
     this.changingPassword = true;
     const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
 
-    this.authService.changePassword(currentPassword, newPassword, confirmPassword)
+    this.apiService
+      .post<void>('auth/change-password', {
+        currentPassword,
+        newPassword,
+        confirmPassword
+      })
       .pipe(
         finalize(() => { this.changingPassword = false; }),
         catchError(async (err: HttpErrorResponse) => {
