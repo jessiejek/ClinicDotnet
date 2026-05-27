@@ -1,10 +1,59 @@
+================================================================
+PROMPT 1 — AUDIT (run this first with your ZIP uploaded)
+================================================================
+
+I uploaded my Angular project as a ZIP.
+Please scan all files inside src/ and find every HTTP/API call.
+
+For each one, list:
+- File path
+- Component or service name
+- HTTP method (GET, POST, PUT, PATCH, DELETE)
+- The full endpoint string
+- How it currently calls the API (raw HttpClient, a service, etc.)
+- The full call chain — e.g. Component → DoctorService → HttpClient
+  (so we know every middle service that needs to be removed)
+
+Also look for these less obvious patterns and include them in the checklist:
+- Any API calls using toPromise(), lastValueFrom(), or firstValueFrom()
+- Any API calls inside Route Resolvers (*.resolver.ts)
+- Any API calls inside Guards (*.guard.ts)
+- Any service that EXTENDS a base HTTP service (class X extends BaseService)
+- Any hardcoded full URLs (http:// or https://) instead of environment.apiUrl
+- Any API calls inside NgRx Effects (*.effects.ts)
+- Any API calls inside HttpInterceptors — flag these but DO NOT include them in refactor
+
+For each found, note the pattern type so we handle it correctly.
+
+Then group everything into phases by feature/module and build a checklist like:
+
+Phase 1 - [Feature Name]
+  [ ] ComponentName — METHOD "endpoint"
+        Chain: ComponentName → SomeService → HttpClient
+        Pattern: standard / toPromise / resolver / guard / base-service / hardcoded-url
+
+Phase 2 - [Feature Name]
+  [ ] ...
+
+After the checklist, give me a separate list of all services
+that are ONLY wrappers around HttpClient and can be deleted
+once we migrate to ApiService.
+
+Do not refactor anything yet. Audit and list only.
+
+
+================================================================
+PROMPT 2 — MIGRATE (run this after reviewing the checklist)
+================================================================
+
 Now that we have the audit checklist, let's do the full migration.
 
 ---
 
 STEP 1 — Create ApiService
 
-Create `src/app/core/services/api.service.ts` — a single centralized Angular service that handles all HTTP communication with the backend.
+Create `src/app/core/services/api.service.ts` — a single centralized Angular service
+that handles all HTTP communication with the backend.
 
 Architecture: Page/Component → ApiService → Backend
 
@@ -47,7 +96,8 @@ Additional requirements:
 
 STEP 2 — Refactor existing code
 
-Using the audit checklist we just produced, refactor every component and page that currently calls HttpClient directly or goes through a middle service.
+Using the audit checklist we just produced, refactor every component, page,
+resolver, and guard that currently calls HttpClient directly or goes through a middle service.
 
 For each file:
 - Remove the old service injection (DoctorService, AuthService, etc.)
@@ -56,6 +106,16 @@ For each file:
 - Keep the endpoint string inline and visible in the component
 - Preserve all existing logic, variables, loading states, and error handling
 - Use finalize() to stop loading state on both success and error
+
+When refactoring, respect these rules per pattern type:
+
+- Standard service wrapper → remove middle service, inject ApiService directly
+- toPromise() / lastValueFrom() → convert to Observable + subscribe() style
+- Resolvers and Guards → inject ApiService the same way as components
+- Inherited base services → flatten the chain, remove the base class, inject ApiService directly
+- Hardcoded URLs → replace with environment.apiUrl + endpoint string only
+- NgRx Effects → flag for manual review, do not auto-refactor
+- Interceptors → leave completely untouched
 
 Replace this old pattern:
   constructor(private doctorService: DoctorService) {}
@@ -73,17 +133,66 @@ With this new pattern:
       error: () => this.errorMessage = "Failed to load doctors."
     });
 
+Expected usage reference:
+
+// Standard call
+this.loading = true;
+this.apiService.post<PatientDischargeResponse[]>("PatientDischarge/GetPatientDischarge", search)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: (res) => this.list = res,
+    error: () => this.errorMessage = "Failed to load data."
+  });
+
+// Blob download
+this.apiService.postBlob("Reports/ExportPatientDischarge", search)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: (blob) => {
+      const a = Object.assign(document.createElement("a"), {
+        href: URL.createObjectURL(blob), download: "report.xlsx"
+      });
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+    error: () => this.errorMessage = "Export failed."
+  });
+
+// Blob with filename from Content-Disposition
+this.apiService.postBlobResponse("Reports/ExportPatientDischarge", search)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: ({ body, headers }) => {
+      if (!body) return;
+      const fileName = this.parseFileName(headers.get("Content-Disposition")) ?? "report.xlsx";
+      const a = Object.assign(document.createElement("a"), {
+        href: URL.createObjectURL(body), download: fileName
+      });
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+    error: () => this.errorMessage = "Export failed."
+  });
+
+// FormData upload
+const fd = new FormData(); fd.append("file", file);
+this.apiService.postFormData("Upload/PatientDocument", fd)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: () => console.log("Upload success"),
+    error: () => this.errorMessage = "Upload failed."
+  });
+
 ---
 
 STEP 3 — Cleanup
 
 After all components are migrated:
 - Delete every middle service that is now unused (the ones identified in the audit as HttpClient wrappers)
-- Remove their imports from app.module.ts or any standalone component
-- Update all affected imports across the project
+- Remove their imports from app.module.ts or any standalone component providers
+- Update all affected imports across the entire project
 
 ---
 
 Show me each updated file in full.
 Do one phase at a time if the project is large.
-After each phase, tell me which checklist items are done.
+After each phase, tell me which checklist items are done
+and which ones were flagged for manual review.
