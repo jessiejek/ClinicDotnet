@@ -1,37 +1,19 @@
-import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable, finalize, map, shareReplay, tap } from 'rxjs';
-import { ClinicSettings, OperatingHours, PaymentSettings } from '../models';
-import { ApiService } from './api.service';
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+import { ClinicSettings, OperatingHours } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class ClinicSettingsService {
-  private readonly apiService = inject(ApiService);
   private readonly settingsSubject = new BehaviorSubject<ClinicSettings>(this.defaultSettings());
-  private readonly loadingSubject = new BehaviorSubject(false);
 
   readonly settings$ = this.settingsSubject.asObservable();
-  readonly isLoading$ = this.loadingSubject.asObservable();
 
   load(): ClinicSettings {
     return this.settingsSubject.value;
   }
 
-  getSettings(): Observable<ClinicSettings> {
-    this.loadingSubject.next(true);
-    return this.apiService.get<any>('settings').pipe(
-      map((data) => data ? this.mapRow(data) : this.settingsSubject.value),
-      tap((settings) => this.settingsSubject.next(settings)),
-      finalize(() => this.loadingSubject.next(false))
-    );
-  }
-
-  updateSettings(data: Partial<ClinicSettings>): Observable<ClinicSettings> {
-    this.loadingSubject.next(true);
-    return this.apiService.put<any>('settings', data).pipe(
-      map((updated) => updated ? this.mapRow(updated) : this.settingsSubject.value),
-      tap((settings) => this.settingsSubject.next(settings)),
-      finalize(() => this.loadingSubject.next(false))
-    );
+  setSettings(settings: ClinicSettings): void {
+    this.settingsSubject.next(settings);
   }
 
   bumpConsentVersion(): ClinicSettings {
@@ -42,52 +24,6 @@ export class ClinicSettingsService {
     const updated = { ...current, consentVersion: `v${major}.${minor + 1}` };
     this.settingsSubject.next(updated);
     return updated;
-  }
-
-  private mapRow(row: any): ClinicSettings {
-    const hours = row.operating_hours || row.operatingHours || {};
-    const payment = row.payment_settings || row.paymentSettings || {};
-
-    return {
-      id: row.id || '',
-      clinicName: row.clinic_name || row.clinicName || '',
-      logoUrl: row.logo_url || row.logoUrl,
-      primaryColor: row.primary_color || row.primaryColor || '#5D3E8E',
-      secondaryColor: row.secondary_color || row.secondaryColor || '#2563eb',
-      address: row.address,
-      phone: row.phone,
-      email: row.email,
-      facebookUrl: row.facebook_url || row.facebookUrl,
-      instagramUrl: row.instagram_url || row.instagramUrl,
-      operatingHours: {
-        monday: hours.monday || { isOpen: true, openTime: '08:00', closeTime: '17:00' },
-        tuesday: hours.tuesday || { isOpen: true, openTime: '08:00', closeTime: '17:00' },
-        wednesday: hours.wednesday || { isOpen: true, openTime: '08:00', closeTime: '17:00' },
-        thursday: hours.thursday || { isOpen: true, openTime: '08:00', closeTime: '17:00' },
-        friday: hours.friday || { isOpen: true, openTime: '08:00', closeTime: '17:00' },
-        saturday: hours.saturday || { isOpen: false, openTime: '08:00', closeTime: '12:00' },
-        sunday: hours.sunday || { isOpen: false, openTime: '08:00', closeTime: '12:00' },
-      },
-      cancellationDeadlineHours: row.cancellation_deadline_hours ?? row.cancellationDeadlineHours ?? 24,
-      patientPortalEnabled: row.patient_portal_enabled ?? row.patientPortalEnabled ?? true,
-      vaccinationReminderEnabled: row.vaccination_reminder_enabled ?? row.vaccinationReminderEnabled ?? true,
-      followUpReminderEnabled: row.follow_up_reminder_enabled ?? row.followUpReminderEnabled ?? true,
-      isPayAtClinicMode: row.is_pay_at_clinic_mode ?? row.isPayAtClinicMode ?? false,
-      payAtClinicNoShowWindowMinutes: row.pay_at_clinic_no_show_window_minutes ?? row.payAtClinicNoShowWindowMinutes ?? 30,
-      privacyPolicyText: row.privacy_policy_text || row.privacyPolicyText,
-      consentVersion: row.consent_version || row.consentVersion || 'v1.0',
-      paymentSettings: {
-        gcashQrImageUrl: payment.gcash_qr_image_url || payment.gcashQrImageUrl,
-        gcashAccountName: payment.gcash_account_name || payment.gcashAccountName,
-        gcashNumber: payment.gcash_number || payment.gcashNumber,
-        mayaQrImageUrl: payment.maya_qr_image_url || payment.mayaQrImageUrl,
-        mayaAccountName: payment.maya_account_name || payment.mayaAccountName,
-        mayaNumber: payment.maya_number || payment.mayaNumber,
-        bankName: payment.bank_name || payment.bankName,
-        bankAccountName: payment.bank_account_name || payment.bankAccountName,
-        bankAccountNumber: payment.bank_account_number || payment.bankAccountNumber,
-      },
-    };
   }
 
   private defaultSettings(): ClinicSettings {
@@ -115,4 +51,50 @@ export class ClinicSettingsService {
       paymentSettings: {},
     };
   }
+}
+
+export function mapClinicSettingsRow(row: Record<string, unknown>): ClinicSettings {
+  const hours = (row['operating_hours'] ?? row['operatingHours'] ?? {}) as Record<string, unknown>;
+  const payment = (row['payment_settings'] ?? row['paymentSettings'] ?? {}) as Record<string, unknown>;
+
+  return {
+    id: (row['id'] ?? '') as string,
+    clinicName: (row['clinic_name'] ?? row['clinicName'] ?? '') as string,
+    logoUrl: (row['logo_url'] ?? row['logoUrl']) as string | undefined,
+    primaryColor: (row['primary_color'] ?? row['primaryColor'] ?? '#5D3E8E') as string,
+    secondaryColor: (row['secondary_color'] ?? row['secondaryColor'] ?? '#2563eb') as string,
+    address: row['address'] as string | undefined,
+    phone: row['phone'] as string | undefined,
+    email: row['email'] as string | undefined,
+    facebookUrl: (row['facebook_url'] ?? row['facebookUrl']) as string | undefined,
+    instagramUrl: (row['instagram_url'] ?? row['instagramUrl']) as string | undefined,
+    operatingHours: {
+      monday: (hours['monday'] ?? { isOpen: true, openTime: '08:00', closeTime: '17:00' }) as OperatingHours['monday'],
+      tuesday: (hours['tuesday'] ?? { isOpen: true, openTime: '08:00', closeTime: '17:00' }) as OperatingHours['tuesday'],
+      wednesday: (hours['wednesday'] ?? { isOpen: true, openTime: '08:00', closeTime: '17:00' }) as OperatingHours['wednesday'],
+      thursday: (hours['thursday'] ?? { isOpen: true, openTime: '08:00', closeTime: '17:00' }) as OperatingHours['thursday'],
+      friday: (hours['friday'] ?? { isOpen: true, openTime: '08:00', closeTime: '17:00' }) as OperatingHours['friday'],
+      saturday: (hours['saturday'] ?? { isOpen: false, openTime: '08:00', closeTime: '12:00' }) as OperatingHours['saturday'],
+      sunday: (hours['sunday'] ?? { isOpen: false, openTime: '08:00', closeTime: '12:00' }) as OperatingHours['sunday'],
+    },
+    cancellationDeadlineHours: (row['cancellation_deadline_hours'] ?? row['cancellationDeadlineHours'] ?? 24) as number,
+    patientPortalEnabled: (row['patient_portal_enabled'] ?? row['patientPortalEnabled'] ?? true) as boolean,
+    vaccinationReminderEnabled: (row['vaccination_reminder_enabled'] ?? row['vaccinationReminderEnabled'] ?? true) as boolean,
+    followUpReminderEnabled: (row['follow_up_reminder_enabled'] ?? row['followUpReminderEnabled'] ?? true) as boolean,
+    isPayAtClinicMode: (row['is_pay_at_clinic_mode'] ?? row['isPayAtClinicMode'] ?? false) as boolean,
+    payAtClinicNoShowWindowMinutes: (row['pay_at_clinic_no_show_window_minutes'] ?? row['payAtClinicNoShowWindowMinutes'] ?? 30) as number,
+    privacyPolicyText: (row['privacy_policy_text'] ?? row['privacyPolicyText']) as string | undefined,
+    consentVersion: (row['consent_version'] ?? row['consentVersion'] ?? 'v1.0') as string,
+    paymentSettings: {
+      gcashQrImageUrl: (payment['gcash_qr_image_url'] ?? payment['gcashQrImageUrl']) as string | undefined,
+      gcashAccountName: (payment['gcash_account_name'] ?? payment['gcashAccountName']) as string | undefined,
+      gcashNumber: (payment['gcash_number'] ?? payment['gcashNumber']) as string | undefined,
+      mayaQrImageUrl: (payment['maya_qr_image_url'] ?? payment['mayaQrImageUrl']) as string | undefined,
+      mayaAccountName: (payment['maya_account_name'] ?? payment['mayaAccountName']) as string | undefined,
+      mayaNumber: (payment['maya_number'] ?? payment['mayaNumber']) as string | undefined,
+      bankName: (payment['bank_name'] ?? payment['bankName']) as string | undefined,
+      bankAccountName: (payment['bank_account_name'] ?? payment['bankAccountName']) as string | undefined,
+      bankAccountNumber: (payment['bank_account_number'] ?? payment['bankAccountNumber']) as string | undefined,
+    },
+  };
 }

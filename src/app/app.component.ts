@@ -1,8 +1,10 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { IonApp, IonRouterOutlet, LoadingController } from '@ionic/angular/standalone';
-import { filter } from 'rxjs';
+import { filter, map, tap } from 'rxjs';
+import { ApiService } from './core/services/api.service';
 import { ClinicSettingsService } from './core/services/clinic-settings.service';
+import { mapClinicSettingsRow } from './core/services/clinic-settings.service';
 
 @Component({
   selector: 'app-root',
@@ -12,6 +14,7 @@ import { ClinicSettingsService } from './core/services/clinic-settings.service';
   styleUrl: './app.component.scss'
 })
 export class AppComponent implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
   private readonly router = inject(Router);
   private readonly loadingCtrl = inject(LoadingController);
@@ -19,7 +22,10 @@ export class AppComponent implements OnInit {
   private loadingTimer: any = null;
 
   ngOnInit(): void {
-    void this.clinicSettingsService.getSettings().subscribe({ error: () => undefined });
+    this.apiService.get<any>('settings').pipe(
+      map((data) => (data ? mapClinicSettingsRow(data as Record<string, unknown>) : this.clinicSettingsService.load())),
+      tap((settings) => this.clinicSettingsService.setSettings(settings))
+    ).subscribe({ error: () => undefined });
 
     this.router.events.pipe(
       filter((e) => e instanceof NavigationStart || e instanceof NavigationEnd || e instanceof NavigationCancel || e instanceof NavigationError)
