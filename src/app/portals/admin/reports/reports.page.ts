@@ -3,8 +3,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ToastController } from '@ionic/angular/standalone';
+import { ApiService } from '../../../core/services/api.service';
 import {
-  AdminReportsService,
   DailyBookingSummaryRow,
   PendingFollowUpReportRow,
   UnpaidCompletedVisitReportRow
@@ -152,7 +152,7 @@ import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.
   styleUrl: './reports.page.scss'
 })
 export class ReportsPage implements OnInit {
-  private readonly reportsService = inject(AdminReportsService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
 
@@ -168,17 +168,17 @@ export class ReportsPage implements OnInit {
   private loadedSections = 0;
 
   ngOnInit(): void {
-    this.reportsService.getUnpaidCompletedVisits().subscribe((rows) => {
+    this.apiService.get<UnpaidCompletedVisitReportRow[]>('reports/unpaid-completed-visits').subscribe((rows) => {
       this.unpaidVisits = rows;
       this.applyFilters();
       this.markSectionLoaded();
     });
-    this.reportsService.getPendingFollowUps().subscribe((rows) => {
+    this.apiService.get<PendingFollowUpReportRow[]>('reports/pending-follow-ups').subscribe((rows) => {
       this.followUps = rows;
       this.applyFilters();
       this.markSectionLoaded();
     });
-    this.reportsService.getDailyBookingSummary().subscribe((rows) => {
+    this.apiService.get<DailyBookingSummaryRow[]>('reports/daily-booking-summary').subscribe((rows) => {
       this.dailySummary = rows;
       this.applyFilters();
       this.markSectionLoaded();
