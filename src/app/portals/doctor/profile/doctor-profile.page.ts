@@ -1,11 +1,13 @@
-import { NgFor, NgIf } from '@angular/common';
+import { NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ToastController, IonIcon, IonNote, IonProgressBar, IonSpinner } from '@ionic/angular/standalone';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, finalize, of } from 'rxjs';
 import { Doctor } from '../../../core/models';
+import { AuthService } from '../../../core/services/auth.service';
+import { passwordStrengthValidator, getPasswordStrength } from '../../../shared/validators/password-strength.validator';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
@@ -22,6 +24,7 @@ interface SummaryItem {
   imports: [
     NgFor,
     NgIf,
+    NgClass,
     ReactiveFormsModule,
     RouterLink,
     IonIcon,
@@ -190,6 +193,52 @@ interface SummaryItem {
             </article>
           </aside>
         </section>
+
+        <!-- Change Password -->
+        <section class="clinic-card">
+          <p class="section-label">Change Password</p>
+          <form class="profile-form" [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+            <label class="profile-field">
+              <span>Current Password</span>
+              <input class="profile-input" type="password" formControlName="currentPassword" />
+            </label>
+
+            <label class="profile-field">
+              <span>New Password</span>
+              <input class="profile-input" type="password" formControlName="newPassword" />
+            </label>
+
+            <div class="strength-meter" aria-label="Password strength">
+              <span
+                *ngFor="let index of strengthIndexes"
+                [class.is-active]="index < passwordStrength"
+                [ngClass]="{
+                  'strength-meter__bar--weak': passwordStrength === 1,
+                  'strength-meter__bar--fair': passwordStrength === 2,
+                  'strength-meter__bar--good': passwordStrength === 3,
+                  'strength-meter__bar--strong': passwordStrength === 4
+                }"
+                class="strength-meter__bar"
+              ></span>
+            </div>
+            <p class="strength-label" *ngIf="strengthLabel">{{ strengthLabel }}</p>
+
+            <label class="profile-field">
+              <span>Confirm Password</span>
+              <input class="profile-input" type="password" formControlName="confirmPassword" />
+            </label>
+
+            <div class="form-error-message" *ngIf="passwordForm.touched && passwordForm.hasError('passwordMismatch')">
+              Passwords do not match
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="btn-primary" [disabled]="changingPassword">
+                {{ changingPassword ? 'Updating...' : 'Change Password' }}
+              </button>
+            </div>
+          </form>
+        </section>
       </ng-container>
     </ng-container>
 
@@ -208,6 +257,7 @@ interface SummaryItem {
 export class DoctorProfilePage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly doctorService = inject(DoctorService);
+  private readonly authService = inject(AuthService);
   private readonly toastController = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -216,6 +266,10 @@ export class DoctorProfilePage implements OnInit {
   loadError: string | null = null;
   doctor: Doctor | null = null;
   photoPreviewUrl: string | null = null;
+
+  strengthIndexes = [0, 1, 2, 3];
+  passwordStrength: 0 | 1 | 2 | 3 | 4 = 0;
+  changingPassword = false;
 
   profileForm = this.fb.nonNullable.group({
     fullName: ['', Validators.required],
@@ -227,8 +281,21 @@ export class DoctorProfilePage implements OnInit {
     s2Number: ['']
   });
 
+  passwordForm = this.fb.nonNullable.group(
+    {
+      currentPassword: ['', Validators.required],
+      newPassword: ['', [Validators.required, passwordStrengthValidator]],
+      confirmPassword: ['', Validators.required]
+    },
+    { validators: passwordMatchValidator }
+  );
+
   ngOnInit(): void {
     this.loadProfile();
+
+    this.passwordForm.get('newPassword')?.valueChanges.subscribe((value) => {
+      this.passwordStrength = getPasswordStrength(String(value ?? ''));
+    });
   }
 
   get doctorInitials(): string {
@@ -250,6 +317,21 @@ export class DoctorProfilePage implements OnInit {
   get profileIsComplete(): boolean {
     const f = this.profileForm.value;
     return !!(f.fullName?.trim() && f.specialization?.trim() && f.bio?.trim() && f.consultationFee !== null && f.licenseNumber?.trim());
+  }
+
+  get strengthLabel(): string {
+    switch (this.passwordStrength) {
+      case 1:
+        return 'Weak';
+      case 2:
+        return 'Fair';
+      case 3:
+        return 'Good';
+      case 4:
+        return 'Strong';
+      default:
+        return '';
+    }
   }
 
   get completenessPercent(): number {
@@ -366,6 +448,36 @@ export class DoctorProfilePage implements OnInit {
       });
   }
 
+  changePassword(): void {
+    if (this.passwordForm.invalid) {
+      this.passwordForm.markAllAsTouched();
+      return;
+    }
+
+    this.changingPassword = true;
+    const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
+
+    this.authService.changePassword(currentPassword, newPassword, confirmPassword)
+      .pipe(
+        finalize(() => { this.changingPassword = false; }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: () => {
+          this.passwordForm.reset({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+          });
+          this.passwordStrength = 0;
+          void this.presentToast('Password updated successfully.', 'success');
+        },
+        error: (error: unknown) => {
+          void this.presentToast(extractApiErrorMessage(error, 'Failed to update password. Please try again.'));
+        }
+      });
+  }
+
   private loadProfile(): void {
     this.isLoading = true;
     this.loadError = null;
@@ -415,6 +527,12 @@ export class DoctorProfilePage implements OnInit {
     });
     await toast.present();
   }
+}
+
+function passwordMatchValidator(group: AbstractControl): ValidationErrors | null {
+  const pw = group.get('newPassword')?.value;
+  const cpw = group.get('confirmPassword')?.value;
+  return pw === cpw ? null : { passwordMismatch: true };
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {

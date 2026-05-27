@@ -110,7 +110,7 @@ export class StaffProfilePage implements OnInit {
     if (user) {
       this.personalForm.patchValue({
         fullName: user.fullName,
-        contactNumber: ''
+        contactNumber: user.phoneNumber ?? ''
       });
     }
 
@@ -139,15 +139,34 @@ export class StaffProfilePage implements OnInit {
   }
 
   saveProfile(): void {
-    const user = this.currentUser();
-    if (!user || this.personalForm.invalid) {
+    if (this.personalForm.invalid) {
       this.personalForm.markAllAsTouched();
       return;
     }
 
-    const { fullName } = this.personalForm.getRawValue();
-    this.authState.setUser({ ...user, fullName });
-    void this.presentToast('Profile updated');
+    const { fullName, contactNumber } = this.personalForm.getRawValue();
+
+    this.authService.updateProfile({
+      fullName: fullName.trim(),
+      phoneNumber: contactNumber.trim() || undefined
+    })
+      .pipe(
+        catchError((err: HttpErrorResponse) => {
+          const msg = err.error?.message || err.message || 'Failed to update profile.';
+          void this.presentToast(msg, 'danger');
+          return of(null);
+        })
+      )
+      .subscribe((user) => {
+        if (!user) return;
+        this.authState.setUser({
+          ...this.currentUser()!,
+          fullName: user.fullName,
+          avatarUrl: user.avatarUrl ?? undefined,
+          phoneNumber: user.phoneNumber ?? undefined
+        });
+        void this.presentToast('Profile updated', 'success');
+      });
   }
 
   changePassword(): void {
@@ -191,11 +210,11 @@ export class StaffProfilePage implements OnInit {
       });
   }
 
-  private async presentToast(message: string): Promise<void> {
+  private async presentToast(message: string, color: 'danger' | 'success' = 'success'): Promise<void> {
     const toast = await this.toastCtrl.create({
       message,
       duration: 2200,
-      color: 'success',
+      color,
       position: 'top'
     });
     await toast.present();

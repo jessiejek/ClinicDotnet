@@ -9,6 +9,7 @@ export interface AuthUser {
   clinicalRole?: ClinicalRole | null;
   avatarUrl?: string;
   isFirstLogin: boolean;
+  phoneNumber?: string;
 }
 
 export interface AuthUserDto {
@@ -18,6 +19,7 @@ export interface AuthUserDto {
   role: string;
   avatarUrl?: string | null;
   isFirstLogin: boolean;
+  phoneNumber?: string | null;
 }
 
 export interface AuthSessionDto {

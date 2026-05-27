@@ -19,6 +19,7 @@ export interface AuthUserDto {
   role: string;
   avatarUrl?: string | null;
   isFirstLogin: boolean;
+  phoneNumber?: string | null;
 }
 
 export interface RefreshTokenDto {
@@ -142,12 +143,17 @@ export class AuthService {
     );
   }
 
-  updateProfile(payload: { fullName?: string; avatarUrl?: string }): Observable<AuthUserDto> {
+  updateProfile(payload: { fullName?: string; avatarUrl?: string; phoneNumber?: string }): Observable<AuthUserDto> {
     return this.api.put<AuthUserDto>('auth/me', payload).pipe(
       tap((user) => {
         const current = this.getStoredUser();
         if (current) {
-          this.persistUser({ ...current, fullName: user.fullName, avatarUrl: user.avatarUrl ?? undefined });
+          this.persistUser({
+            ...current,
+            fullName: user.fullName,
+            avatarUrl: user.avatarUrl ?? undefined,
+            phoneNumber: user.phoneNumber ?? undefined
+          });
         }
       })
     );
@@ -210,7 +216,8 @@ export class AuthService {
       email: user.email,
       role: resolvedRole,
       avatarUrl: user.avatarUrl ?? undefined,
-      isFirstLogin: user.isFirstLogin
+      isFirstLogin: user.isFirstLogin,
+      phoneNumber: user.phoneNumber ?? undefined
     };
   }
 
