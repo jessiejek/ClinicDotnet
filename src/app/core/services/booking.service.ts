@@ -821,31 +821,6 @@ export class BookingService {
     });
   }
 
-  getReceipt(paymentId: string): Observable<ReceiptData> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any>('payments/' + paymentId + '/receipt').pipe(
-        switchMap((paymentData) => {
-          const payment = paymentData ? this.normalizePayment(mapPaymentRow(paymentData as Record<string, unknown>)) : undefined;
-          if (!payment) {
-            return of(this.buildEmptyReceipt());
-          }
-          const bookingId = payment.bookingId;
-          return (bookingId ? this.apiService.get<any>('bookings/' + bookingId) : of(undefined)).pipe(
-            map((bookingData) => {
-              const booking = bookingData ? this.normalizeBooking(mapBookingViewRow(bookingData as Record<string, unknown>)) : undefined;
-              return this.buildReceiptFromPaymentAndBooking(payment, booking);
-            })
-          );
-        }),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load receipt.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
   waivePayment(bookingId: string, reason: string): void {
     void this.waivePayment$(bookingId, reason)
       .pipe(
@@ -2723,4 +2698,3 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
 
   return fallback;
 }
-

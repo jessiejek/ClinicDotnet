@@ -3,7 +3,7 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { take } from 'rxjs';
+import { catchError, map, of, switchMap, take, throwError } from 'rxjs';
 import {
   IonButton,
   IonButtons,
@@ -15,6 +15,7 @@ import {
   ToastController
 } from '@ionic/angular/standalone';
 import { Booking, ReceiptData } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import {
   BookingService,
   ConfirmPaymentRequest
@@ -320,6 +321,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
   styleUrl: './staff-booking-detail.page.scss'
 })
 export class StaffBookingDetailPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
   private readonly route = inject(ActivatedRoute);
@@ -677,7 +679,25 @@ export class StaffBookingDetailPage implements OnInit {
     const paymentId = this.booking.payment?.id;
     if (this.booking.paymentStatus !== 'Unpaid' && paymentId) {
       this.isActing = true;
-      this.bookingService.getReceipt(paymentId).subscribe({
+      this.apiService.get<any>('payments/' + paymentId).pipe(
+        switchMap((paymentData) => {
+          const payment = paymentData ? normalizePaymentRow(paymentData as Record<string, unknown>) : undefined;
+          if (!payment) {
+            return of(buildEmptyReceipt());
+          }
+
+          const bookingId = payment.bookingId;
+          return (bookingId ? this.apiService.get<any>('bookings/' + bookingId) : of(undefined)).pipe(
+            map((bookingData) => {
+              const booking = bookingData ? normalizeBookingRow(bookingData as Record<string, unknown>) : undefined;
+              return buildReceiptFromPaymentAndBooking(payment, booking);
+            })
+          );
+        }),
+        catchError((error: unknown) =>
+          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load receipt.')))
+        )
+      ).subscribe({
         next: async (receipt) => {
           this.isActing = false;
           this.receiptData = receipt;
@@ -785,6 +805,155 @@ function buildNameFromParts(firstName?: string, middleName?: string, lastName?: 
     .trim();
 }
 
+function normalizeBookingRow(payload: unknown): Booking | null {
+  const row = isRecord(payload) ? payload : null;
+  if (!row) {
+    return null;
+  }
+
+  const id = trimOptionalString(row['id'] ?? row['bookingId'] ?? row['booking_id']);
+  if (!id) {
+    return null;
+  }
+
+  const serviceNames = normalizeStringArray(row['serviceNames'] ?? row['service_names']);
+  const serviceIds = normalizeStringArray(row['serviceIds'] ?? row['service_ids']);
+  const serviceName = trimOptionalString(row['serviceName'] ?? row['primary_service_name']) ?? serviceNames[0];
+  const serviceId = trimOptionalString(row['serviceId'] ?? row['primary_service_id']) ?? serviceIds[0] ?? '';
+  const payment = normalizePaymentRow(row['payment']);
+
+  return {
+    id,
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
+    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
+    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+    serviceId,
+    serviceIds: serviceIds.length > 0 ? serviceIds : serviceId ? [serviceId] : [],
+    serviceName,
+    serviceNames: serviceNames.length > 0 ? serviceNames : serviceName ? [serviceName] : [],
+    services: undefined,
+    appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+    slotStartTime: normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    slotEndTime: normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']) || normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    status: (trimOptionalString(row['status'] ?? row['booking_status']) as Booking['status']) ?? 'Pending',
+    paymentStatus: payment?.status ?? (trimOptionalString(row['paymentStatus'] ?? row['payment_status']) as Booking['paymentStatus']) ?? 'Unpaid',
+    paymentMode: (trimOptionalString(row['paymentMode'] ?? row['payment_mode']) as Booking['paymentMode']) ?? 'PayAtClinic',
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amountDue'] ?? row['amount_due']),
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in']),
+    createdAt: trimOptionalString(row['createdAt'] ?? row['created_at']) ?? new Date().toISOString(),
+    orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']),
+    checkedInAt: trimOptionalString(row['checkedInAt'] ?? row['checked_in_at']),
+    doctorCompletedAt: trimOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: trimOptionalString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']),
+    payment: payment ?? undefined
+  };
+}
+
+function normalizePaymentRow(payload: unknown): import('../../../core/models').Payment | undefined {
+  const row = isRecord(payload) ? payload : null;
+  if (!row) {
+    return undefined;
+  }
+
+  const id = trimOptionalString(row['id'] ?? row['paymentId']);
+  const bookingId = trimOptionalString(row['bookingId'] ?? row['booking_id']);
+  if (!id || !bookingId) {
+    return undefined;
+  }
+
+  return {
+    id,
+    bookingId,
+    amount: normalizeNumber(row['amount']),
+    paymentMethod: (trimOptionalString(row['paymentMethod'] ?? row['payment_method']) as import('../../../core/models').Payment['paymentMethod']) ?? 'PayAtClinic',
+    referenceNumber: trimOptionalString(row['referenceNumber'] ?? row['reference_number']),
+    proofImageUrl: trimOptionalString(row['proofImageUrl'] ?? row['proof_image_url']),
+    verifiedAt: trimOptionalString(row['verifiedAt'] ?? row['verified_at']),
+    verifiedByName: trimOptionalString(row['verifiedByName'] ?? row['verified_by_name']),
+    waivedAt: trimOptionalString(row['waivedAt'] ?? row['waived_at']),
+    waivedByName: trimOptionalString(row['waivedByName'] ?? row['waived_by_name']),
+    waivedReason: trimOptionalString(row['waivedReason'] ?? row['waived_reason']),
+    cashierName: trimOptionalString(row['cashierName'] ?? row['cashier_name']),
+    status: (trimOptionalString(row['status'] ?? row['payment_status']) as import('../../../core/models').Payment['status']) ?? 'Pending'
+  };
+}
+
+function buildReceiptFromPaymentAndBooking(
+  payment: import('../../../core/models').Payment,
+  booking: Booking | null | undefined
+): ReceiptData {
+  const services = booking?.serviceNames?.length
+    ? booking.serviceNames
+    : booking?.serviceName
+      ? [booking.serviceName]
+      : [];
+
+  return {
+    paymentId: payment.id,
+    bookingId: payment.bookingId,
+    orNumber: payment.orNumber ?? '-',
+    patientName: booking?.patientName ?? booking?.patient?.fullName ?? 'Patient',
+    patientCode: booking?.patient?.patientCode ?? '',
+    doctorName: booking?.doctorName ?? booking?.doctor?.fullName ?? 'Doctor',
+    services,
+    appointmentDate: booking?.appointmentDate ?? '',
+    slotStartTime: booking?.slotStartTime ?? '',
+    slotTime: booking?.slotEndTime ? `${booking.slotStartTime ?? ''} - ${booking.slotEndTime}` : booking?.slotStartTime,
+    queueNumber: booking?.queueNumber ?? null,
+    paymentStatus: booking?.paymentStatus ?? 'Unpaid',
+    paymentMethod: payment.paymentMethod,
+    totalFee: booking?.finalAmount ?? booking?.totalFee ?? payment.amount,
+    amountPaid: payment.amount,
+    referenceNumber: payment.referenceNumber ?? undefined,
+    paidAt: payment.verifiedAt ?? undefined,
+    cashierName: payment.cashierName ?? undefined,
+    verifiedByName: payment.verifiedByName ?? undefined,
+    doctorCompletedAt: booking?.doctorCompletedAt ?? undefined,
+    isWaived: Boolean(payment.waivedAt || booking?.isProfessionalFeeWaived),
+    waivedReason: payment.waivedReason ?? booking?.professionalFeeWaivedReason ?? undefined,
+    waivedByName: payment.waivedByName ?? undefined,
+    waivedAt: payment.waivedAt ?? undefined
+  };
+}
+
+function buildEmptyReceipt(): ReceiptData {
+  return {
+    paymentId: '',
+    bookingId: '',
+    orNumber: '-',
+    patientName: 'Patient',
+    patientCode: '',
+    doctorName: 'Doctor',
+    services: [],
+    appointmentDate: '',
+    slotStartTime: '',
+    slotTime: '',
+    queueNumber: null,
+    paymentStatus: 'Unpaid',
+    paymentMethod: 'PayAtClinic',
+    totalFee: 0,
+    amountPaid: undefined,
+    referenceNumber: undefined,
+    paidAt: undefined,
+    cashierName: undefined,
+    verifiedByName: undefined,
+    doctorCompletedAt: undefined,
+    isWaived: false,
+    waivedReason: undefined,
+    waivedByName: undefined,
+    waivedAt: undefined,
+    clinicName: undefined,
+    clinicAddress: undefined
+  };
+}
+
 function extractApiErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -798,4 +967,95 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.trim() : undefined;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item.length > 0);
+}
+
+function normalizeServices(value: unknown): Array<{ name: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return undefined;
+      }
+
+      const name = trimOptionalString(item['name'] ?? item['serviceName'] ?? item['service_name']);
+      if (!name) {
+        return undefined;
+      }
+
+      return { name };
+    })
+    .filter((item): item is { name: string } => Boolean(item));
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const text = trimOptionalString(value);
+  return text ? text.slice(0, 10) : '';
+}
+
+function normalizeTimeOnly(value: unknown): string {
+  const text = trimOptionalString(value);
+  return text ? text.slice(0, 5) : '';
+}
+
+function normalizeNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  return normalizeBoolean(value);
 }
