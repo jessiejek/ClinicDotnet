@@ -82,10 +82,14 @@ export class PatientStateService {
 
   refresh(): void {
     this.loadingSubject.next(true);
-    this.api.get<any[]>('patients').subscribe({
-      next: (data) => {
-        this.patientsSubject.next(mapRows(data as PatientRow[]));
-        this.loadingSubject.next(false);
+    this.api.get<any>('patients').subscribe({
+      next: (data: any) => {
+        try {
+          const rows = (data?.items ?? data ?? []) as PatientRow[];
+          this.patientsSubject.next(mapRows(rows));
+        } finally {
+          this.loadingSubject.next(false);
+        }
       },
       error: () => this.loadingSubject.next(false)
     });

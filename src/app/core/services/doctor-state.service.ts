@@ -68,11 +68,14 @@ export class DoctorStateService {
     this.loadingSubject.next(true);
     this.api.get<any[]>('doctors').subscribe({
       next: (data: any[]) => {
-        const doctors: Doctor[] = (data ?? [])
-          .map((row: any) => this.normalizeDoctor(row))
-          .filter((d: Doctor | undefined): d is Doctor => !!d && !!d.id);
-        this.doctorsSubject.next(doctors);
-        this.loadingSubject.next(false);
+        try {
+          const doctors: Doctor[] = (data ?? [])
+            .map((row: any) => this.normalizeDoctor(row))
+            .filter((d: Doctor | undefined): d is Doctor => !!d && !!d.id);
+          this.doctorsSubject.next(doctors);
+        } finally {
+          this.loadingSubject.next(false);
+        }
       },
       error: (err: any) => {
         console.warn('Failed to load doctors:', err);

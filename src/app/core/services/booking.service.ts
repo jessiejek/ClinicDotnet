@@ -463,12 +463,13 @@ export class BookingService {
     const safePageSize = Math.max(1, pageSize);
     return defer(() => {
       this.beginLoading();
-      return this.apiService.get<any[]>('bookings?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
-        map((data) => {
-          const items = ((data ?? []) as Record<string, unknown>[])
+      return this.apiService.get<any>('bookings?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+          const items = rows
             .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
             .filter((booking): booking is Booking => Boolean(booking));
-          return { items, totalCount: items.length, page: currentPage, pageSize: safePageSize };
+          return { items, totalCount: data?.totalCount ?? items.length, page: currentPage, pageSize: safePageSize };
         }),
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
@@ -516,12 +517,13 @@ export class BookingService {
     const pageSize = Math.max(1, filters.pageSize ?? 20);
     return defer(() => {
       this.beginLoading();
-      return this.apiService.get<any[]>('bookings/staff/today?page=' + page + '&pageSize=' + pageSize).pipe(
-        map((data) => {
-          const items = ((data ?? []) as Record<string, unknown>[])
+      return this.apiService.get<any>('bookings/staff/today?page=' + page + '&pageSize=' + pageSize).pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? []) as Record<string, unknown>[];
+          const items = rows
             .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
             .filter((booking): booking is Booking => Boolean(booking));
-          return { items, totalCount: items.length, page, pageSize };
+          return { items, totalCount: data?.totalCount ?? items.length, page, pageSize };
         }),
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
@@ -537,12 +539,13 @@ export class BookingService {
     const pageSize = Math.max(1, filters.pageSize ?? 20);
     return defer(() => {
       this.beginLoading();
-      return this.apiService.get<any[]>('bookings/staff/all?page=' + page + '&pageSize=' + pageSize).pipe(
-        map((data) => {
-          const items = ((data ?? []) as Record<string, unknown>[])
+      return this.apiService.get<any>('bookings/staff/all?page=' + page + '&pageSize=' + pageSize).pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? []) as Record<string, unknown>[];
+          const items = rows
             .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
             .filter((booking): booking is Booking => Boolean(booking));
-          return { items, totalCount: items.length, page, pageSize };
+          return { items, totalCount: data?.totalCount ?? items.length, page, pageSize };
         }),
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
@@ -558,12 +561,13 @@ export class BookingService {
     const safePageSize = Math.max(1, pageSize);
     return defer(() => {
       this.beginLoading();
-      return this.apiService.get<any[]>('bookings/staff/for-payment?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
-        map((allData) => {
-          const items = ((allData ?? []) as Record<string, unknown>[])
+      return this.apiService.get<any>('bookings/staff/for-payment?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+          const items = rows
             .map((row) => this.normalizeStaffForPaymentViewRow(row))
             .filter((item): item is StaffForPaymentItem => Boolean(item));
-          return { items, totalCount: items.length, page: currentPage, pageSize: safePageSize };
+          return { items, totalCount: data?.totalCount ?? items.length, page: currentPage, pageSize: safePageSize };
         }),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load payment queue from API.')))
@@ -932,9 +936,9 @@ export class BookingService {
   private requestBookings(filters?: BookingFilters, replaceCache = false): Observable<Booking[]> {
     return defer(() => {
       this.beginLoading();
-      return this.apiService.get<any[]>('bookings').pipe(
-        map((data) => {
-          const rows = (data ?? []) as Record<string, unknown>[];
+      return this.apiService.get<any>('bookings').pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
           return rows
             .map((row) => this.normalizeBooking(row))
             .filter((b): b is Booking => Boolean(b));
