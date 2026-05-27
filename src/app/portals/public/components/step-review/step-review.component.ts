@@ -1,9 +1,9 @@
 import { AsyncPipe, DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { catchError, combineLatest, map, of, switchMap } from 'rxjs';
+import { ApiService } from '../../../../core/services/api.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
 import { TimeSlotPipe } from '../../../../shared/pipes/time-slot.pipe';
-import { PublicService } from '../../services/public.service';
 
 @Component({
   selector: 'app-step-review',
@@ -68,15 +68,15 @@ import { PublicService } from '../../services/public.service';
 })
 export class StepReviewComponent {
   private readonly wizardService = inject(BookingWizardService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
 
   vm$ = this.wizardService.state$.pipe(
     switchMap((wizard) =>
       combineLatest([
         of(wizard),
-        this.publicService.getDoctors().pipe(catchError(() => of([]))),
+        this.apiService.get<any[]>('doctors').pipe(catchError(() => of([]))),
         wizard.selectedDoctorId
-          ? this.publicService.getDoctorServices(wizard.selectedDoctorId).pipe(catchError(() => of([])))
+          ? this.apiService.get<any[]>('doctors/' + wizard.selectedDoctorId + '/services').pipe(catchError(() => of([])))
           : of([])
       ])
     ),

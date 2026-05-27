@@ -11,11 +11,12 @@ import {
 } from 'ionicons/icons';
 import { Doctor } from '../../../../core/models/doctor.models';
 import { Service } from '../../../../core/models';
+import { ApiService } from '../../../../core/services/api.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
 import { AvatarComponent } from '../../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
-import { DoctorSummary, PublicService } from '../../services/public.service';
+import { DoctorSummary } from '../../services/public.service';
 
 @Component({
   selector: 'app-step-doctor-service',
@@ -172,7 +173,7 @@ import { DoctorSummary, PublicService } from '../../services/public.service';
 })
 export class StepDoctorServiceComponent implements OnInit {
   private readonly wizardService = inject(BookingWizardService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
   private readonly subscriptions = new Subscription();
@@ -239,11 +240,11 @@ export class StepDoctorServiceComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.publicService
-      .refreshDoctors()
+    this.apiService
+      .get<any[]>('doctors')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (doctors) => {
+        next: (doctors: DoctorSummary[]) => {
           this.doctors = doctors;
           this.isLoading = false;
         },
@@ -293,7 +294,7 @@ export class StepDoctorServiceComponent implements OnInit {
   }
 
   private loadDoctorServices(doctorId: string) {
-    return this.publicService.getDoctorServices(doctorId).pipe(
+    return this.apiService.get<any[]>('doctors/' + doctorId + '/services').pipe(
       catchError((error: unknown) => {
         this.selectedDoctorError = extractApiErrorMessage(error, 'Failed to load doctor services.');
         void this.presentToast(this.selectedDoctorError);

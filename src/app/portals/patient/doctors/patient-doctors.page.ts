@@ -3,10 +3,10 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { finalize } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Doctor } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { DoctorCardComponent } from '../../public/components/doctor-card/doctor-card.component';
-import { PublicService } from '../../public/services/public.service';
 import { formatDoctorScheduleLines } from '../../public/utils/time-format';
 
 @Component({
@@ -55,7 +55,7 @@ import { formatDoctorScheduleLines } from '../../public/utils/time-format';
   styleUrl: './patient-doctors.page.scss'
 })
 export class PatientDoctorsPage implements OnInit {
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   doctors: Doctor[] = [];
@@ -104,8 +104,8 @@ export class PatientDoctorsPage implements OnInit {
     this.isLoading = true;
     this.loadError = '';
 
-    this.publicService
-      .refreshDoctors()
+    this.apiService
+      .get<any[]>('doctors')
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
@@ -113,7 +113,7 @@ export class PatientDoctorsPage implements OnInit {
         })
       )
       .subscribe({
-        next: (doctors) => {
+        next: (doctors: Doctor[]) => {
           this.doctors = doctors
             .filter((doctor) => isVisibleDoctor(doctor))
             .sort((a, b) => a.fullName.localeCompare(b.fullName));

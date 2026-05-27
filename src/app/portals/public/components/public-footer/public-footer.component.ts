@@ -4,8 +4,8 @@ import { RouterLink } from '@angular/router';
 import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { logoFacebook, logoInstagram } from 'ionicons/icons';
+import { ApiService } from '../../../../core/services/api.service';
 import { ClinicSettingsService } from '../../../../core/services/clinic-settings.service';
-import { PublicService } from '../../services/public.service';
 import { formatClinicOperatingLines } from '../../utils/time-format';
 
 @Component({
@@ -87,10 +87,10 @@ import { formatClinicOperatingLines } from '../../utils/time-format';
 })
 export class PublicFooterComponent {
   private readonly clinicSettings = inject(ClinicSettingsService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
 
   readonly settings = this.clinicSettings.load();
-  doctors$ = this.publicService.getDoctors();
+  doctors$ = this.apiService.get<any[]>('doctors');
 
   readonly hoursSummary: string;
 

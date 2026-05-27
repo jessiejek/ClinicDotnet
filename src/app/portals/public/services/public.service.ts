@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, map, of } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 
 export interface AvailableSlot {
@@ -46,24 +46,8 @@ export interface DoctorDetail {
 export class PublicService {
   private readonly api = inject(ApiService);
 
-  getDoctors(): Observable<any[]> {
-    return this.api.get<any[]>('doctors').pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
-  refreshDoctors(): Observable<any[]> {
-    return this.getDoctors();
-  }
-
   getDoctorById(id: string): Observable<any> {
     return this.api.get<any>('doctors/' + id);
-  }
-
-  getServices(): Observable<any[]> {
-    return this.api.get<any[]>('services').pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
-  getDoctorServices(doctorId: string): Observable<any[]> {
-    return this.api.get<any[]>('doctors/' + doctorId + '/services').pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
   }
 
   getDoctorSchedule(doctorId: string): Observable<any[]> {
@@ -78,20 +62,4 @@ export class PublicService {
     return this.api.get<any[]>('reviews?doctorId=' + doctorId).pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
   }
 
-  getAvailableSlots(doctorId: string, date: string): Observable<any[]> {
-    return this.api.get<any[]>('doctors/' + doctorId + '/available-slots?date=' + date).pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
-  getAnnouncements(): Observable<any[]> {
-    return this.api.get<any[]>('announcements').pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
-  getReviews(doctorId?: string): Observable<any[]> {
-    const url = doctorId ? 'reviews?doctorId=' + doctorId : 'reviews';
-    return this.api.get<any[]>(url).pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
-  getClinicSettings(): Observable<any> {
-    return this.api.get<any>('settings');
-  }
 }

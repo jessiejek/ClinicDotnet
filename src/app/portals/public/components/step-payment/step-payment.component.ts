@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ToastController } from '@ionic/angular';
 import { firstValueFrom, combineLatest, map, of, switchMap, catchError } from 'rxjs';
+import { ApiService } from '../../../../core/services/api.service';
 import { AuthStateService } from '../../../../core/services/auth-state.service';
 import { BookingService, CreateBookingRequest } from '../../../../core/services/booking.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
-import { PublicService } from '../../services/public.service';
 
 @Component({
   selector: 'app-step-payment',
@@ -81,7 +81,7 @@ export class StepPaymentComponent {
   private readonly wizardService = inject(BookingWizardService);
   private readonly bookingService = inject(BookingService);
   private readonly authState = inject(AuthStateService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
 
@@ -92,9 +92,9 @@ export class StepPaymentComponent {
     switchMap((wizard) =>
       combineLatest([
         of(wizard),
-        this.publicService.getDoctors().pipe(catchError(() => of([]))),
+        this.apiService.get<any[]>('doctors').pipe(catchError(() => of([]))),
         wizard.selectedDoctorId
-          ? this.publicService.getDoctorServices(wizard.selectedDoctorId).pipe(catchError(() => of([])))
+          ? this.apiService.get<any[]>('doctors/' + wizard.selectedDoctorId + '/services').pipe(catchError(() => of([])))
           : of([])
       ])
     ),

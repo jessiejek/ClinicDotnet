@@ -23,9 +23,10 @@ import {
   of,
   switchMap,
 } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService, CreateWalkInRequest } from '../../../core/services/booking.service';
 import { AdminPatientsService } from '../services/admin-patients.service';
-import { AvailableSlot, PublicService } from '../../public/services/public.service';
+import { AvailableSlot } from '../../public/services/public.service';
 import { BookingAvailabilityService } from '../../public/services/booking-availability.service';
 import { CreatePatientRequest, Doctor, PatientDetail, PatientSummary, Service, TimeSlot } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -551,7 +552,7 @@ type BookingControl = 'doctorId' | 'serviceId' | 'appointmentDate';
 export class WalkInPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly bookingService = inject(BookingService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly availabilityService = inject(BookingAvailabilityService);
   private readonly adminPatientsService = inject(AdminPatientsService);
   private readonly router = inject(Router);
@@ -877,7 +878,7 @@ export class WalkInPage implements OnInit {
 
   private loadDoctors(): void {
     this.isLoadingDoctors = true;
-    this.publicService.getDoctors().pipe(
+    this.apiService.get<any[]>('doctors').pipe(
       finalize(() => { this.isLoadingDoctors = false; }),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
@@ -966,10 +967,10 @@ export class WalkInPage implements OnInit {
     const token = ++this.servicesRequestToken;
     this.isLoadingServices = true;
 
-    this.publicService.getDoctorServices(doctorId).pipe(
+    this.apiService.get<any[]>('doctors/' + doctorId + '/services').pipe(
       switchMap((services) => {
         if (services.length > 0) return of(services);
-        return this.publicService.getServices().pipe(
+        return this.apiService.get<any[]>('services').pipe(
           map((allServices) => allServices.filter((service) => service.doctorIds.includes(doctorId)))
         );
       }),
@@ -1005,7 +1006,7 @@ export class WalkInPage implements OnInit {
     const token = ++this.slotsRequestToken;
     this.isLoadingSlots = true;
 
-    this.publicService.getAvailableSlots(doctorId, date).pipe(
+    this.apiService.get<any[]>('doctors/' + doctorId + '/available-slots?date=' + date).pipe(
       finalize(() => { if (token === this.slotsRequestToken) this.isLoadingSlots = false; }),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({

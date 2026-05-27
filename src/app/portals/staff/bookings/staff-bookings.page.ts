@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ToastController } from '@ionic/angular/standalone';
 import { Booking } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import {
   BookingService,
   PagedResult,
@@ -227,7 +228,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
 })
 export class StaffBookingsPage implements OnInit {
   private readonly bookingService = inject(BookingService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
@@ -267,7 +268,7 @@ export class StaffBookingsPage implements OnInit {
       this.statusFilter = initialStatus as StaffTodayStatus;
     }
 
-    this.publicService.getDoctors().subscribe({
+    this.apiService.get<any[]>('doctors').subscribe({
       next: (doctors) => {
         this.doctors = doctors.map((doctor) => ({ id: doctor.id, fullName: doctor.fullName }));
       },

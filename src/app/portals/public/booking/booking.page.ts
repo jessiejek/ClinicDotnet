@@ -5,7 +5,7 @@ import { catchError, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { skip } from 'rxjs/operators';
 import { BookingWizardService } from '../../../core/services/booking-wizard.service';
-import { PublicService } from '../services/public.service';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingWizardComponent } from '../components/booking-wizard/booking-wizard.component';
 
 @Component({
@@ -24,7 +24,7 @@ import { BookingWizardComponent } from '../components/booking-wizard/booking-wiz
 export class BookingPage implements OnInit {
   private readonly wizardService = inject(BookingWizardService);
   private readonly route = inject(ActivatedRoute);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild('scrollContainer', { static: true }) private content!: IonContent;
@@ -42,7 +42,7 @@ export class BookingPage implements OnInit {
             return of({ doctorId, serviceId });
           }
 
-          return this.publicService.getServices().pipe(
+          return this.apiService.get<any[]>('services').pipe(
             map((services) => ({
               doctorId: services.find((item) => item.id === serviceId)?.doctorIds[0] ?? null,
               serviceId

@@ -4,7 +4,7 @@ import { IonSpinner, ToastController } from '@ionic/angular/standalone';
 import { catchError, finalize, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Doctor } from '../../../core/models';
-import { PublicService } from '../services/public.service';
+import { ApiService } from '../../../core/services/api.service';
 import { DoctorCardComponent } from '../components/doctor-card/doctor-card.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 
@@ -55,7 +55,7 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
   styleUrl: './doctors.page.scss'
 })
 export class DoctorsPage implements OnInit {
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -76,8 +76,8 @@ export class DoctorsPage implements OnInit {
   }
 
   ngOnInit(): void {
-    this.publicService
-      .getDoctors()
+    this.apiService
+      .get<any[]>('doctors')
       .pipe(
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to load doctors.'));
@@ -88,7 +88,7 @@ export class DoctorsPage implements OnInit {
         }),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((list) => {
+      .subscribe((list: Doctor[]) => {
         this.doctors = list;
       });
   }

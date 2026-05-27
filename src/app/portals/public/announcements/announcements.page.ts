@@ -1,7 +1,7 @@
 import { NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { Announcement } from '../../../core/models';
-import { PublicService } from '../services/public.service';
+import { ApiService } from '../../../core/services/api.service';
 import { AnnouncementCardComponent } from '../components/announcement-card/announcement-card.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 
@@ -34,14 +34,14 @@ import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.
   styleUrl: './announcements.page.scss'
 })
 export class AnnouncementsPage implements OnInit {
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
 
   isLoading = true;
   announcements: Announcement[] = [];
   readonly skeletonPlaceholders = [0, 1, 2];
 
   ngOnInit(): void {
-    this.publicService.getAnnouncements().subscribe((list) => {
+    this.apiService.get<Announcement[]>('announcements').subscribe((list) => {
       this.announcements = list;
       this.isLoading = false;
     });

@@ -3,9 +3,9 @@ import { AsyncPipe, DatePipe, NgIf } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { IonContent } from '@ionic/angular/standalone';
 import { combineLatest, map, of, switchMap } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { BookingWizardService } from '../../../core/services/booking-wizard.service';
-import { PublicService } from '../services/public.service';
 import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { TimeSlotPipe } from '../../../shared/pipes/time-slot.pipe';
@@ -92,7 +92,7 @@ export class BookingConfirmationPage {
   private readonly route = inject(ActivatedRoute);
   private readonly authState = inject(AuthStateService);
   private readonly wizardService = inject(BookingWizardService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
 
   vm$ = combineLatest([
     this.route.paramMap,
@@ -102,12 +102,12 @@ export class BookingConfirmationPage {
     switchMap(([params, wizard, isAuthenticated]) => {
       const bookingId = params.get('bookingId') ?? wizard.bookingId ?? '-';
       const doctor$ = wizard.selectedDoctorId
-        ? this.publicService.getDoctors().pipe(
+        ? this.apiService.get<any[]>('doctors').pipe(
             map((doctors) => doctors.find((d) => d.id === wizard.selectedDoctorId) ?? null)
           )
         : of(null);
       const service$ = wizard.selectedServiceId
-        ? this.publicService.getServices().pipe(
+        ? this.apiService.get<any[]>('services').pipe(
             map((services) => services.find((s) => s.id === wizard.selectedServiceId) ?? null)
           )
         : of(null);

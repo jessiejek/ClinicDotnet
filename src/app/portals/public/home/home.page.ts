@@ -2,7 +2,7 @@ import { AsyncPipe, NgFor, NgIf } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { ServiceCategory } from '../../../core/models';
-import { PublicService } from '../services/public.service';
+import { ApiService } from '../../../core/services/api.service';
 import { AnnouncementCardComponent } from '../components/announcement-card/announcement-card.component';
 import { DoctorCardComponent } from '../components/doctor-card/doctor-card.component';
 import { HeroSectionComponent } from '../components/hero-section/hero-section.component';
@@ -75,13 +75,13 @@ import { ServiceCategoryCardComponent } from '../components/service-category-car
   styleUrl: './home.page.scss'
 })
 export class HomePage {
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
 
-  readonly doctors$ = this.publicService.getDoctors();
-  readonly services$ = this.publicService.getServices();
-  readonly announcements$ = this.publicService.getAnnouncements();
-  readonly settings$ = this.publicService.getClinicSettings();
+  readonly doctors$ = this.apiService.get<any[]>('doctors');
+  readonly services$ = this.apiService.get<any[]>('services');
+  readonly announcements$ = this.apiService.get<any[]>('announcements');
+  readonly settings$ = this.apiService.get<any>('settings');
 
   readonly categoryRows: { key: ServiceCategory; description: string }[] = [
     {

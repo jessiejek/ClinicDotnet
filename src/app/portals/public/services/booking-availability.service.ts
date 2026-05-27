@@ -3,8 +3,6 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, combineLatest, from, map, of, switchMap } from 'rxjs';
 import { DoctorSchedule, DayOfWeek } from '../../../core/models';
 
-import { PublicService, AvailableSlot } from './public.service';
-
 export interface WorkingDay {
   dayOfWeek: DayOfWeek;
   startTime: string;
@@ -28,7 +26,6 @@ const DAY_NAMES: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thu
 @Injectable({ providedIn: 'root' })
 export class BookingAvailabilityService {
   private readonly api = inject(ApiService);
-  private readonly publicService = inject(PublicService);
 
   // ── Date Helpers ─────────────────────────────────
 
@@ -102,13 +99,6 @@ export class BookingAvailabilityService {
         return workingDays.some((wd) => wd.dayOfWeek === dayOfWeek);
       })
     );
-  }
-
-  /**
-   * Get available slots for a doctor + date from the `get_available_slots` RPC.
-   */
-  getAvailableSlots(doctorId: string, dateStr: string): Observable<AvailableSlot[]> {
-    return this.publicService.getAvailableSlots(doctorId, dateStr);
   }
 
   /**

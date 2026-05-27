@@ -5,10 +5,11 @@ import { addIcons } from 'ionicons';
 import { calendarOutline } from 'ionicons/icons';
 import { catchError, combineLatest, distinctUntilChanged, finalize, of, switchMap, timer } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ApiService } from '../../../../core/services/api.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
 import { TimeSlotPipe } from '../../../../shared/pipes/time-slot.pipe';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
-import { AvailableSlot, PublicService } from '../../services/public.service';
+import { AvailableSlot } from '../../services/public.service';
 
 @Component({
   selector: 'app-step-slot-select',
@@ -78,7 +79,7 @@ import { AvailableSlot, PublicService } from '../../services/public.service';
 })
 export class StepSlotSelectComponent implements OnInit {
   private readonly wizardService = inject(BookingWizardService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -238,7 +239,7 @@ export class StepSlotSelectComponent implements OnInit {
   }
 
   private loadAvailableSlots(doctorId: string, date: string) {
-    return this.publicService.getAvailableSlots(doctorId, date).pipe(
+    return this.apiService.get<any[]>('doctors/' + doctorId + '/available-slots?date=' + date).pipe(
       catchError((error: unknown) => {
         void this.presentToast(extractApiErrorMessage(error, 'Failed to load available slots.'));
         return of([] as AvailableSlot[]);

@@ -23,9 +23,10 @@ import {
   of,
   switchMap,
 } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService, CreateWalkInRequest } from '../../../core/services/booking.service';
 import { AdminPatientsService } from '../../admin/services/admin-patients.service';
-import { AvailableSlot, PublicService } from '../../public/services/public.service';
+import { AvailableSlot } from '../../public/services/public.service';
 import { BookingAvailabilityService } from '../../public/services/booking-availability.service';
 import { StaffService } from '../services/staff.service';
 import { CreatePatientRequest, Doctor, PatientDetail, PatientSummary, Service, TimeSlot } from '../../../core/models';
@@ -574,7 +575,7 @@ export class StaffWalkInPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly bookingService = inject(BookingService);
   private readonly staffService = inject(StaffService);
-  private readonly publicService = inject(PublicService);
+  private readonly apiService = inject(ApiService);
   private readonly availabilityService = inject(BookingAvailabilityService);
   private readonly adminPatientsService = inject(AdminPatientsService);
   private readonly router = inject(Router);
@@ -940,8 +941,8 @@ export class StaffWalkInPage implements OnInit {
   private loadDoctors(): void {
     this.isLoadingDoctors = true;
 
-    this.publicService
-      .getDoctors()
+    this.apiService
+      .get<any[]>('doctors')
       .pipe(
         finalize(() => {
           this.isLoadingDoctors = false;
@@ -1050,15 +1051,15 @@ export class StaffWalkInPage implements OnInit {
     const token = ++this.servicesRequestToken;
     this.isLoadingServices = true;
 
-    this.publicService
-      .getDoctorServices(doctorId)
+    this.apiService
+      .get<any[]>('doctors/' + doctorId + '/services')
       .pipe(
         switchMap((services) => {
           if (services.length > 0) {
             return of(services);
           }
 
-          return this.publicService.getServices().pipe(
+          return this.apiService.get<any[]>('services').pipe(
             map((allServices) => allServices.filter((service) => service.doctorIds.includes(doctorId)))
           );
         }),
@@ -1105,8 +1106,8 @@ export class StaffWalkInPage implements OnInit {
     const token = ++this.slotsRequestToken;
     this.isLoadingSlots = true;
 
-    this.publicService
-      .getAvailableSlots(doctorId, date)
+    this.apiService
+      .get<any[]>('doctors/' + doctorId + '/available-slots?date=' + date)
       .pipe(
         finalize(() => {
           if (token === this.slotsRequestToken) {
