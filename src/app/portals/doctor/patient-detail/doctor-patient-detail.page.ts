@@ -6,7 +6,7 @@ import { Observable, catchError, forkJoin, firstValueFrom, from, map, of, switch
 import { FormsModule } from '@angular/forms';
 import { IonLabel, IonSegment, IonSegmentButton, ModalController } from '@ionic/angular/standalone';
 import { MedicalRecordsService } from '../../../core/services/medical-records.service';
-import { BookingService, ConsultationRecordResponse } from '../../../core/services/booking.service';
+import { ConsultationRecordResponse } from '../../../core/services/booking.service';
 import { PatientClinicalHistoryDto, PatientClinicalHistoryPatientDto, PatientClinicalHistorySummaryDto } from '../../../core/models/patient-clinical-history.models';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
@@ -218,9 +218,8 @@ type ClinicalTab = 'timeline' | 'consultations' | 'prescriptions' | 'labs' | 'do
   styleUrl: './doctor-patient-detail.page.scss'
 })
 export class DoctorPatientDetailPage {
-  private readonly api = inject(ApiService);
+  private readonly apiService = inject(ApiService);
   private readonly medicalRecords = inject(MedicalRecordsService);
-  private readonly bookingService = inject(BookingService);
   private readonly route = inject(ActivatedRoute);
   private readonly modalCtrl = inject(ModalController);
 
@@ -318,7 +317,7 @@ export class DoctorPatientDetailPage {
 
   private async buildClinicalHistory(patientId: string): Promise<PatientClinicalHistoryDto> {
     // Load patient from API
-    const patientRow: any = await firstValueFrom(this.api.get('patients/' + patientId));
+    const patientRow: any = await firstValueFrom(this.apiService.get('patients/' + patientId));
 
     const patient: PatientClinicalHistoryPatientDto = {
       id: patientId,
@@ -331,7 +330,7 @@ export class DoctorPatientDetailPage {
     };
 
     const [bookingRowsResult, recordState] = await Promise.all([
-      firstValueFrom(this.api.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50')),
+      firstValueFrom(this.apiService.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50')),
       firstValueFrom(
         forkJoin({
           consultations: this.medicalRecords.getConsultationsByPatientId(patientId),
@@ -482,7 +481,8 @@ export class DoctorPatientDetailPage {
     const consultationRecords = await firstValueFrom(
       forkJoin(
         bookingIds.map((bookingId) =>
-          this.bookingService.fetchConsultationRecordByBookingId(bookingId).pipe(
+          this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').pipe(
+            map((data) => (data ? mapConsultationRecordRow(data as Record<string, unknown>) : null)),
             catchError(() => of(null))
           )
         )
@@ -563,8 +563,62 @@ function composeName(first: unknown, middle: unknown, last: unknown): string {
   return parts.length ? parts.join(' ') : 'Patient';
 }
 
+function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRecordResponse {
+  const prescriptionRows = Array.isArray(row['prescriptions']) ? row['prescriptions'] : [];
+  const firstPrescription = prescriptionRows.find((item) => typeof item === 'object' && item !== null) as
+    | Record<string, unknown>
+    | undefined;
+  const firstFollowUpRow = Array.isArray(row['follow_ups'])
+    ? (row['follow_ups'].find((item) => typeof item === 'object' && item !== null) as Record<string, unknown> | undefined)
+    : undefined;
+
+  const prescription = firstPrescription
+    ? {
+        id: trimStr(firstPrescription['id']),
+        notes: trimStr(firstPrescription['notes']),
+        items: Array.isArray(firstPrescription['items'])
+          ? firstPrescription['items']
+              .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+              .map((item) => ({
+                id: trimStr(item['id']),
+                medicationName: trimStr(item['medication_name']) ?? '',
+                strength: trimStr(item['strength']),
+                dosage: trimStr(item['dosage']),
+                route: trimStr(item['route']),
+                frequency: trimStr(item['frequency']),
+                duration: trimStr(item['duration']),
+                quantity: trimStr(item['quantity']),
+                instructions: trimStr(item['instructions'])
+              }))
+              .filter((item) => item.medicationName.length > 0)
+          : []
+      }
+    : null;
+
+  return {
+    bookingId: trimStr(row['booking_id']) ?? '',
+    consultationId: trimStr(row['consultation_id']),
+    patientId: trimStr(row['patient_id']) ?? '',
+    doctorId: trimStr(row['doctor_id']) ?? '',
+    bookingStatus: (trimStr(row['booking_status']) ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
+    generalNotes: trimStr(row['general_notes']),
+    vitalSigns: null,
+    soap: null,
+    diagnoses: [],
+    prescription,
+    labOrders: [],
+    followUp: firstFollowUpRow
+      ? {
+          id: trimStr(firstFollowUpRow['id']),
+          followUpDate: trimStr(firstFollowUpRow['follow_up_date']),
+          instructions: trimStr(firstFollowUpRow['instructions']),
+          reason: trimStr(firstFollowUpRow['reason'])
+        }
+      : null
+  };
+}
+
 function normalizeNum(value: unknown): number | null {
   if (typeof value !== 'number') return null;
   return Number.isFinite(value) ? value : null;
 }
-
