@@ -1,10 +1,11 @@
 import { NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, personOutline, warningOutline } from 'ionicons/icons';
-import { Review, Service, ServiceCategory } from '../../../core/models';
+import { DoctorDayStatus, Review, Service, ServiceCategory } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { BannerComponent } from '../../../shared/components/banner/banner.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -14,7 +15,6 @@ import { ReviewCardComponent } from '../components/review-card/review-card.compo
 import { DoctorDetail, PublicService } from '../services/public.service';
 import { formatDoctorScheduleLines } from '../utils/time-format';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
-import { DoctorDayStatus } from '../../../core/models';
 
 @Component({
   selector: 'app-doctor-profile-page',
@@ -143,6 +143,7 @@ import { DoctorDayStatus } from '../../../core/models';
   styleUrl: './doctor-profile.page.scss'
 })
 export class DoctorProfilePage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly doctorState = inject(DoctorStateService);
   private readonly route = inject(ActivatedRoute);
   private readonly publicService = inject(PublicService);
@@ -169,7 +170,12 @@ export class DoctorProfilePage implements OnInit {
       this.isLoading = false;
       return;
     }
-    this.doctorState.getDoctorDayStatus(id).subscribe((status: any) => (this.dayStatus = status));
+    this.apiService.get<DoctorDayStatus | null>('doctor-day-status/' + id).pipe(
+      catchError(() => of(null as DoctorDayStatus | null))
+    ).subscribe((status) => {
+      this.dayStatus = status ?? undefined;
+      this.doctorState.setTodayStatus(status);
+    });
     forkJoin({
       doctor: this.publicService.getDoctorById(id),
       reviews: this.publicService.getDoctorReviews(id),

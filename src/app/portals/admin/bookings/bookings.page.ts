@@ -3,7 +3,9 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, finalize, map, of } from 'rxjs';
 import { Booking, BookingStatus, Doctor, Patient } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
@@ -199,6 +201,7 @@ const FILTER_STATUSES: BookingStatus[] = [
   styleUrl: './bookings.page.scss'
 })
 export class BookingsPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly doctorState = inject(DoctorStateService);
   private readonly patientState = inject(PatientStateService);
@@ -237,6 +240,7 @@ export class BookingsPage implements OnInit {
 
     // Kick off the fetch
     this.fetchBookings();
+    this.loadDoctors();
 
     this.doctorState.doctors$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -269,6 +273,25 @@ export class BookingsPage implements OnInit {
     this.bookingService.getBookings()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
+  }
+
+  private loadDoctors(): void {
+    this.doctorState.setLoading(true);
+    this.apiService
+      .get<any[]>('doctors')
+      .pipe(
+        map((rows) => this.doctorState.normalizeDoctorRows(rows)),
+        catchError((error: unknown) => {
+          console.warn('Failed to load doctors:', error);
+          return of([] as Doctor[]);
+        }),
+        finalize(() => this.doctorState.setLoading(false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((doctors) => {
+        this.doctors = doctors;
+        this.doctorState.setDoctors(doctors);
+      });
   }
 
   /** Fetch a specific page of bookings from the API */

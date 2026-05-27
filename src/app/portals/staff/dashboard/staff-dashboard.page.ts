@@ -5,7 +5,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { cashOutline } from 'ionicons/icons';
+import { catchError, finalize, map, of } from 'rxjs';
 import { Booking, Doctor, Patient } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
@@ -101,6 +103,7 @@ import { QueueTableComponent } from '../components/queue-table/queue-table.compo
   styleUrl: './staff-dashboard.page.scss'
 })
 export class StaffDashboardPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
   private readonly doctorState = inject(DoctorStateService);
@@ -212,7 +215,7 @@ export class StaffDashboardPage implements OnInit {
 
   private refreshDashboardData(): void {
     this.loadTodaysBookings();
-    this.doctorState.refresh();
+    this.loadDoctors();
     this.patientState.refresh();
   }
 
@@ -227,6 +230,25 @@ export class StaffDashboardPage implements OnInit {
         error: () => {
           this.todaysBookings = [];
         }
+      });
+  }
+
+  private loadDoctors(): void {
+    this.doctorState.setLoading(true);
+    this.apiService
+      .get<any[]>('doctors')
+      .pipe(
+        map((rows) => this.doctorState.normalizeDoctorRows(rows)),
+        catchError((error: unknown) => {
+          console.warn('Failed to load doctors:', error);
+          return of([] as Doctor[]);
+        }),
+        finalize(() => this.doctorState.setLoading(false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((doctors) => {
+        this.doctors = doctors;
+        this.doctorState.setDoctors(doctors);
       });
   }
 }

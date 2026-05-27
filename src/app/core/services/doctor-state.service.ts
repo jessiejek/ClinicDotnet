@@ -1,7 +1,6 @@
-import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Observable, map } from 'rxjs';
 import { Doctor, DoctorDayStatus, DoctorStatus } from '../models';
-import { ApiService } from './api.service';
 
 export interface DoctorInfo {
   id: string;
@@ -25,8 +24,6 @@ export interface DoctorDetailedAvailability {
   providedIn: 'root'
 })
 export class DoctorStateService {
-  private readonly api = inject(ApiService);
-
   private readonly doctorsSubject = new BehaviorSubject<Doctor[]>([]);
   private readonly todayStatusSubject = new BehaviorSubject<DoctorDayStatus | null>(null);
   private readonly dayStatusesSubject = new BehaviorSubject<Record<string, DoctorDayStatus>>({});
@@ -37,78 +34,59 @@ export class DoctorStateService {
   readonly dayStatuses$ = this.dayStatusesSubject.asObservable();
   readonly isLoading$ = this.loadingSubject.asObservable();
 
-  constructor() {
-    this.loadDoctorsFromApi();
-  }
-
-  /** @deprecated Use doctors$ directly. */
+  /** State helper for pages that want an observable of the doctor list. */
   getDoctors(): Observable<Doctor[]> {
     return this.doctors$;
   }
 
-  /** @deprecated Use loadDoctorsFromApi() directly. */
-  refresh(): void {
-    this.loadDoctorsFromApi();
+  /** State helper for pages that need to look up a doctor by user id. */
+  getDoctorByUserId(userId: string): Observable<Doctor | undefined> {
+    return this.doctors$.pipe(map((doctors) => doctors.find((doctor) => doctor.userId === userId)));
   }
 
-  /** @deprecated Use todayStatus$ + loadTodayDoctorStatus(). */
+  /** State helper for the current doctor's day status. */
   getDoctorDayStatus(doctorId: string): Observable<DoctorDayStatus | null> {
-    this.loadTodayDoctorStatus(doctorId);
+    void doctorId;
     return this.todayStatus$;
   }
 
-  /** @deprecated Use updateDayStatus(). */
-  updateDayStatusViaApi(doctorUserId: string, status: string, runningLateMinutes?: number): Observable<DoctorDayStatus | null> {
-    this.updateDayStatus(doctorUserId, { status: status as any, runningLateMinutes } as any);
-    return this.todayStatus$;
+  setDoctors(doctors: Doctor[]): void {
+    this.doctorsSubject.next(doctors);
   }
 
-  /** Load all doctors (for staff pages). */
-  loadDoctorsFromApi(): void {
-    this.loadingSubject.next(true);
-    this.api.get<any[]>('doctors').subscribe({
-      next: (data: any[]) => {
-        try {
-          const doctors: Doctor[] = (data ?? [])
-            .map((row: any) => this.normalizeDoctor(row))
-            .filter((d: Doctor | undefined): d is Doctor => !!d && !!d.id);
-          this.doctorsSubject.next(doctors);
-        } finally {
-          this.loadingSubject.next(false);
-        }
-      },
-      error: (err: any) => {
-        console.warn('Failed to load doctors:', err);
-        this.loadingSubject.next(false);
-      }
+  setLoading(loading: boolean): void {
+    this.loadingSubject.next(loading);
+  }
+
+  setTodayStatus(status: DoctorDayStatus | null): void {
+    this.todayStatusSubject.next(status);
+  }
+
+  setDayStatuses(statuses: Record<string, DoctorDayStatus>): void {
+    this.dayStatusesSubject.next(statuses);
+  }
+
+  mergeDayStatus(doctorId: string, status: DoctorDayStatus | null): void {
+    if (!status) {
+      const next = { ...this.dayStatusesSubject.value };
+      delete next[doctorId];
+      this.dayStatusesSubject.next(next);
+      return;
+    }
+
+    this.dayStatusesSubject.next({
+      ...this.dayStatusesSubject.value,
+      [doctorId]: status
     });
   }
 
-  /** Load today's day status for a single doctor. */
-  loadTodayDoctorStatus(doctorUserId: string): void {
-    this.api.get<DoctorDayStatus>('doctor-day-status/' + doctorUserId).subscribe({
-      next: (status: DoctorDayStatus | null) => {
-        this.todayStatusSubject.next(status);
-      },
-      error: (err: any) => {
-        console.warn('Failed to load today status:', err);
-      }
-    });
+  normalizeDoctorRows(rows: any[] | null | undefined): Doctor[] {
+    return (rows ?? [])
+      .map((row: any) => this.normalizeDoctorRow(row))
+      .filter((doctor: Doctor | undefined): doctor is Doctor => !!doctor && !!doctor.id);
   }
 
-  /** Update day status, then refresh local state. */
-  updateDayStatus(doctorUserId: string, status: Partial<DoctorDayStatus>): void {
-    this.api.post<DoctorDayStatus>('doctor-day-status/' + doctorUserId + '/status', status).subscribe({
-      next: (updated: DoctorDayStatus) => {
-        this.todayStatusSubject.next(updated);
-      },
-      error: (err: any) => {
-        console.warn('Failed to update day status:', err);
-      }
-    });
-  }
-
-  private normalizeDoctor(row: any): Doctor | undefined {
+  normalizeDoctorRow(row: any): Doctor | undefined {
     if (!row) return undefined;
     return {
       id: row.id ?? row.doctorId ?? '',
@@ -130,5 +108,27 @@ export class DoctorStateService {
       isActive: row.isActive ?? row.is_active ?? undefined,
       workingDays: row.workingDays ?? row.working_days ?? undefined,
     };
+  }
+
+  normalizeDoctorDayStatusRow(row: Record<string, unknown>): DoctorDayStatus {
+    return {
+      id: this.readValue(row, 'id') ?? '',
+      doctorId: this.readValue(row, 'doctorId') ?? '',
+      date: this.readValue(row, 'date') ?? this.readValue(row, 'targetDate') ?? this.readValue(row, 'target_date') ?? '',
+      status: (this.readValue(row, 'status') as DoctorDayStatus['status']) ?? 'Available',
+      runningLateMinutes: this.readNumber(row, 'runningLateMinutes') ?? this.readNumber(row, 'running_late_minutes') ?? undefined
+    };
+  }
+
+  private readValue(row: Record<string, unknown>, key: string): string | undefined {
+    const snake = key.replace(/[A-Z]/g, (match) => '_' + match.toLowerCase());
+    const value = row[key] ?? row[snake];
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private readNumber(row: Record<string, unknown>, key: string): number | undefined {
+    const snake = key.replace(/[A-Z]/g, (match) => '_' + match.toLowerCase());
+    const value = row[key] ?? row[snake];
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   }
 }

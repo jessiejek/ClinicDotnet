@@ -2,8 +2,10 @@ import { NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ToastController } from '@ionic/angular/standalone';
+import { catchError, finalize, forkJoin, map, of, switchMap } from 'rxjs';
 import { AvailabilityStatus, Doctor, DoctorDayStatus } from '../../../core/models';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
+import { ApiService } from '../../../core/services/api.service';
 import { DoctorStatusCardComponent } from '../components/doctor-status-card/doctor-status-card.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
@@ -69,6 +71,7 @@ import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.
   styleUrl: './doctor-status.page.scss'
 })
 export class DoctorStatusPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly doctorState = inject(DoctorStateService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
@@ -85,12 +88,61 @@ export class DoctorStatusPage implements OnInit {
   loadDoctors(): void {
     this.error = false;
     this.isLoading = true;
-    this.doctorState.loadDoctorsFromApi();
-    this.doctorState.doctors$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((doctors: any) => {
-        this.doctors = doctors.filter((d: any) => d.status === 'Active');
-        this.isLoading = false;
+    this.doctorState.setLoading(true);
+    this.apiService
+      .get<any[]>('doctors')
+      .pipe(
+        map((rows) => this.doctorState.normalizeDoctorRows(rows)),
+        switchMap((doctors) => {
+          const activeDoctors = doctors.filter((doctor) => doctor.status === 'Active');
+          if (activeDoctors.length === 0) {
+            return of({
+              doctors,
+              activeDoctors,
+              dayStatuses: {} as Record<string, DoctorDayStatus>
+            });
+          }
+
+          return forkJoin(
+            activeDoctors.map((doctor) =>
+              this.apiService
+                .get<DoctorDayStatus | null>('doctor-day-status/' + (doctor.userId || doctor.id))
+                .pipe(catchError(() => of(null as DoctorDayStatus | null)))
+            )
+          ).pipe(
+            map((statuses) => {
+              const dayStatuses = activeDoctors.reduce((acc, doctor, index) => {
+                const status = statuses[index];
+                if (status) {
+                  acc[doctor.id] = status;
+                }
+                return acc;
+              }, {} as Record<string, DoctorDayStatus>);
+
+              return { doctors, activeDoctors, dayStatuses };
+            })
+          );
+        }),
+        catchError((err) => {
+          console.warn('Failed to load doctors:', err);
+          this.error = true;
+          return of({
+            doctors: [] as Doctor[],
+            activeDoctors: [] as Doctor[],
+            dayStatuses: {} as Record<string, DoctorDayStatus>
+          });
+        }),
+        finalize(() => {
+          this.isLoading = false;
+          this.doctorState.setLoading(false);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(({ doctors, activeDoctors, dayStatuses }) => {
+        this.doctors = activeDoctors;
+        this.dayStatuses = dayStatuses;
+        this.doctorState.setDoctors(doctors);
+        this.doctorState.setDayStatuses(dayStatuses);
       });
     this.doctorState.isLoading$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -121,8 +173,13 @@ export class DoctorStatusPage implements OnInit {
     status: AvailabilityStatus;
     runningLateMinutes?: number;
   }): void {
-    this.doctorState.updateDayStatusViaApi(event.doctorId, event.status, event.runningLateMinutes).subscribe({
-      next: () => {
+    this.apiService.post<DoctorDayStatus>('doctor-day-status/' + event.doctorId + '/status', {
+      status: event.status,
+      runningLateMinutes: event.runningLateMinutes ?? null
+    }).subscribe({
+      next: (updated) => {
+        this.doctorState.mergeDayStatus(event.doctorId, updated);
+        this.dayStatuses = { ...this.dayStatuses, [event.doctorId]: updated };
         const doctor = this.doctors.find((item) => item.id === event.doctorId);
         void this.presentToast(
           `${doctor?.fullName ?? 'Doctor'} status updated to ${this.labelForStatus(event.status)}`,

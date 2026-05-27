@@ -1,6 +1,8 @@
 import { AsyncPipe, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { Booking, Doctor } from '../../../core/models';
+import { catchError, finalize, map, of } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -53,6 +55,7 @@ import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.
   styleUrl: './calendar.page.scss'
 })
 export class CalendarPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly doctorState = inject(DoctorStateService);
 
@@ -65,6 +68,7 @@ export class CalendarPage implements OnInit {
     this.bookingService.getBookings().subscribe((bookings) => (this.bookings = bookings));
     this.bookingService.isLoading$.subscribe((loading) => (this.isLoading = loading));
     this.doctorState.doctors$.subscribe((doctors) => (this.doctors = doctors));
+    this.loadDoctors();
   }
 
   get weekDays(): Array<{ label: string; date: string }> {
@@ -97,6 +101,24 @@ export class CalendarPage implements OnInit {
 
   bookingsForCell(doctorId: string, day: string): Booking[] {
     return this.weekBookings.filter((booking) => booking.doctorId === doctorId && booking.appointmentDate === day);
+  }
+
+  private loadDoctors(): void {
+    this.doctorState.setLoading(true);
+    this.apiService
+      .get<any[]>('doctors')
+      .pipe(
+        map((rows) => this.doctorState.normalizeDoctorRows(rows)),
+        catchError((error: unknown) => {
+          console.warn('Failed to load doctors:', error);
+          return of([] as Doctor[]);
+        }),
+        finalize(() => this.doctorState.setLoading(false))
+      )
+      .subscribe((doctors) => {
+        this.doctors = doctors;
+        this.doctorState.setDoctors(doctors);
+      });
   }
 
   private startOfWeek(date: Date): Date {

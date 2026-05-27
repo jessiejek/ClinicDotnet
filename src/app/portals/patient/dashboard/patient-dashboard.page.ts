@@ -4,8 +4,9 @@ import { Router, RouterLink } from '@angular/router';
 import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { calendarOutline, checkmarkCircleOutline, medkitOutline, receiptOutline } from 'ionicons/icons';
-import { catchError, combineLatest, map, of, switchMap } from 'rxjs';
+import { catchError, combineLatest, finalize, map, of, switchMap } from 'rxjs';
 import { AuthUser, Booking, Consultation, Doctor, Patient, Prescription } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
@@ -216,6 +217,7 @@ export class PatientDashboardPage implements OnInit {
     addIcons({ calendarOutline, checkmarkCircleOutline, medkitOutline, receiptOutline });
   }
 
+  private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
   private readonly bookingService = inject(BookingService);
   private readonly clinicSettings = inject(ClinicSettingsService);
@@ -327,7 +329,22 @@ export class PatientDashboardPage implements OnInit {
   );
 
   ngOnInit(): void {
-    this.doctorState.loadDoctorsFromApi();
+    this.loadDoctors();
+  }
+
+  private loadDoctors(): void {
+    this.doctorState.setLoading(true);
+    this.apiService
+      .get<any[]>('doctors')
+      .pipe(
+        map((rows) => this.doctorState.normalizeDoctorRows(rows)),
+        catchError((error: unknown) => {
+          console.warn('Failed to load doctors:', error);
+          return of([] as Doctor[]);
+        }),
+        finalize(() => this.doctorState.setLoading(false))
+      )
+      .subscribe((doctors) => this.doctorState.setDoctors(doctors));
   }
 
   canSubmitProof(booking: Booking): boolean {
