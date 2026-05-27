@@ -17,7 +17,6 @@ import {
 import {
   Booking,
   BookingServiceItem,
-  DoctorPatientSummaryDto,
   BookingStatus,
   Payment,
   PaymentMethod,
@@ -361,39 +360,6 @@ export class BookingService {
     );
   }
 
-  getDoctorPatients(): Observable<DoctorPatientSummaryDto[]> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any[]>('bookings/doctor/patients').pipe(
-        map((rows) => {
-          const records = (rows ?? []) as Record<string, unknown>[];
-          const patientMap = new Map<string, Record<string, unknown>>();
-          for (const row of records) {
-            const patientId = trimOptionalString(row['patient_id']);
-            if (!patientId || patientMap.has(patientId)) continue;
-            patientMap.set(patientId, row);
-          }
-          return Array.from(patientMap.values()).map((row) => ({
-            patientId: trimOptionalString(row['patient_id']) ?? '',
-            patientName: trimOptionalString(row['patient_name']) ?? 'Patient',
-            patientCode: trimOptionalString(row['patient_code']),
-            latestDate: normalizeDateOnly(row['appointment_date']),
-            latestTime: normalizeTimeOnly(row['slot_start_time']),
-            services: normalizeBookingServices(row['services']).map((s) => s.name).filter(Boolean).join(', '),
-            status: normalizeBookingStatus(row['booking_status']) ?? 'Pending',
-            queueNumber: normalizeNullableNumber(row['queue_number']),
-            latestBookingId: trimOptionalString(row['booking_id']) ?? ''
-          }));
-        }),
-        catchError((err) => {
-          console.warn('Failed to load doctor patients from API:', err);
-          return of([]);
-        }),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
   getStaffTodayBookings(filters: StaffTodayBookingsFilters = {}): Observable<PagedResult<Booking>> {
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.max(1, filters.pageSize ?? 20);
@@ -510,55 +476,6 @@ export class BookingService {
       this.saveConsultationAndComplete$(id, dto),
       'Failed to complete booking.'
     );
-  }
-
-  fetchConsultationRecordByBookingId(bookingId: string): Observable<ConsultationRecordResponse> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').pipe(
-        map((data) => {
-          if (!data) {
-            return {
-              bookingId,
-              patientId: this.getBookingById(bookingId)?.patientId ?? '',
-              doctorId: this.getBookingById(bookingId)?.doctorId ?? '',
-              bookingStatus: this.getBookingById(bookingId)?.status ?? 'CheckedIn',
-              diagnoses: [],
-              labOrders: []
-            } as ConsultationRecordResponse;
-          }
-          return mapConsultationRecordRow(data as Record<string, unknown>);
-        }),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load consultation record from API.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  updateConsultationRecord(
-    bookingId: string,
-    dto: ConsultationRecordUpdateRequest
-  ): Observable<ConsultationRecordResponse> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.post<any>('bookings/' + bookingId + '/consultation-record', dto).pipe(
-        switchMap(() => this.apiService.get<any>('bookings/' + bookingId + '/consultation-record')),
-        map((data) => data ? mapConsultationRecordRow(data as Record<string, unknown>) : {
-          bookingId,
-          patientId: this.getBookingById(bookingId)?.patientId ?? '',
-          doctorId: this.getBookingById(bookingId)?.doctorId ?? '',
-          bookingStatus: this.getBookingById(bookingId)?.status ?? 'CheckedIn',
-          diagnoses: [],
-          labOrders: []
-        } as ConsultationRecordResponse),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to save consultation amendment.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
   }
 
   confirmBooking(bookingId: string): void {
