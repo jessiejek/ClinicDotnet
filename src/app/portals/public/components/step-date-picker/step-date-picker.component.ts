@@ -3,12 +3,12 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { IonIcon, IonSpinner, ToastController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { chevronBackOutline, chevronForwardOutline } from 'ionicons/icons';
-import { Subscription, distinctUntilChanged } from 'rxjs';
+import { Subscription, distinctUntilChanged, map } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DoctorSchedule } from '../../../../core/models';
+import { ApiService } from '../../../../core/services/api.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
 import { BookingAvailabilityService, WorkingDay } from '../../services/booking-availability.service';
-import { PublicService } from '../../services/public.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
@@ -95,6 +95,7 @@ export class StepDatePickerComponent implements OnInit {
   private readonly wizardService = inject(BookingWizardService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly apiService = inject(ApiService);
   private readonly subscriptions = new Subscription();
 
   currentMonth = this.startOfMonth(new Date());
@@ -129,9 +130,18 @@ export class StepDatePickerComponent implements OnInit {
         }
 
         this.isLoading = true;
-        this.availabilityService
-          .getDoctorWorkingDays(doctorId)
-          .pipe(takeUntilDestroyed(this.destroyRef))
+        this.apiService
+          .get<DoctorScheduleRow[]>('doctors/' + doctorId + '/schedule')
+          .pipe(
+            map((rows) =>
+              (rows ?? []).map((row) => ({
+                dayOfWeek: normalizeScheduleDayOfWeek(row.day_of_week),
+                startTime: normalizeTime(row.start_time),
+                endTime: normalizeTime(row.end_time)
+              }))
+            ),
+            takeUntilDestroyed(this.destroyRef)
+          )
           .subscribe({
             next: (workingDays) => {
               this.workingDays = workingDays;
@@ -289,6 +299,35 @@ export class StepDatePickerComponent implements OnInit {
     });
     await toast.present();
   }
+}
+
+interface DoctorScheduleRow {
+  id: string;
+  doctor_id: string;
+  day_of_week: string;
+  start_time: string | null;
+  end_time: string | null;
+}
+
+function normalizeScheduleDayOfWeek(value: unknown): WorkingDay['dayOfWeek'] {
+  if (typeof value !== 'string') return 'Monday';
+  const normalized = value.trim().toLowerCase();
+  const allowedDays: WorkingDay['dayOfWeek'][] = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday'
+  ];
+  return allowedDays.find((day) => day.toLowerCase() === normalized) ?? 'Monday';
+}
+
+function normalizeTime(value: string | null | undefined): string {
+  if (!value) return '00:00';
+  const trimmed = value.trim();
+  return trimmed.length >= 5 ? trimmed.slice(0, 5) : trimmed;
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {
