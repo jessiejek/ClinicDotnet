@@ -38,14 +38,13 @@ import { AvailableSlot, PublicService } from '../../services/public.service';
                 *ngFor="let slot of slots"
                 type="button"
                 class="slot-chip"
-                [class.slot-chip--selected]="slot.slotStartTime === latestSelectedSlot"
+                [class.slot-chip--selected]="(slot.slotStartTime ?? '') === latestSelectedSlot"
                 [class.slot-chip--full]="isSlotUnavailable(selectedDate, slot)"
                 [disabled]="isSlotUnavailable(selectedDate, slot)"
                 (click)="selectSlot(slot)"
               >
                 <span class="slot-chip__time"
-                  >{{ slot.slotStartTime | timeSlot }} - {{ slot.slotEndTime | timeSlot }}</span
-                >
+                  >{{ (slot.slotStartTime ?? '') | timeSlot }} - {{ (slot.slotEndTime ?? '') | timeSlot }}</span>
                 <span class="slot-chip__label" *ngIf="isSlotUnavailable(selectedDate, slot)">
                   {{ getUnavailableLabel(selectedDate, slot) }}
                 </span>
@@ -143,7 +142,7 @@ export class StepSlotSelectComponent implements OnInit {
       return;
     }
 
-    this.wizardService.selectSlot(slot.slotStartTime, slot.slotEndTime);
+    this.wizardService.selectSlot((slot.slotStartTime ?? ""), (slot.slotEndTime ?? ""));
   }
 
   goBack(): void {
@@ -171,7 +170,7 @@ export class StepSlotSelectComponent implements OnInit {
       return;
     }
 
-    const matchingSlot = this.slots.find((slot) => slot.slotStartTime === this.latestSelectedSlot);
+    const matchingSlot = this.slots.find((slot) => (slot.slotStartTime ?? "") === this.latestSelectedSlot);
     if (!matchingSlot || !this.isSlotSelectable(this.latestSelectedDate, matchingSlot)) {
       this.wizardService.selectSlot(null, null);
       this.latestSelectedSlot = null;
@@ -225,7 +224,7 @@ export class StepSlotSelectComponent implements OnInit {
   }
 
   private getSlotEndMinutes(slot: AvailableSlot): number | null {
-    return parseTimeToMinutes(slot.slotEndTime || slot.slotStartTime);
+    return parseTimeToMinutes((slot.slotEndTime ?? "") || (slot.slotStartTime ?? ""));
   }
 
   private async presentToast(message: string): Promise<void> {

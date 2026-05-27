@@ -55,7 +55,7 @@ import { DoctorSummary, PublicService } from '../../services/public.service';
             <div class="selected-doctor__meta">
               <div class="selected-doctor__name">{{ selectedDoctor?.fullName }}</div>
               <div class="selected-doctor__spec">{{ selectedDoctor?.specialization }}</div>
-              <app-status-badge [status]="selectedDoctor?.status ?? 'Active'"></app-status-badge>
+              <app-status-badge [status]="(selectedDoctor?.status ?? '') ?? 'Active'"></app-status-badge>
             </div>
             <button type="button" class="btn-ghost" (click)="changeDoctor()">
               <ion-icon name="arrow-back-outline"></ion-icon>
@@ -139,7 +139,7 @@ import { DoctorSummary, PublicService } from '../../services/public.service';
                 </div>
                 <div class="doctor-card__name">{{ doctor.fullName }}</div>
                 <div class="doctor-card__spec">{{ doctor.specialization }}</div>
-                <app-status-badge [status]="doctor.status"></app-status-badge>
+                <app-status-badge [status]='$any(doctor).status'></app-status-badge>
                 <div class="doctor-card__cta">
                   Select Doctor
                   <ion-icon name="chevron-forward-outline"></ion-icon>
@@ -260,7 +260,7 @@ export class StepDoctorServiceComponent implements OnInit {
     this.subscriptions.unsubscribe();
   }
 
-  selectDoctor(doctor: Doctor): void {
+  selectDoctor(doctor: any): void {
     this.wizardService.selectDoctor(doctor.id);
   }
 

@@ -156,12 +156,17 @@ export class PushNotificationService {
         return { success: false, error: 'Failed to obtain Firebase token.' };
       }
 
-      await this.apiService.post('device-tokens', {
+      this.apiService.post('device-tokens', {
         token,
         platform: FIREBASE_WEB_PLATFORM
-      }).toPromise();
-
-      this.deviceRegisteredSubject.next(true);
+      }).subscribe({
+        next: () => {
+          this.deviceRegisteredSubject.next(true);
+        },
+        error: (err) => {
+          console.error('[PushNotification] Failed to register device token:', err);
+        }
+      });
       return { success: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error.';
@@ -177,7 +182,9 @@ export class PushNotificationService {
       )
     );
     this.recalculateUnreadCount();
-    await this.apiService.put(`notifications/${notificationId}/read`, {}).toPromise();
+    this.apiService.put(`notifications/${notificationId}/read`, {}).subscribe({
+      error: (err) => console.error('[PushNotification] Failed to mark notification read:', err)
+    });
   }
 
   async markAllRead(): Promise<void> {
@@ -189,7 +196,9 @@ export class PushNotificationService {
     );
     this.unreadCountSubject.next(0);
 
-    await this.apiService.put('notifications/read-all', {}).toPromise();
+    this.apiService.put('notifications/read-all', {}).subscribe({
+      error: (err) => console.error('[PushNotification] Failed to mark all read:', err)
+    });
   }
 
   private cleanup(): void {

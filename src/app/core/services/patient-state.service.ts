@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable, from } from 'rxjs';
+import { BehaviorSubject, Observable, map } from 'rxjs';
 import { Patient } from '../models';
 import { ApiService } from './api.service';
 
@@ -97,15 +97,24 @@ export class PatientStateService {
   }
 
   getPatientById(id: string): Observable<Patient | undefined> {
-    return from(this.fetchPatientById(id));
+    return this.api.get<any>('patients/' + id).pipe(
+      map((data) => data ? rowToPatient(data as PatientRow) : undefined)
+    );
   }
 
   getPatientByUserId(userId: string): Observable<Patient | undefined> {
-    return from(this.fetchPatientByUserId(userId));
+    return this.api.get<any[]>('patients?userId=' + userId).pipe(
+      map((data) => {
+        const rows = (data ?? []) as PatientRow[];
+        return rows.length > 0 ? rowToPatient(rows[0]) : undefined;
+      })
+    );
   }
 
   getFilteredPatients(query: string): Observable<Patient[]> {
-    return from(this.fetchFilteredPatients(query));
+    return this.api.get<any[]>('patients?search=' + encodeURIComponent(query)).pipe(
+      map((data) => mapRows((data ?? []) as PatientRow[]))
+    );
   }
 
   addPatient(patient: Omit<Patient, 'id' | 'patientCode'>): Patient {
@@ -132,21 +141,7 @@ export class PatientStateService {
     });
   }
 
-  private async fetchPatientById(id: string): Promise<Patient | undefined> {
-    const data = await this.api.get<any>(`patients/${id}`).toPromise();
-    return data ? rowToPatient(data as PatientRow) : undefined;
-  }
 
-  private async fetchPatientByUserId(userId: string): Promise<Patient | undefined> {
-    const data = await this.api.get<any[]>(`patients?userId=${userId}`).toPromise();
-    const rows = (data ?? []) as PatientRow[];
-    return rows.length > 0 ? rowToPatient(rows[0]) : undefined;
-  }
-
-  private async fetchFilteredPatients(query: string): Promise<Patient[]> {
-    const data = await this.api.get<any[]>(`patients?search=${encodeURIComponent(query)}`).toPromise();
-    return mapRows((data ?? []) as PatientRow[]);
-  }
 
   private upsert(patient: Patient): void {
     this.patientsSubject.next([

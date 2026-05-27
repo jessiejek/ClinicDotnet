@@ -68,7 +68,7 @@ export class DoctorStateService {
   /** Load all doctors from API (for staff pages). */
   loadDoctorsFromApi(): void {
     this.loadingSubject.next(true);
-    from(this.fetchAllDoctors()).pipe(
+    this.fetchAllDoctorsObservable().pipe(
       catchError(() => of([] as Doctor[]))
     ).subscribe((doctors) => {
       this.doctorsSubject.next(doctors);
@@ -81,7 +81,7 @@ export class DoctorStateService {
 
   /** Load today's day status for a single doctor from API. */
   loadSingleDayStatus(doctorId: string): Observable<void> {
-    return from(this.fetchDayStatus(doctorId)).pipe(
+    return this.fetchDayStatusObservable(doctorId).pipe(
       map((todayStatus) => {
         if (todayStatus) {
           this.dayStatusesSubject.next({
@@ -96,7 +96,7 @@ export class DoctorStateService {
 
   /** Update day status via API, then refresh local state. */
   updateDayStatusViaApi(doctorId: string, status: AvailabilityStatus, runningLateMinutes?: number): Observable<any> {
-    return from(this.upsertDayStatus(doctorId, status, runningLateMinutes)).pipe(
+    return this.upsertDayStatus$(doctorId, status, runningLateMinutes).pipe(
       map(() => {
         this.dayStatusesSubject.next({
           ...this.dayStatusesSubject.value,
@@ -163,31 +163,36 @@ export class DoctorStateService {
     );
   }
 
-  private async fetchAllDoctors(): Promise<Doctor[]> {
-    const data = await this.api.get<any[]>('doctors/admin').toPromise();
-    return (data ?? []).map(mapDoctorRow);
+  private fetchAllDoctorsObservable(): Observable<Doctor[]> {
+    return this.api.get<any[]>('doctors/admin').pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorRow))
+    );
   }
 
-  private async fetchDayStatus(doctorId: string): Promise<DoctorDayStatus | null> {
+  private fetchDayStatusObservable(doctorId: string): Observable<DoctorDayStatus | null> {
     const today = toLocalIsoDate();
-    const statuses = await this.api.get<any[]>(`doctors/${doctorId}/day-status`).toPromise();
-    const row = (statuses ?? []).find((s: any) => s.date === today || s.targetDate === today || s.target_date === today);
-    if (!row) return null;
-    return {
-      id: trimStr(row['id'] ?? row['Id']) ?? '',
-      doctorId: trimStr(row['doctorId'] ?? row['doctor_id'] ?? row['DoctorId']) ?? '',
-      date: trimStr(row['date'] ?? row['Date'] ?? row['targetDate'] ?? row['target_date']) ?? '',
-      status: (trimStr(row['status'] ?? row['Status']) as AvailabilityStatus) ?? 'Available',
-      runningLateMinutes: normalizeNumOrUndefined(row['runningLateMinutes'] ?? row['running_late_minutes'] ?? row['RunningLateMinutes']),
-    };
+    return this.api.get<any[]>('doctors/' + doctorId + '/day-status').pipe(
+      map((statuses) => {
+        const rows = (statuses ?? []) as Record<string, unknown>[];
+        const row = rows.find((s: any) => s.date === today || s.targetDate === today || s.target_date === today);
+        if (!row) return null;
+        return {
+          id: trimStr(row['id'] ?? row['Id']) ?? '',
+          doctorId: trimStr(row['doctorId'] ?? row['doctor_id'] ?? row['DoctorId']) ?? '',
+          date: trimStr(row['date'] ?? row['Date'] ?? row['targetDate'] ?? row['target_date']) ?? '',
+          status: (trimStr(row['status'] ?? row['Status']) as AvailabilityStatus) ?? 'Available',
+          runningLateMinutes: normalizeNumOrUndefined(row['runningLateMinutes'] ?? row['running_late_minutes'] ?? row['RunningLateMinutes']),
+        };
+      })
+    );
   }
 
-  private async upsertDayStatus(doctorId: string, status: AvailabilityStatus, runningLateMinutes?: number): Promise<void> {
-    await this.api.post(`doctors/${doctorId}/day-status`, {
+  private upsertDayStatus$(doctorId: string, status: AvailabilityStatus, runningLateMinutes?: number): Observable<unknown> {
+    return this.api.post('doctors/' + doctorId + '/day-status', {
       date: toLocalIsoDate(),
       status,
       runningLateMinutes: runningLateMinutes ?? null,
-    }).toPromise();
+    });
   }
 }
 

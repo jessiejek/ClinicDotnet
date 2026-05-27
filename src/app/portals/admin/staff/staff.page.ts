@@ -1,5 +1,6 @@
 import { NgFor, NgIf } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core'
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { FormsModule } from '@angular/forms';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -125,7 +126,7 @@ export class StaffPage implements OnInit {
     try {
       // Step 1: fetch user_ids from user_roles where role = 'staff'
       const staffRows: StaffRow[] = [];
-      const data: any[] = (await this.api.get<any[]>('admin/staff').toPromise()) ?? [];
+      const data: any[] = (await firstValueFrom(this.api.get<any[]>('admin/staff'))) ?? [];
       for (const s of data) {
         staffRows.push({
           id: s.id,
@@ -195,7 +196,7 @@ export class StaffPage implements OnInit {
         status: 'pending',
       };
 
-      const data = await this.api.post('admin/staff/invite', payload).toPromise();
+      const data = await firstValueFrom(this.api.post('admin/staff/invite', payload));
 
       if (!data) {
         throw new Error('Failed to invite staff member.');
@@ -233,7 +234,7 @@ export class StaffPage implements OnInit {
   async revokeInvite(inviteId: string): Promise<void> {
     this.busyRevoke = true;
     try {
-      await this.api.put('admin/staff/invite/' + inviteId + '/revoke', {}).toPromise();
+      await firstValueFrom(this.api.put('admin/staff/invite/' + inviteId + '/revoke', {}));
 
       await this.loadStaff();
 
@@ -267,7 +268,7 @@ export class StaffPage implements OnInit {
 
       const action = member.status === 'Active' ? 'ban' : 'unban';
 
-      const data: any = await this.api.put('admin/staff/' + id + '/update-status', { action }).toPromise();
+      const data: any = await firstValueFrom(this.api.put('admin/staff/' + id + '/update-status', { action }));
 
       await this.loadStaff();
 

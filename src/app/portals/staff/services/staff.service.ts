@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, from } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { PagedResult } from '../../../core/models';
 
@@ -52,51 +52,43 @@ export class StaffService {
   private readonly api = inject(ApiService);
 
   getDoctors(): Observable<StaffDoctor[]> {
-    return from(this.fetchDoctors());
+    return this.api.get<any[]>('doctors').pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+        id: (r['id'] ?? r['Id'] ?? '') as string,
+        fullName: (r['fullName'] ?? r['full_name'] ?? r['FullName'] ?? '') as string,
+        specialization: (r['specialization'] ?? r['Specialization']) as string | undefined,
+      })))
+    );
   }
 
   getPatients(page = 1, pageSize = 20, search?: string): Observable<PagedResult<StaffPatient>> {
-    return from(this.fetchPatients(page, pageSize, search));
+    let endpoint = 'patients?page=' + page + '&pageSize=' + pageSize;
+    if (search) endpoint += '&search=' + encodeURIComponent(search);
+    return this.api.get<any>(endpoint).pipe(
+      map((data) => {
+        const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map(toStaffPatient);
+        return {
+          items,
+          total: data?.total ?? items.length,
+          totalCount: data?.totalCount ?? items.length,
+          page: data?.page ?? page,
+          pageSize: data?.pageSize ?? pageSize,
+        } as PagedResult<StaffPatient>;
+      })
+    );
   }
 
   getPatientById(id: string): Observable<StaffPatient | undefined> {
-    return from(this.fetchPatientById(id));
+    return this.api.get<any>('patients/' + id).pipe(
+      map((data) => data ? toStaffPatient(data as Record<string, unknown>) : undefined)
+    );
   }
 
   getPatientByPhone(phone: string): Observable<PagedResult<StaffPatient>> {
-    return from(this.fetchPatients(1, 20, phone));
+    return this.getPatients(1, 20, phone);
   }
 
   createPatientPortalAccount(patientId: string, request: any): Observable<any> {
-    return from(this.api.post('patients/' + patientId + '/portal-account', request).toPromise());
-  }
-
-  private async fetchDoctors(): Promise<StaffDoctor[]> {
-    const data = await this.api.get<any[]>('doctors').toPromise();
-    return (data ?? []).map((r: Record<string, unknown>) => ({
-      id: (r['id'] ?? r['Id'] ?? '') as string,
-      fullName: (r['fullName'] ?? r['full_name'] ?? r['FullName'] ?? '') as string,
-      specialization: (r['specialization'] ?? r['Specialization']) as string | undefined,
-    }));
-  }
-
-  private async fetchPatients(page: number, pageSize: number, search?: string): Promise<PagedResult<StaffPatient>> {
-    let endpoint = `patients?page=${page}&pageSize=${pageSize}`;
-    if (search) endpoint += `&search=${encodeURIComponent(search)}`;
-    const data = await this.api.get<any>(endpoint).toPromise();
-    const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map(toStaffPatient);
-    return {
-      items,
-      total: data?.total ?? items.length,
-      totalCount: data?.totalCount ?? items.length,
-      page: data?.page ?? page,
-      pageSize: data?.pageSize ?? pageSize,
-      totalPages: data?.totalPages ?? 1,
-    };
-  }
-
-  private async fetchPatientById(id: string): Promise<StaffPatient | undefined> {
-    const data = await this.api.get<any>(`patients/${id}`).toPromise();
-    return data ? toStaffPatient(data as Record<string, unknown>) : undefined;
+    return this.api.post('patients/' + patientId + '/portal-account', request);
   }
 }

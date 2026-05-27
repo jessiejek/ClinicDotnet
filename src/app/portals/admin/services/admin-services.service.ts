@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, from } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { Service, ServiceCategory } from '../../../core/models';
 
@@ -14,68 +14,61 @@ export class AdminServicesService {
   private cachedServices: Service[] | null = null;
 
   getServices(): Observable<ManagedService[]> {
-    return from(this.fetchServices());
+    return this.api.get<any[]>('services').pipe(
+      map((data) => {
+        this.cachedServices = ((data ?? []) as Record<string, unknown>[]).map(mapServiceRow);
+        return this.cachedServices;
+      })
+    );
   }
 
   getServiceById(id: string): Observable<ManagedService | undefined> {
-    return from(this.fetchServiceById(id));
+    return this.api.get<any>('services/' + id).pipe(
+      map((data) => data ? mapServiceRow(data as Record<string, unknown>) : undefined)
+    );
   }
 
   createService(dto: Partial<ManagedService>): Observable<ManagedService> {
-    return from(this.create(dto));
+    return this.api.post<any>('services', dto).pipe(
+      map((data) => {
+        const svc = mapServiceRow((data ?? {}) as Record<string, unknown>);
+        if (this.cachedServices) this.cachedServices.push(svc);
+        return svc;
+      })
+    );
   }
 
   updateService(id: string, dto: Partial<ManagedService>): Observable<ManagedService> {
-    return from(this.update(id, dto));
+    return this.api.put<any>('services/' + id, dto).pipe(
+      map((data) => {
+        const svc = mapServiceRow((data ?? {}) as Record<string, unknown>);
+        if (this.cachedServices) {
+          const idx = this.cachedServices.findIndex((s) => s.id === id);
+          if (idx >= 0) this.cachedServices[idx] = svc;
+        }
+        return svc;
+      })
+    );
   }
 
   toggleServiceStatus(service: ManagedService, isActive: boolean): Observable<ManagedService> {
-    return from(this.api.put<any>('services/' + service.id, { isActive }).toPromise().then(r => ({ ...service, isActive })));
+    return this.api.put<any>('services/' + service.id, { isActive }).pipe(
+      map(() => ({ ...service, isActive }))
+    );
   }
 
   deleteService(id: string): Observable<unknown> {
-    return from(this.api.delete(`services/${id}`).toPromise());
+    return this.api.delete('services/' + id);
   }
 
   getDoctorServices(doctorId: string): Observable<Service[]> {
-    return from(this.fetchDoctorServices(doctorId));
+    return this.api.get<any[]>('doctors/' + doctorId + '/services').pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapServiceRow))
+    );
   }
 
   updateDoctorServices(doctorId: string, serviceIds: string[]): Observable<unknown> {
-    return from(this.api.put(`doctors/${doctorId}/services`, { serviceIds }).toPromise());
-  }
-
-  private async fetchServices(): Promise<ManagedService[]> {
-    const data = await this.api.get<any[]>('services').toPromise();
-    this.cachedServices = (data ?? []).map(mapServiceRow);
-    return this.cachedServices;
-  }
-
-  private async fetchServiceById(id: string): Promise<Service | undefined> {
-    const data = await this.api.get<any>(`services/${id}`).toPromise();
-    return data ? mapServiceRow(data) : undefined;
-  }
-
-  private async create(dto: Partial<Service>): Promise<Service> {
-    const data = await this.api.post<any>('services', dto).toPromise();
-    const svc = mapServiceRow(data ?? {});
-    if (this.cachedServices) this.cachedServices.push(svc);
-    return svc;
-  }
-
-  private async update(id: string, dto: Partial<Service>): Promise<Service> {
-    const data = await this.api.put<any>(`services/${id}`, dto).toPromise();
-    const svc = mapServiceRow(data ?? {});
-    if (this.cachedServices) {
-      const idx = this.cachedServices.findIndex((s) => s.id === id);
-      if (idx >= 0) this.cachedServices[idx] = svc;
-    }
-    return svc;
-  }
-
-  private async fetchDoctorServices(doctorId: string): Promise<Service[]> {
-    const data = await this.api.get<any[]>(`doctors/${doctorId}/services`).toPromise();
-    return (data ?? []).map(mapServiceRow);
+    return this.api.put('doctors/' + doctorId + '/services', { serviceIds });
   }
 }
 

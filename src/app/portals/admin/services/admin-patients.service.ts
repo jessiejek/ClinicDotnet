@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, from } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { CreatePatientPortalAccountRequest, CreatePatientRequest, PagedResult, PatientDetail, PatientSummary, UpdatePatientRequest } from '../../../core/models';
 
@@ -54,9 +54,19 @@ export class AdminPatientsService {
   private readonly api = inject(ApiService);
 
   getPatients(page = 1, pageSize = 20, search?: string): Observable<PagedResult<PatientSummary>> {
-    let endpoint = `patients?page=${page}&pageSize=${pageSize}`;
-    if (search) endpoint += `&search=${encodeURIComponent(search)}`;
-    return from(this.fetchPatients(endpoint));
+    let endpoint = 'patients?page=' + page + '&pageSize=' + pageSize;
+    if (search) endpoint += '&search=' + encodeURIComponent(search);
+    return this.api.get<any>(endpoint).pipe(
+      map((data) => {
+        const items = (data?.items ?? data ?? []).map(rowToSummary) as PatientSummary[];
+        return {
+          items,
+          totalCount: data?.totalCount ?? items.length,
+          page: data?.page ?? 1,
+          pageSize: data?.pageSize ?? items.length,
+        } as PagedResult<PatientSummary>;
+      })
+    );
   }
 
   createGuestPatient(dto: CreatePatientRequest): Observable<PatientDetail> {
@@ -64,48 +74,25 @@ export class AdminPatientsService {
   }
 
   getPatientById(id: string): Observable<PatientDetail> {
-    return from(this.fetchPatient(id));
+    return this.api.get<any>('patients/' + id).pipe(
+      map((data) => rowToDetail(data as PatientRow))
+    );
   }
 
   createPatient(dto: CreatePatientRequest): Observable<PatientDetail> {
-    return from(this.create(dto));
+    return this.api.post<any>('patients', dto).pipe(
+      map((data) => rowToDetail(data as PatientRow))
+    );
   }
 
   updatePatient(id: string, dto: UpdatePatientRequest): Observable<PatientDetail> {
-    return from(this.update(id, dto));
+    return this.api.put<any>('patients/' + id, dto).pipe(
+      map((data) => rowToDetail(data as PatientRow))
+    );
   }
 
   createPortalAccount(patientIdOrRequest: any, request?: any): Observable<any> {
-    // Handle both (payload) and (id, payload) signatures
     const payload = request ?? patientIdOrRequest;
-    return from(this.api.post('patients', payload).toPromise());
-  }
-
-  private async fetchPatients(endpoint: string): Promise<PagedResult<PatientSummary>> {
-    const data = await this.api.get<any>(endpoint).toPromise();
-    const items = (data?.items ?? data ?? []).map(rowToSummary);
-    return {
-      items,
-      totalCount: data?.totalCount ?? items.length,
-      total: data?.total ?? items.length,
-      page: data?.page ?? 1,
-      pageSize: data?.pageSize ?? items.length,
-      totalPages: data?.totalPages ?? 1,
-    };
-  }
-
-  private async fetchPatient(id: string): Promise<PatientDetail> {
-    const data = await this.api.get<any>(`patients/${id}`).toPromise();
-    return rowToDetail(data as PatientRow);
-  }
-
-  private async create(dto: CreatePatientRequest): Promise<PatientDetail> {
-    const data = await this.api.post<any>('patients', dto).toPromise();
-    return rowToDetail(data as PatientRow);
-  }
-
-  private async update(id: string, dto: UpdatePatientRequest): Promise<PatientDetail> {
-    const data = await this.api.put<any>(`patients/${id}`, dto).toPromise();
-    return rowToDetail(data as PatientRow);
+    return this.api.post('patients', payload);
   }
 }

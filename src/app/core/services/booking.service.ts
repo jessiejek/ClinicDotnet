@@ -1,4 +1,4 @@
-﻿import { HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
   BehaviorSubject,
@@ -419,7 +419,27 @@ export class BookingService {
   getDoctorPatients(): Observable<DoctorPatientSummaryDto[]> {
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchDoctorPatients()).pipe(
+      return this.apiService.get<any[]>('bookings/doctor/patients').pipe(
+        map((rows) => {
+          const records = (rows ?? []) as Record<string, unknown>[];
+          const patientMap = new Map<string, Record<string, unknown>>();
+          for (const row of records) {
+            const patientId = trimOptionalString(row['patient_id']);
+            if (!patientId || patientMap.has(patientId)) continue;
+            patientMap.set(patientId, row);
+          }
+          return Array.from(patientMap.values()).map((row) => ({
+            patientId: trimOptionalString(row['patient_id']) ?? '',
+            patientName: trimOptionalString(row['patient_name']) ?? 'Patient',
+            patientCode: trimOptionalString(row['patient_code']),
+            latestDate: normalizeDateOnly(row['appointment_date']),
+            latestTime: normalizeTimeOnly(row['slot_start_time']),
+            services: normalizeBookingServices(row['services']).map((s) => s.name).filter(Boolean).join(', '),
+            status: normalizeBookingStatus(row['booking_status']) ?? 'Pending',
+            queueNumber: normalizeNullableNumber(row['queue_number']),
+            latestBookingId: trimOptionalString(row['booking_id']) ?? ''
+          }));
+        }),
         catchError((err) => {
           console.warn('Failed to load doctor patients from API:', err);
           return of([]);
@@ -429,36 +449,18 @@ export class BookingService {
     });
   }
 
-  private async fetchDoctorPatients(): Promise<DoctorPatientSummaryDto[]> {
-    const rows: Record<string, unknown>[] = await this.apiService.get<any[]>('bookings/doctor/patients').toPromise() ?? [];
-    const patientMap = new Map<string, Record<string, unknown>>();
-
-    for (const row of rows) {
-      const patientId = trimOptionalString(row['patient_id']);
-      if (!patientId || patientMap.has(patientId)) {
-        continue;
-      }
-      // First occurrence is the latest due to the sort order
-      patientMap.set(patientId, row);
-    }
-
-    return Array.from(patientMap.values()).map((row) => ({
-      patientId: trimOptionalString(row['patient_id']) ?? '',
-      patientName: trimOptionalString(row['patient_name']) ?? 'Patient',
-      patientCode: trimOptionalString(row['patient_code']),
-      latestDate: normalizeDateOnly(row['appointment_date']),
-      latestTime: normalizeTimeOnly(row['slot_start_time']),
-      services: normalizeBookingServices(row['services']).map((s) => s.name).filter(Boolean).join(', '),
-      status: normalizeBookingStatus(row['booking_status']) ?? 'Pending',
-      queueNumber: normalizeNullableNumber(row['queue_number']),
-      latestBookingId: trimOptionalString(row['booking_id']) ?? ''
-    }));
-  }
-
   getMyBookings(page = 1, pageSize = 20): Observable<MyBookingsPageResult> {
+    const currentPage = Math.max(1, page);
+    const safePageSize = Math.max(1, pageSize);
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchMyBookingsPage(page, pageSize)).pipe(
+      return this.apiService.get<any[]>('bookings?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
+        map((data) => {
+          const items = ((data ?? []) as Record<string, unknown>[])
+            .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
+            .filter((booking): booking is Booking => Boolean(booking));
+          return { items, totalCount: items.length, page: currentPage, pageSize: safePageSize };
+        }),
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load bookings from API.')))
@@ -471,7 +473,26 @@ export class BookingService {
   getDoctorTodaySummary(): Observable<DoctorTodaySummary> {
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchDoctorTodaySummary()).pipe(
+      return this.apiService.get<any[]>('bookings/doctor/today').pipe(
+        switchMap((todayData) => {
+          const queue = ((todayData ?? []) as Record<string, unknown>[])
+            .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
+            .filter((booking): booking is Booking => Boolean(booking));
+          return this.apiService.get<any>('bookings/doctor/today-summary').pipe(
+            map((summaryResponse) => {
+              const row = (summaryResponse ?? {}) as Record<string, unknown>;
+              return {
+                bookedToday: normalizeNumber(row['today_total'], queue.length),
+                checkedIn: normalizeNumber(row['checked_in_count']),
+                waiting: normalizeNumber(row['checked_in_count']) + normalizeNumber(row['in_progress_count']),
+                completed: normalizeNumber(row['completed_count']),
+                noShow: normalizeNumber(row['no_show_count']),
+                cancelled: 0,
+                items: queue
+              } as DoctorTodaySummary;
+            })
+          );
+        }),
         tap((summary) => this.mergeBookings(summary.items)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load today summary from API.')))
@@ -482,9 +503,17 @@ export class BookingService {
   }
 
   getStaffTodayBookings(filters: StaffTodayBookingsFilters = {}): Observable<PagedResult<Booking>> {
+    const page = Math.max(1, filters.page ?? 1);
+    const pageSize = Math.max(1, filters.pageSize ?? 20);
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchStaffTodayBookings(filters)).pipe(
+      return this.apiService.get<any[]>('bookings/staff/today?page=' + page + '&pageSize=' + pageSize).pipe(
+        map((data) => {
+          const items = ((data ?? []) as Record<string, unknown>[])
+            .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
+            .filter((booking): booking is Booking => Boolean(booking));
+          return { items, totalCount: items.length, page, pageSize };
+        }),
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load today bookings from API.')))
@@ -495,9 +524,17 @@ export class BookingService {
   }
 
   getStaffBookings(filters: StaffBookingsFilterParams = {}): Observable<PagedResult<Booking>> {
+    const page = Math.max(1, filters.page ?? 1);
+    const pageSize = Math.max(1, filters.pageSize ?? 20);
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchStaffBookings(filters)).pipe(
+      return this.apiService.get<any[]>('bookings/staff/all?page=' + page + '&pageSize=' + pageSize).pipe(
+        map((data) => {
+          const items = ((data ?? []) as Record<string, unknown>[])
+            .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
+            .filter((booking): booking is Booking => Boolean(booking));
+          return { items, totalCount: items.length, page, pageSize };
+        }),
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load bookings from API.')))
@@ -508,9 +545,17 @@ export class BookingService {
   }
 
   getStaffForPayment(page = 1, pageSize = 20): Observable<PagedResult<StaffForPaymentItem>> {
+    const currentPage = Math.max(1, page);
+    const safePageSize = Math.max(1, pageSize);
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchStaffForPayment(page, pageSize)).pipe(
+      return this.apiService.get<any[]>('bookings/staff/for-payment?page=' + currentPage + '&pageSize=' + safePageSize).pipe(
+        map((allData) => {
+          const items = ((allData ?? []) as Record<string, unknown>[])
+            .map((row) => this.normalizeStaffForPaymentViewRow(row))
+            .filter((item): item is StaffForPaymentItem => Boolean(item));
+          return { items, totalCount: items.length, page: currentPage, pageSize: safePageSize };
+        }),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load payment queue from API.')))
         ),
@@ -543,7 +588,7 @@ export class BookingService {
   createBooking(dto: CreateBookingRequest): Observable<Booking> {
     return defer(() => {
       this.beginLoading();
-      return from(this.createNewBooking(dto)).pipe(
+      return this.createBooking$(dto).pipe(
         tap((booking) => this.upsertBooking(booking)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to create booking in API.')))
@@ -556,7 +601,7 @@ export class BookingService {
   createWalkIn(dto: CreateWalkInRequest): Observable<Booking> {
     return defer(() => {
       this.beginLoading();
-      return from(this.createNewWalkInBooking(dto)).pipe(
+      return this.createWalkInBooking$(dto).pipe(
         tap((booking) => this.upsertBooking(booking)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to create walk-in booking in API.')))
@@ -569,7 +614,7 @@ export class BookingService {
   checkInBooking(id: string, dto: CheckInBookingRequest = {}): Observable<Booking> {
     return this.requestBookingUpdate(
       id,
-      from(this.runBookingAction(id, 'check_in_booking', { p_booking_id: id })),
+      this.runBookingAction$(id, 'check_in_booking'),
       'Failed to check in booking.'
     );
   }
@@ -577,7 +622,7 @@ export class BookingService {
   undoCheckInBooking(id: string): Observable<Booking> {
     return this.requestBookingUpdate(
       id,
-      from(this.runBookingAction(id, 'undo_check_in', { p_booking_id: id })),
+      this.runBookingAction$(id, 'undo_check_in'),
       'Failed to undo check-in.'
     );
   }
@@ -585,7 +630,7 @@ export class BookingService {
   doctorCompleteBooking(id: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
     return this.requestBookingUpdate(
       id,
-      from(this.saveConsultationAndComplete(id, dto)),
+      this.saveConsultationAndComplete$(id, dto),
       'Failed to complete booking.'
     );
   }
@@ -593,7 +638,20 @@ export class BookingService {
   fetchConsultationRecordByBookingId(bookingId: string): Observable<ConsultationRecordResponse> {
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchConsultationRecord(bookingId)).pipe(
+      return this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').pipe(
+        map((data) => {
+          if (!data) {
+            return {
+              bookingId,
+              patientId: this.getBookingById(bookingId)?.patientId ?? '',
+              doctorId: this.getBookingById(bookingId)?.doctorId ?? '',
+              bookingStatus: this.getBookingById(bookingId)?.status ?? 'CheckedIn',
+              diagnoses: [],
+              labOrders: []
+            } as ConsultationRecordResponse;
+          }
+          return mapConsultationRecordRow(data as Record<string, unknown>);
+        }),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load consultation record from API.')))
         ),
@@ -608,7 +666,16 @@ export class BookingService {
   ): Observable<ConsultationRecordResponse> {
     return defer(() => {
       this.beginLoading();
-      return from(this.saveConsultationDraft(bookingId, dto)).pipe(
+      return this.apiService.post<any>('bookings/' + bookingId + '/consultation-record', dto).pipe(
+        switchMap(() => this.apiService.get<any>('bookings/' + bookingId + '/consultation-record')),
+        map((data) => data ? mapConsultationRecordRow(data as Record<string, unknown>) : {
+          bookingId,
+          patientId: this.getBookingById(bookingId)?.patientId ?? '',
+          doctorId: this.getBookingById(bookingId)?.doctorId ?? '',
+          bookingStatus: this.getBookingById(bookingId)?.status ?? 'CheckedIn',
+          diagnoses: [],
+          labOrders: []
+        } as ConsultationRecordResponse),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to save consultation amendment.')))
         ),
@@ -621,7 +688,7 @@ export class BookingService {
     this.runVoidMutation(
       bookingId,
       { status: 'Confirmed' },
-      from(this.runBookingAction(bookingId, 'confirm_booking', { p_booking_id: bookingId }))
+      this.runBookingAction$(bookingId, 'confirm_booking')
     );
   }
 
@@ -629,7 +696,7 @@ export class BookingService {
     this.runVoidMutation(
       bookingId,
       { status: 'Cancelled', cancellationReason: reason },
-      from(this.apiService.put('bookings/' + bookingId + '/cancel', { reason }).toPromise())
+      this.apiService.put('bookings/' + bookingId + '/cancel', { reason })
     );
   }
 
@@ -637,15 +704,7 @@ export class BookingService {
     this.runVoidMutation(
       bookingId,
       { status: 'Completed' },
-      from(this.runBookingAction(bookingId, 'complete_booking_basic', {
-        p_booking_id: bookingId,
-        p_final_amount: this.getBookingById(bookingId)?.finalAmount ?? 0,
-        p_diagnosis: null,
-        p_doctor_fee_notes: null,
-        p_soap_notes: null,
-        p_follow_up_date: null,
-        p_follow_up_instructions: null
-      }))
+      this.runBookingAction$(bookingId, 'complete_booking_basic')
     );
   }
 
@@ -657,7 +716,7 @@ export class BookingService {
     this.runVoidMutation(
       bookingId,
       { status: 'NoShow' },
-      from(this.runBookingAction(bookingId, 'no_show_booking', { p_booking_id: bookingId }))
+      this.runBookingAction$(bookingId, 'no_show_booking')
     );
   }
 
@@ -671,7 +730,7 @@ export class BookingService {
     if (dto) {
       return defer(() => {
         this.beginLoading();
-        return from(this.recordPayment(id, dto)).pipe(
+        return this.recordPayment$(id, dto).pipe(
           catchError((error: unknown) =>
             throwError(() => new Error(extractApiErrorMessage(error, 'Failed to confirm payment.')))
           ),
@@ -697,12 +756,10 @@ export class BookingService {
     }
 
     this.beginLoading();
-    from(
-      this.recordPayment(bookingId, {
-        paymentMethod: 'Cash',
-        amountReceived: amountDue
-      })
-    )
+    this.recordPayment$(bookingId, {
+      paymentMethod: 'Cash',
+      amountReceived: amountDue
+    })
       .pipe(
         tap(() => {
           void this.requestBookingById(bookingId, false).subscribe();
@@ -727,10 +784,7 @@ export class BookingService {
 
     return defer(() => {
       this.beginLoading();
-      return from(this.runBookingAction(bookingId, 'waive_professional_fee', {
-        p_booking_id: bookingId,
-        p_reason: reason
-      })).pipe(
+      return this.runBookingAction$(bookingId, 'waive_professional_fee').pipe(
         tap(() => {
           void this.requestBookingById(bookingId, false).subscribe();
         }),
@@ -749,7 +803,20 @@ export class BookingService {
   getReceipt(paymentId: string): Observable<ReceiptData> {
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchReceipt(paymentId)).pipe(
+      return this.apiService.get<any>('payments/' + paymentId + '/receipt').pipe(
+        switchMap((paymentData) => {
+          const payment = paymentData ? this.normalizePayment(mapPaymentRow(paymentData as Record<string, unknown>)) : undefined;
+          if (!payment) {
+            return of(this.buildEmptyReceipt());
+          }
+          const bookingId = payment.bookingId;
+          return (bookingId ? this.apiService.get<any>('bookings/' + bookingId) : of(undefined)).pipe(
+            map((bookingData) => {
+              const booking = bookingData ? this.normalizeBooking(mapBookingViewRow(bookingData as Record<string, unknown>)) : undefined;
+              return this.buildReceiptFromPaymentAndBooking(payment, booking);
+            })
+          );
+        }),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load receipt.')))
         ),
@@ -776,10 +843,7 @@ export class BookingService {
     }
 
     this.beginLoading();
-    from(this.runBookingAction(bookingId, 'refund_payment', {
-      p_booking_id: bookingId,
-      p_reason: reason
-    }))
+    this.runBookingAction$(bookingId, 'refund_payment')
       .pipe(
         tap(() => {
           void this.requestBookingById(bookingId, false).subscribe();
@@ -819,83 +883,6 @@ export class BookingService {
     return this.requestPaymentByBookingId(bookingId);
   }
 
-  private async fetchDoctorTodaySummary(): Promise<DoctorTodaySummary> {
-    const [queue, summaryResponse] = await Promise.all([
-      this.fetchDoctorTodayQueue(),
-      this.apiService.get<any>('bookings/doctor/today-summary').toPromise()
-    ]);
-
-    const row = summaryResponse ?? {};
-
-    return {
-      bookedToday: normalizeNumber(row['today_total'], queue.length),
-      checkedIn: normalizeNumber(row['checked_in_count']),
-      waiting:
-        normalizeNumber(row['checked_in_count']) + normalizeNumber(row['in_progress_count']),
-      completed: normalizeNumber(row['completed_count']),
-      noShow: normalizeNumber(row['no_show_count']),
-      cancelled: 0,
-      items: queue
-    };
-  }
-
-  private async fetchDoctorTodayQueue(): Promise<Booking[]> {
-    const data = await this.apiService.get<any[]>('bookings/doctor/today').toPromise();
-
-    return ((data ?? []) as Record<string, unknown>[])
-      .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-      .filter((booking): booking is Booking => Boolean(booking));
-  }
-
-  private async fetchStaffTodayBookings(
-    filters: StaffTodayBookingsFilters = {}
-  ): Promise<PagedResult<Booking>> {
-    const page = Math.max(1, filters.page ?? 1);
-    const pageSize = Math.max(1, filters.pageSize ?? 20);
-    const fromIndex = (page - 1) * pageSize;
-    const toIndex = fromIndex + pageSize - 1;
-
-    const data: any[] = await this.apiService.get<any[]>('bookings/staff/today?page=' + page + '&pageSize=' + pageSize).toPromise() ?? [];
-    const items = data
-      .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-      .filter((booking): booking is Booking => Boolean(booking));
-    return { items, totalCount: items.length, page, pageSize };
-  }
-
-  private async fetchStaffBookings(
-    filters: StaffBookingsFilterParams = {}
-  ): Promise<PagedResult<Booking>> {
-    const page = Math.max(1, filters.page ?? 1);
-    const pageSize = Math.max(1, filters.pageSize ?? 20);
-    const fromIndex = (page - 1) * pageSize;
-    const toIndex = fromIndex + pageSize - 1;
-
-    const data: any[] = await this.apiService.get<any[]>('bookings/staff/all?page=' + page + '&pageSize=' + pageSize).toPromise() ?? [];
-    const items = data
-      .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-      .filter((booking): booking is Booking => Boolean(booking));
-    return { items, totalCount: items.length, page, pageSize };
-  }
-
-  private async fetchStaffForPayment(page = 1, pageSize = 20): Promise<PagedResult<StaffForPaymentItem>> {
-    const currentPage = Math.max(1, page);
-    const safePageSize = Math.max(1, pageSize);
-    const fromIndex = (currentPage - 1) * safePageSize;
-    const toIndex = fromIndex + safePageSize - 1;
-
-    const allData: any[] = await this.apiService.get<any[]>('bookings/staff/for-payment?page=' + currentPage + '&pageSize=' + safePageSize).toPromise() ?? [];
-    const items = allData
-      .map((row) => this.normalizeStaffForPaymentViewRow(row))
-      .filter((item): item is StaffForPaymentItem => Boolean(item));
-
-    return {
-      items,
-      totalCount: items.length,
-      page: currentPage,
-      pageSize: safePageSize
-    };
-  }
-
   private normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffForPaymentItem | undefined {
     const bookingId = trimOptionalString(row['booking_id']);
     if (!bookingId) {
@@ -925,249 +912,16 @@ export class BookingService {
     };
   }
 
-  private async runBookingAction(
-    bookingId: string,
-    rpcName: string,
-    _params: Record<string, unknown>
-  ): Promise<Booking> {
-    const endpoint =
-      rpcName === 'check_in_booking' ? `bookings/${bookingId}/check-in` :
-      rpcName === 'undo_check_in' ? `bookings/${bookingId}/undo-check-in` :
-      rpcName === 'confirm_booking' ? `bookings/${bookingId}/confirm` :
-      rpcName === 'complete_booking_basic' ? `bookings/${bookingId}/complete` :
-      rpcName === 'no_show_booking' ? `bookings/${bookingId}/no-show` :
-      rpcName === 'waive_professional_fee' ? `payments/${bookingId}/waive` :
-      rpcName === 'refund_payment' ? `payments/${bookingId}/refund` : '';
-    if (!endpoint) throw new Error(`Unknown booking RPC: ${rpcName}`);
-    const result = await this.apiService.patch<Booking>(endpoint, {}).toPromise();
-    if (!result) throw new Error('Booking update returned no data');
-    return result;
-  }
-
-  private async saveConsultationAndComplete(
-    bookingId: string,
-    dto: DoctorCompleteBookingRequest
-  ): Promise<Booking> {
-    const finalAmount = dto.isProfessionalFeeWaived ? 0 : dto.finalAmount ?? null;
-    await this.apiService.post('bookings/' + bookingId + '/complete', dto).toPromise();
-    if (dto.isProfessionalFeeWaived) {
-      await this.apiService.post('payments/' + bookingId + '/waive', { reason: dto.professionalFeeWaivedReason ?? 'Professional fee waived.' }).toPromise();
-    }
-    const booking = await this.fetchBookingById(bookingId);
-    if (!booking) {
-      throw new Error('Consultation was saved, but the updated booking could not be loaded.');
-    }
-    return booking;
-  }
-
-  private async fetchConsultationRecord(bookingId: string): Promise<ConsultationRecordResponse> {
-    const data = await this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').toPromise();
-
-    if (!data) {
-      return {
-        bookingId,
-        patientId: this.getBookingById(bookingId)?.patientId ?? '',
-        doctorId: this.getBookingById(bookingId)?.doctorId ?? '',
-        bookingStatus: this.getBookingById(bookingId)?.status ?? 'CheckedIn',
-        diagnoses: [],
-        labOrders: []
-      };
-    }
-
-    return mapConsultationRecordRow(data as Record<string, unknown>);
-  }
-
-  private async saveConsultationDraft(
-    bookingId: string,
-    dto: ConsultationRecordUpdateRequest
-  ): Promise<ConsultationRecordResponse> {
-    await this.apiService.post('bookings/' + bookingId + '/consultation-record', dto).toPromise();
-    return this.fetchConsultationRecord(bookingId);
-  }
-
-  private async resolveBookingIdForPayment(id: string): Promise<string> {
-    const cached = this.snapshot.find((booking) => booking.id === id || booking.payment?.id === id);
-    if (cached) {
-      return cached.id;
-    }
-
-    const byPaymentId: any = await this.apiService.get('bookings/' + id + '/payment').toPromise();
-
-    if (!byPaymentId || !byPaymentId.bookingId) return id;
-    return byPaymentId.bookingId;
-  }
-
-  private async recordPayment(id: string, dto: ConfirmPaymentRequest): Promise<ReceiptData> {
-    const bookingId = await this.resolveBookingIdForPayment(id);
-    const payResult = await this.apiService.patch<ReceiptData>(`payments/${bookingId}/confirm`, {
-      p_booking_id: bookingId,
-      p_amount: dto.amountReceived,
-      p_payment_method: dto.paymentMethod,
-      p_reference_number: trimOptionalString(dto.referenceNumber) ?? null,
-      p_or_number: null
-    }).toPromise();
-    const booking = await this.fetchBookingById(bookingId);
-    const row = payResult ?? {};
-    return buildReceiptFromBooking(booking, dto, row);
-  }
-
-  private async fetchPaymentByBookingId(bookingId: string): Promise<Payment | undefined> {
-    const data = await this.apiService.get<any>('payments/booking/' + bookingId).toPromise();
-
-    return data ? this.normalizePayment(mapPaymentRow(data as Record<string, unknown>)) : undefined;
-  }
-
-  private async fetchReceipt(paymentId: string): Promise<ReceiptData> {
-    const payment = await this.fetchPaymentById(paymentId);
-
-    if (!payment) {
-      return this.buildEmptyReceipt();
-    }
-
-    let booking: Booking | undefined;
-    if (payment.bookingId) {
-      booking = await this.fetchBookingById(payment.bookingId);
-    }
-
-    return this.buildReceiptFromPaymentAndBooking(payment, booking);
-  }
-
-  private async fetchPaymentById(paymentId: string): Promise<Payment | undefined> {
-    const data = await this.apiService.get<any>('payments/' + paymentId + '/receipt').toPromise();
-
-    return data ? this.normalizePayment(mapPaymentRow(data as Record<string, unknown>)) : undefined;
-  }
-
-  private buildEmptyReceipt(): ReceiptData {
-    return {
-      bookingId: '',
-      paymentId: '',
-      orNumber: '-',
-      patientName: 'Patient',
-      doctorName: 'Doctor',
-      appointmentDate: '',
-      paymentMethod: '',
-    };
-  }
-
-  private buildReceiptFromPaymentAndBooking(
-    payment: Payment,
-    booking: Booking | undefined
-  ): ReceiptData {
-    const services = booking?.serviceNames?.length
-      ? booking.serviceNames
-      : booking?.serviceName
-        ? [booking.serviceName]
-        : [];
-
-    return {
-      bookingId: booking?.id ?? payment.bookingId ?? '',
-      paymentId: payment.id ?? '',
-      orNumber: payment.orNumber ?? '-',
-      patientName: booking?.patientName ?? 'Patient',
-      doctorName: booking?.doctorName ?? 'Doctor',
-      services,
-      appointmentDate: booking?.appointmentDate ?? '',
-      slotStartTime: booking?.slotStartTime,
-      doctorCompletedAt: booking?.doctorCompletedAt,
-      paidAt: payment.paidAt,
-      amountPaid: payment.amount,
-      paymentMethod: payment.paymentMethod ?? 'Cash',
-      referenceNumber: payment.referenceNumber,
-      cashierName: payment.cashierName,
-      verifiedByName: payment.verifiedByName,
-      isWaived: payment.status === 'Waived',
-      waivedReason: payment.waivedReason,
-      waivedByName: payment.waivedByName,
-      waivedAt: payment.waivedAt,
-      totalFee: booking?.totalFee,
-      consultationFee: booking?.consultationFeeSnapshot,
-      serviceFee: booking?.serviceFeeSnapshot,
-      queueNumber: booking?.queueNumber,
-      paymentStatus: payment.status,
-    };
-  }
-
-  private async createNewBooking(dto: CreateBookingRequest): Promise<Booking> {
-    const serviceIds = normalizeStringArray(dto.serviceIds);
-    const legacyServiceId = trimOptionalString(dto.serviceId);
-    const resolvedServiceIds = serviceIds.length > 0 ? serviceIds : legacyServiceId ? [legacyServiceId] : [];
-
-    if (resolvedServiceIds.length === 0) {
-      throw new Error('Please select at least one service.');
-    }
-
-    const bookResult = await this.apiService.post<any>('bookings', {}).toPromise()
-
-    const createdRow = bookResult ?? undefined;
-    const bookingId = trimOptionalString(createdRow?.['booking_id']);
-
-    if (!bookingId) {
-      throw new Error('API create_booking did not return a booking id.');
-    }
-
-    const fetched = await this.fetchBookingById(bookingId);
-    if (fetched) {
-      return fetched;
-    }
-
-    const fallback = this.normalizeBooking({
-      bookingId,
-      doctorId: dto.doctorId,
-      serviceId: resolvedServiceIds[0],
-      serviceIds: resolvedServiceIds,
-      appointmentDate: dto.appointmentDate,
-      slotStartTime: normalizeTime(dto.slotStartTime),
-      slotEndTime: normalizeTime(dto.slotEndTime),
-      status: trimOptionalString(createdRow?.['status']) ?? 'Confirmed',
-      paymentStatus: trimOptionalString(createdRow?.['payment_status']) ?? 'Unpaid',
-      paymentMode: 'PayAtClinic',
-      queueNumber: normalizeNullableNumber(createdRow?.['queue_number']),
-      totalFee: 0,
-      consultationFeeSnapshot: 0,
-      serviceFeeSnapshot: 0,
-      isWalkIn: false,
-      createdAt: new Date().toISOString(),
-      notes: dto.notes
-    });
-
-    if (!fallback) {
-      throw new Error('Unable to normalize created booking.');
-    }
-
-    return fallback;
-  }
-
-  private async createNewWalkInBooking(dto: CreateWalkInRequest): Promise<Booking> {
-    const booking = await this.createNewBooking(dto);
-
-    const refreshed: any = await this.apiService.get('bookings/' + booking.id).toPromise();
-    return (refreshed as Booking) ?? { ...booking, isWalkIn: true, paymentMode: dto.paymentMode ?? 'PayAtClinic' };
-  }
-
-  private async fetchMyBookingsPage(page = 1, pageSize = 20): Promise<MyBookingsPageResult> {
-    const currentPage = Math.max(1, page);
-    const safePageSize = Math.max(1, pageSize);
-    const fromIndex = (currentPage - 1) * safePageSize;
-    const toIndex = fromIndex + safePageSize - 1;
-
-    const data: any[] = await this.apiService.get<any[]>('bookings?page=' + currentPage + '&pageSize=' + safePageSize).toPromise() ?? [];
-    const items = data
-      .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-      .filter((booking): booking is Booking => Boolean(booking));
-    return { items, totalCount: items.length, page: currentPage, pageSize: safePageSize };
-  }
-
-  private async fetchBookingById(id: string): Promise<Booking | undefined> {
-    const data: any = await this.apiService.get('bookings/' + id).toPromise();
-
-    return data ? this.normalizeBooking(mapBookingViewRow(data as Record<string, unknown>)) : undefined;
-  }
-
   private requestBookings(filters?: BookingFilters, replaceCache = false): Observable<Booking[]> {
     return defer(() => {
       this.beginLoading();
-      return from(this.fetchBookingList(filters)).pipe(
+      return this.apiService.get<any[]>('bookings').pipe(
+        map((data) => {
+          const rows = (data ?? []) as Record<string, unknown>[];
+          return rows
+            .map((row) => this.normalizeBooking(row))
+            .filter((b): b is Booking => Boolean(b));
+        }),
         tap((bookings) => {
           if (replaceCache) {
             this.replaceBookings(bookings);
@@ -1184,13 +938,6 @@ export class BookingService {
     });
   }
 
-  private async fetchBookingList(filters?: BookingFilters): Promise<Booking[]> {
-    const data: any[] = await this.apiService.get<any[]>('bookings').toPromise() ?? [];
-    return data
-      .map((row) => this.normalizeBooking(row))
-      .filter((b): b is Booking => Boolean(b));
-  }
-
   private requestBookingById(id: string, trackLoading = true): Observable<Booking | undefined> {
     if (!id) {
       return of(undefined);
@@ -1201,7 +948,7 @@ export class BookingService {
         this.beginLoading();
       }
 
-      return from(this.fetchBookingById(id)).pipe(
+      return this.fetchBookingByIdObservable(id).pipe(
         tap((booking) => {
           if (booking) {
             this.upsertBooking(booking);
@@ -1216,102 +963,6 @@ export class BookingService {
             this.endLoading();
           }
         })
-      );
-    });
-  }
-
-  private requestBookingList(
-    url: string,
-    params?: HttpParams,
-    replaceCache = false
-  ): Observable<Booking[]> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<unknown>(url, params ? { params } : undefined).pipe(
-        map((payload) => this.normalizeBookingList(payload)),
-        tap((bookings) => {
-          if (replaceCache) {
-            this.replaceBookings(bookings);
-          } else {
-            this.mergeBookings(bookings);
-          }
-        }),
-        catchError((error: unknown) => {
-          console.error(`Failed to load bookings from ${url}.`, error);
-          return of([]);
-        }),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  private requestMyBookingsPage(url: string, params?: HttpParams): Observable<MyBookingsPageResult> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<unknown>(url, params ? { params } : undefined).pipe(
-        map((payload) => this.normalizePagedBookings(payload)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load bookings.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  private requestPaymentByBookingId(bookingId: string): Observable<Payment | undefined> {
-    return defer(() => {
-      this.beginLoading();
-      return from(this.fetchPaymentByBookingId(bookingId)).pipe(
-        catchError((error: unknown) => {
-          console.error(`Failed to load payment for booking ${bookingId} from API.`, error);
-          return of(undefined);
-        }),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  private createBookingLike(
-    url: string,
-    dto: CreateBookingRequest,
-    isWalkIn: boolean
-  ): Observable<Booking> {
-    const payload = this.normalizeCreateBookingRequest(dto, isWalkIn);
-
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.post<unknown>(url, payload).pipe(
-        map((response) => {
-          const booking = this.normalizeBooking(response, {
-            doctorId: dto.doctorId,
-            serviceId: dto.serviceIds?.[0] ?? trimOptionalString(dto.serviceId) ?? '',
-            serviceIds: normalizeStringArray(dto.serviceIds).length > 0
-              ? normalizeStringArray(dto.serviceIds)
-              : trimOptionalString(dto.serviceId)
-                ? [trimOptionalString(dto.serviceId)!]
-                : [],
-            appointmentDate: dto.appointmentDate,
-            slotStartTime: dto.slotStartTime,
-            slotEndTime: dto.slotEndTime,
-            paymentMode: dto.paymentMode ?? 'PayAtClinic',
-            isWalkIn,
-            status: 'Confirmed',
-            paymentStatus: 'Unpaid'
-          });
-
-          if (!booking) {
-            throw new Error('Booking response did not include a valid booking record.');
-          }
-
-          return booking;
-        }),
-        tap((booking) => {
-          this.upsertBooking(booking);
-        }),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to create booking.')))
-        ),
-        finalize(() => this.endLoading())
       );
     });
   }
@@ -1366,6 +1017,240 @@ export class BookingService {
         finalize(() => this.endLoading())
       )
       .subscribe();
+  }
+
+  private requestPaymentByBookingId(bookingId: string): Observable<Payment | undefined> {
+    return defer(() => {
+      this.beginLoading();
+      return this.apiService.get<any>('payments/booking/' + bookingId).pipe(
+        map((data) => data ? this.normalizePayment(mapPaymentRow(data as Record<string, unknown>)) : undefined),
+        catchError((error: unknown) => {
+          console.error(`Failed to load payment for booking ${bookingId} from API.`, error);
+          return of(undefined);
+        }),
+        finalize(() => this.endLoading())
+      );
+    });
+  }
+
+  // ── Observable-based private helpers (replacing async .toPromise() methods) ──
+
+  private createBooking$(dto: CreateBookingRequest): Observable<Booking> {
+    const serviceIds = normalizeStringArray(dto.serviceIds);
+    const legacyServiceId = trimOptionalString(dto.serviceId);
+    const resolvedServiceIds = serviceIds.length > 0 ? serviceIds : legacyServiceId ? [legacyServiceId] : [];
+
+    if (resolvedServiceIds.length === 0) {
+      return throwError(() => new Error('Please select at least one service.'));
+    }
+
+    return this.apiService.post<any>('bookings', {}).pipe(
+      switchMap((bookResult) => {
+        const createdRow = (bookResult ?? undefined) as Record<string, unknown> | undefined;
+        const bookingId = trimOptionalString(createdRow?.['booking_id']);
+
+        if (!bookingId) {
+          return throwError(() => new Error('API create_booking did not return a booking id.'));
+        }
+
+        return this.fetchBookingByIdObservable(bookingId).pipe(
+          map((fetched) => {
+            if (fetched) return fetched;
+
+            const fallback = this.normalizeBooking({
+              bookingId,
+              doctorId: dto.doctorId,
+              serviceId: resolvedServiceIds[0],
+              serviceIds: resolvedServiceIds,
+              appointmentDate: dto.appointmentDate,
+              slotStartTime: normalizeTime(dto.slotStartTime),
+              slotEndTime: normalizeTime(dto.slotEndTime),
+              status: trimOptionalString(createdRow?.['status']) ?? 'Confirmed',
+              paymentStatus: trimOptionalString(createdRow?.['payment_status']) ?? 'Unpaid',
+              paymentMode: 'PayAtClinic',
+              queueNumber: normalizeNullableNumber(createdRow?.['queue_number']),
+              totalFee: 0,
+              consultationFeeSnapshot: 0,
+              serviceFeeSnapshot: 0,
+              isWalkIn: false,
+              createdAt: new Date().toISOString(),
+              notes: dto.notes
+            });
+
+            if (!fallback) {
+              throw new Error('Unable to normalize created booking.');
+            }
+
+            return fallback;
+          })
+        );
+      })
+    );
+  }
+
+  private createWalkInBooking$(dto: CreateWalkInRequest): Observable<Booking> {
+    return this.createBooking$(dto).pipe(
+      switchMap((booking) =>
+        this.apiService.get<any>('bookings/' + booking.id).pipe(
+          map((refreshed) => (refreshed as Booking) ?? { ...booking, isWalkIn: true, paymentMode: dto.paymentMode ?? 'PayAtClinic' })
+        )
+      )
+    );
+  }
+
+  private runBookingAction$(bookingId: string, rpcName: string): Observable<Booking> {
+    const endpoint =
+      rpcName === 'check_in_booking' ? `bookings/${bookingId}/check-in` :
+      rpcName === 'undo_check_in' ? `bookings/${bookingId}/undo-check-in` :
+      rpcName === 'confirm_booking' ? `bookings/${bookingId}/confirm` :
+      rpcName === 'complete_booking_basic' ? `bookings/${bookingId}/complete` :
+      rpcName === 'no_show_booking' ? `bookings/${bookingId}/no-show` :
+      rpcName === 'waive_professional_fee' ? `payments/${bookingId}/waive` :
+      rpcName === 'refund_payment' ? `payments/${bookingId}/refund` : '';
+    if (!endpoint) return throwError(() => new Error(`Unknown booking RPC: ${rpcName}`));
+    return this.apiService.patch<Booking>(endpoint, {});
+  }
+
+  private saveConsultationAndComplete$(bookingId: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
+    const obs$ = dto.isProfessionalFeeWaived
+      ? this.apiService.post('bookings/' + bookingId + '/complete', dto).pipe(
+          switchMap(() => this.apiService.post('payments/' + bookingId + '/waive', {
+            reason: dto.professionalFeeWaivedReason ?? 'Professional fee waived.'
+          }))
+        )
+      : this.apiService.post('bookings/' + bookingId + '/complete', dto);
+
+    return obs$.pipe(
+      switchMap(() => this.fetchBookingByIdObservable(bookingId)),
+      map((booking) => {
+        if (!booking) throw new Error('Consultation was saved, but the updated booking could not be loaded.');
+        return booking;
+      })
+    );
+  }
+
+  private recordPayment$(id: string, dto: ConfirmPaymentRequest): Observable<ReceiptData> {
+    return this.resolveBookingIdForPaymentObservable(id).pipe(
+      switchMap((bookingId) =>
+        this.apiService.patch<ReceiptData>(`payments/${bookingId}/confirm`, {
+          p_booking_id: bookingId,
+          p_amount: dto.amountReceived,
+          p_payment_method: dto.paymentMethod,
+          p_reference_number: trimOptionalString(dto.referenceNumber) ?? null,
+          p_or_number: null
+        })
+      ),
+      switchMap((payResult) => {
+        const row = (payResult ?? {}) as unknown as Record<string, unknown>;
+        return this.fetchBookingByIdObservable(id).pipe(
+          map((booking) => buildReceiptFromBooking(booking, dto, row))
+        );
+      })
+    );
+  }
+
+  private resolveBookingIdForPaymentObservable(id: string): Observable<string> {
+    const cached = this.snapshot.find((booking) => booking.id === id || booking.payment?.id === id);
+    if (cached) {
+      return of(cached.id);
+    }
+
+    return this.apiService.get<any>('bookings/' + id + '/payment').pipe(
+      map((byPaymentId) => {
+        const record = byPaymentId as Record<string, unknown> | undefined;
+        return record && record['bookingId'] ? String(record['bookingId']) : id;
+      })
+    );
+  }
+
+  private fetchBookingByIdObservable(id: string): Observable<Booking | undefined> {
+    return this.apiService.get<any>('bookings/' + id).pipe(
+      map((data) => data ? this.normalizeBooking(mapBookingViewRow(data as Record<string, unknown>)) : undefined)
+    );
+  }
+
+  private buildEmptyReceipt(): ReceiptData {
+    return {
+      bookingId: '',
+      paymentId: '',
+      orNumber: '-',
+      patientName: 'Patient',
+      doctorName: 'Doctor',
+      appointmentDate: '',
+      paymentMethod: '',
+    };
+  }
+
+  private buildReceiptFromPaymentAndBooking(payment: Payment, booking: Booking | undefined): ReceiptData {
+    const services = booking?.serviceNames?.length
+      ? booking.serviceNames
+      : booking?.serviceName
+        ? [booking.serviceName]
+        : [];
+
+    return {
+      bookingId: booking?.id ?? payment.bookingId ?? '',
+      paymentId: payment.id ?? '',
+      orNumber: payment.orNumber ?? '-',
+      patientName: booking?.patientName ?? 'Patient',
+      doctorName: booking?.doctorName ?? 'Doctor',
+      services,
+      appointmentDate: booking?.appointmentDate ?? '',
+      slotStartTime: booking?.slotStartTime,
+      doctorCompletedAt: booking?.doctorCompletedAt,
+      paidAt: payment.paidAt,
+      amountPaid: payment.amount,
+      paymentMethod: payment.paymentMethod ?? 'Cash',
+      referenceNumber: payment.referenceNumber,
+      cashierName: payment.cashierName,
+      verifiedByName: payment.verifiedByName,
+      isWaived: payment.status === 'Waived',
+      waivedReason: payment.waivedReason,
+      waivedByName: payment.waivedByName,
+      waivedAt: payment.waivedAt,
+      totalFee: booking?.totalFee,
+      consultationFee: booking?.consultationFeeSnapshot,
+      serviceFee: booking?.serviceFeeSnapshot,
+      queueNumber: booking?.queueNumber,
+      paymentStatus: payment.status,
+    };
+  }
+
+  private replaceBookings(bookings: Booking[]): void {
+    this.bookingsSubject.next(bookings.map((booking) => ({ ...booking })));
+  }
+
+  private mergeBookings(bookings: Booking[]): void {
+    bookings.forEach((booking) => this.upsertBooking(booking));
+  }
+
+  private patchBooking(bookingId: string, changes: Partial<Booking>): void {
+    const current = this.getBookingById(bookingId);
+    if (!current) {
+      return;
+    }
+
+    this.upsertBooking({ ...current, ...changes });
+  }
+
+  private upsertBooking(booking: Booking): void {
+    const current = this.bookingsSubject.value;
+    const exists = current.some((item) => item.id === booking.id);
+    const next = exists
+      ? current.map((item) => (item.id === booking.id ? { ...item, ...booking } : item))
+      : [...current, { ...booking }];
+
+    this.bookingsSubject.next(next);
+  }
+
+  private beginLoading(): void {
+    this.loadingCounter += 1;
+    this.loadingSubject.next(true);
+  }
+
+  private endLoading(): void {
+    this.loadingCounter = Math.max(0, this.loadingCounter - 1);
+    this.loadingSubject.next(this.loadingCounter > 0);
   }
 
   private normalizeCreateBookingRequest(dto: CreateBookingRequest, isWalkIn: boolean): Record<string, unknown> {
@@ -1531,6 +1416,7 @@ export class BookingService {
       slotStartTime;
     const payment = this.normalizePayment(source['payment']);
     const finalAmount =
+
       normalizeNullableNumberPreserveUndefined(source['finalAmount']) ??
       normalizeNullableNumberPreserveUndefined(fallbackRecord.finalAmount);
     const amountDue =
@@ -1957,43 +1843,6 @@ export class BookingService {
       instructions,
       reason
     };
-  }
-
-  private replaceBookings(bookings: Booking[]): void {
-    this.bookingsSubject.next(bookings.map((booking) => ({ ...booking })));
-  }
-
-  private mergeBookings(bookings: Booking[]): void {
-    bookings.forEach((booking) => this.upsertBooking(booking));
-  }
-
-  private patchBooking(bookingId: string, changes: Partial<Booking>): void {
-    const current = this.getBookingById(bookingId);
-    if (!current) {
-      return;
-    }
-
-    this.upsertBooking({ ...current, ...changes });
-  }
-
-  private upsertBooking(booking: Booking): void {
-    const current = this.bookingsSubject.value;
-    const exists = current.some((item) => item.id === booking.id);
-    const next = exists
-      ? current.map((item) => (item.id === booking.id ? { ...item, ...booking } : item))
-      : [...current, { ...booking }];
-
-    this.bookingsSubject.next(next);
-  }
-
-  private beginLoading(): void {
-    this.loadingCounter += 1;
-    this.loadingSubject.next(true);
-  }
-
-  private endLoading(): void {
-    this.loadingCounter = Math.max(0, this.loadingCounter - 1);
-    this.loadingSubject.next(this.loadingCounter > 0);
   }
 }
 
@@ -2853,3 +2702,4 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
 
   return fallback;
 }
+

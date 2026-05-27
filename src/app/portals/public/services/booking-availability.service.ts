@@ -76,7 +76,7 @@ export class BookingAvailabilityService {
    * Returns empty array on error (logged to console).
    */
   getDoctorWorkingDays(doctorId: string): Observable<WorkingDay[]> {
-    return from(this.fetchDoctorSchedules(doctorId)).pipe(
+    return this.fetchDoctorSchedules$(doctorId).pipe(
       map((rows) =>
         rows.map((row) => ({
           dayOfWeek: normalizeScheduleDayOfWeek(row.day_of_week),
@@ -126,10 +126,10 @@ export class BookingAvailabilityService {
 
   // ── Private ──────────────────────────────────────
 
-  private async fetchDoctorSchedules(doctorId: string): Promise<DoctorScheduleRow[]> {
-    const data = await this.api.get('doctors/' + doctorId + '/schedule').toPromise();
-
-    return (data ?? []) as DoctorScheduleRow[];
+  private fetchDoctorSchedules$(doctorId: string): Observable<DoctorScheduleRow[]> {
+    return this.api.get<DoctorScheduleRow[]>('doctors/' + doctorId + '/schedule').pipe(
+      map((data) => (data ?? []) as DoctorScheduleRow[])
+    );
   }
 }
 

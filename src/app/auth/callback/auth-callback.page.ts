@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { AuthStateService } from '../../core/services/auth-state.service';
 
@@ -45,7 +46,7 @@ export class AuthCallbackPage implements OnInit {
         this.authService['storeTokens'](tokenFromHash, refreshToken);
 
         this.statusText = 'Loading your account...';
-        const user = await this.authService.restoreSession().toPromise();
+        const user = await firstValueFrom(this.authService.restoreSession());
         if (user) {
           this.authState.setUser(user);
           this.authService.navigateByRole(user);
@@ -54,10 +55,10 @@ export class AuthCallbackPage implements OnInit {
       }
 
       // No token in URL — try restoring existing session
-      const user = await this.authService.restoreSession().toPromise();
-      if (user) {
-        this.authState.setUser(user);
-        this.authService.navigateByRole(user);
+      const user2 = await firstValueFrom(this.authService.restoreSession());
+      if (user2) {
+        this.authState.setUser(user2);
+        this.authService.navigateByRole(user2);
         return;
       }
 

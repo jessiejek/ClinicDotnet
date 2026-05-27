@@ -1,8 +1,10 @@
 import { AsyncPipe, CurrencyPipe, DatePipe, NgFor, NgIf } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
+import { Subject, forkJoin } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { ApiService } from '../../../core/services/api.service';
 import { Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { BaseComponent } from '../../../core/base/base.component';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { TodayAppointmentsTableComponent } from '../components/today-appointments-table/today-appointments-table.component';
 import { StatCardComponent } from '../components/stat-card/stat-card.component';
@@ -84,11 +86,11 @@ import { StatCardComponent } from '../components/stat-card/stat-card.component';
   `,
   styleUrl: './dashboard.page.scss'
 })
-export class DashboardPage implements OnInit {
+export class DashboardPage extends BaseComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
-  private readonly destroyRef = inject(DestroyRef);
+
 
   bookings: any[] = [];
   doctors: any[] = [];
@@ -116,7 +118,7 @@ export class DashboardPage implements OnInit {
     this.loadDashboard();
 
     this.realtime.events$
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(takeUntil(this.ngUnsubscribe))
       .subscribe((event: any) => {
         const name = event.eventName;
         if (
@@ -132,28 +134,21 @@ export class DashboardPage implements OnInit {
       });
   }
 
-  private async loadDashboard(): Promise<void> {
+  private loadDashboard(): void {
     this.isLoading = true;
     const today = new Date().toISOString().slice(0, 10);
     const monthStart = today.slice(0, 7) + '-01';
 
-    try {
-      const [
-        staffToday,
-        monthBookings,
-        doctorsList,
-        patientsList,
-        servicesList,
-      ] = await Promise.all([
-        this.api.get<any[]>('bookings?status=CheckedIn&pageSize=1').toPromise(),
-        this.api.get<any[]>('bookings?fromDate=' + encodeURIComponent(monthStart) + '&toDate=' + encodeURIComponent(today) + '&pageSize=1000').toPromise(),
-        this.api.get<any[]>('doctors').toPromise(),
-        this.api.get<any[]>('patients?pageSize=1000').toPromise(),
-        this.api.get<any[]>('services').toPromise(),
-      ]);
-
-      const todayRows = staffToday || [];
-      const monthRows = monthBookings || [];
+    forkJoin([
+      this.api.get<any[]>('bookings?status=CheckedIn&pageSize=1'),
+      this.api.get<any[]>('bookings?fromDate=' + encodeURIComponent(monthStart) + '&toDate=' + encodeURIComponent(today) + '&pageSize=1000'),
+      this.api.get<any[]>('doctors'),
+      this.api.get<any[]>('patients?pageSize=1000'),
+      this.api.get<any[]>('services'),
+    ]).pipe(takeUntil(this.ngUnsubscribe)).subscribe({
+      next: ([staffToday, monthBookings, doctorsList, patientsList, servicesList]) => {
+        const todayRows = staffToday || [];
+        const monthRows = monthBookings || [];
 
       this.doctors = (doctorsList || []).map((d: any) => ({ id: d.id, fullName: d.full_name }));
       this.patients = (patientsList || []).map((p: any) => ({ id: p.id, firstName: p.first_name, lastName: p.last_name }));
@@ -205,13 +200,14 @@ export class DashboardPage implements OnInit {
       const maxCount = sortedDocs.length ? Math.max(...sortedDocs.map((d) => d.count), 1) : 1;
       this.topDoctorStats = sortedDocs.map((d) => ({ label: d.name, value: d.count, max: maxCount }));
 
-    } catch {
-      // Empty state on error — no mock fallback
+      this.buildChartPaths();
+      this.isLoading = false;
+    },
+    error: () => {
       this.todaysBookings = [];
+      this.isLoading = false;
     }
-
-    this.buildChartPaths();
-    this.isLoading = false;
+  });
   }
 
   handleTableAction(event: { action: string; id: string }): void {

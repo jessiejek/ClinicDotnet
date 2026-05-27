@@ -2,7 +2,7 @@ import { DatePipe, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ToastController } from '@ionic/angular/standalone';
-import { catchError, combineLatest, of } from 'rxjs';
+import { firstValueFrom, catchError, combineLatest, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Booking, Patient } from '../../../core/models';
 import { BookingService } from '../../../core/services/booking.service';
@@ -90,7 +90,7 @@ export class PatientReviewsPage implements OnInit {
 
   private async checkExistingReview(bookingId: string): Promise<void> {
     try {
-      const data = await this.api.get('reviews?bookingId=' + bookingId).toPromise();
+      const data = await firstValueFrom(this.api.get('reviews?bookingId=' + bookingId));
       this.hasExistingReview = Array.isArray(data) && data.length > 0;
     } catch {
       console.warn('[PatientReviewsPage] reviews endpoint not available — assuming no existing review.');
@@ -113,14 +113,14 @@ export class PatientReviewsPage implements OnInit {
     const patientName = `${this.currentPatient.firstName} ${this.currentPatient.lastName}`;
 
     try {
-      await this.api.post('reviews', {
+      await firstValueFrom(this.api.post('reviews', {
         bookingId: this.booking.id,
         doctorId: this.booking.doctorId,
         patientId: this.currentPatient.id,
         rating,
         comment: comment || null,
         patientName: patientName
-      }).toPromise();
+      }));
     } catch (err: any) {
       this.isSubmitting = false;
       this.submitError = 'Could not submit your review. Please try again later.';

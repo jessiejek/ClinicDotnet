@@ -57,7 +57,7 @@ import { DoctorDayStatus } from '../../../core/models';
               <h1 class="profile-name">{{ d.fullName }}</h1>
               <div class="profile-meta">
                 <span class="profile-spec-badge">{{ d.specialization }}</span>
-                <app-status-badge [status]="d.status"></app-status-badge>
+                <app-status-badge [status]='$any(d).status'></app-status-badge>
               </div>
               <app-banner
                 *ngIf="dayStatus?.status === 'RunningLate'"

@@ -2,7 +2,10 @@ import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subject, firstValueFrom } from 'rxjs';
 import { ToastController } from '@ionic/angular/standalone';
+import { takeUntil } from 'rxjs/operators';
+import { BaseComponent } from '../../../core/base/base.component';
 import { Booking, Doctor, Patient, Service, ReceiptData } from '../../../core/models';
 import { BookingService } from '../../../core/services/booking.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
@@ -218,12 +221,12 @@ interface PatientDetails {
   `,
   styleUrl: './booking-detail.page.scss'
 })
-export class BookingDetailPage implements OnInit {
+export class BookingDetailPage extends BaseComponent implements OnInit {
   private readonly bookingService = inject(BookingService);
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly toastCtrl = inject(ToastController);
+  private readonly localToastCtrl = inject(ToastController);
   private readonly clinicSettings = inject(ClinicSettingsService);
   private readonly authState = inject(AuthStateService);
 
@@ -269,7 +272,7 @@ export class BookingDetailPage implements OnInit {
 
   private async loadPatientDetails(patientId: string): Promise<void> {
     try {
-      const data: any = await this.api.get('patients/' + patientId).toPromise();
+      const data: any = await firstValueFrom(this.api.get('patients/' + patientId));
 
       if (data) {
         this.patientDetails = {
@@ -408,7 +411,7 @@ export class BookingDetailPage implements OnInit {
     details?: string
   ): Promise<void> {
     try {
-      await this.api.post('audit-logs', { entityType: 'Booking', entityId, action, performedBy, details }).toPromise();
+      await firstValueFrom(this.api.post('audit-logs', { entityType: 'Booking', entityId, action, performedBy, details }));
     } catch (err: any) {
       console.warn('Failed to record audit log:', err?.message);
     }
@@ -426,7 +429,7 @@ export class BookingDetailPage implements OnInit {
     this.waiveModalOpen = false;
     this.isLoading = true;
     try {
-      await this.api.put('bookings/' + bookingId + '/waive', { reason }).toPromise();
+      await firstValueFrom(this.api.put('bookings/' + bookingId + '/waive', { reason }));
 
       await this.recordAuditLog(
         bookingId,
@@ -447,7 +450,7 @@ export class BookingDetailPage implements OnInit {
     this.refundModalOpen = false;
     this.isLoading = true;
     try {
-      await this.api.put('bookings/' + bookingId + '/refund', { reason }).toPromise();
+      await firstValueFrom(this.api.put('bookings/' + bookingId + '/refund', { reason }));
 
       await this.recordAuditLog(
         bookingId,
@@ -499,11 +502,11 @@ export class BookingDetailPage implements OnInit {
   }
 
   soon(feature?: string): void {
-    void this.showToast(`${feature || 'This feature'} is coming soon`, 'warning');
+    void this.showToast(`${feature || 'This feature'} is coming soon`, 'danger' as any);
   }
 
-  private async showToast(message: string, color: 'success' | 'danger' | 'warning'): Promise<void> {
-    const toast = await this.toastCtrl.create({ message, color, duration: 3000, position: 'bottom' });
+  private async showInlineToast(message: string, color: 'success' | 'danger' | 'warning'): Promise<void> {
+    const toast = await this.localToastCtrl.create({ message, color, duration: 3000, position: 'bottom' });
     await toast.present();
   }
 }

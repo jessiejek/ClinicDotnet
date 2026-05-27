@@ -1,20 +1,21 @@
 import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { ApiService } from '../../../core/services/api.service';
 import { FormsModule } from '@angular/forms';
-import { ToastController } from '@ionic/angular/standalone';
 import { Announcement } from '../../../core/models';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { IonModal } from '@ionic/angular/standalone';
+import { BaseComponent } from '../../../core/base/base.component';
 
 @Component({
   selector: 'app-admin-announcements-page',
   standalone: true,
   imports: [DatePipe, FormsModule, NgFor, NgIf, ConfirmModalComponent, EmptyStateComponent, StatusBadgeComponent, IonModal],
-  template: `
-    <section class="page-shell">
+  template: `<section class="page-shell">
       <div class="page-shell__header">
         <div>
           <h2 class="page-title">Announcements</h2>
@@ -50,162 +51,154 @@ import { IonModal } from '@ionic/angular/standalone';
       <p *ngIf="announcements.length === 0 && isLoading" class="muted" style="text-align:center;padding:var(--space-8)">Loading announcements…</p>
     </section>
 
-    <ion-modal [isOpen]="modalOpen" (didDismiss)="modalOpen = false">
+    <ion-modal [isOpen]="modalOpen" (didDismiss)="closeModal()">
       <ng-template>
         <div class="modal-shell">
-          <h3>{{ editingId ? 'Edit Announcement' : 'Add Announcement' }}</h3>
-          <p *ngIf="saveError" class="error-message" style="color:var(--color-danger);margin-bottom:var(--space-2)">{{ saveError }}</p>
-          <form class="modal-form" (ngSubmit)="save()">
-            <input class="filter-input" name="title" [(ngModel)]="draft.title" placeholder="Title" />
-            <textarea class="textarea" name="body" [(ngModel)]="draft.body" placeholder="Body"></textarea>
-            <label><input type="checkbox" name="isActive" [(ngModel)]="draft.isActive" /> Active</label>
-            <div class="modal-actions">
-              <button type="button" class="btn-ghost" (click)="modalOpen = false" [disabled]="isSaving">Cancel</button>
-              <button type="submit" class="btn-primary" [disabled]="isSaving">{{ isSaving ? 'Saving…' : 'Save' }}</button>
+          <div class="modal-header">
+            <h2 class="modal-title">{{ editingId ? 'Edit Announcement' : 'New Announcement' }}</h2>
+            <button class="btn-ghost" type="button" (click)="closeModal()">Cancel</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="ann-title">Title</label>
+              <input id="ann-title" class="form-input" [(ngModel)]="draft.title" placeholder="Announcement title" />
             </div>
-          </form>
+            <div class="form-group">
+              <label for="ann-body">Body</label>
+              <textarea id="ann-body" class="form-input form-textarea" [(ngModel)]="draft.body" placeholder="Announcement content"></textarea>
+            </div>
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="draft.isActive" /> Active
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-primary" type="button" (click)="save()">{{ editingId ? 'Update' : 'Create' }}</button>
+          </div>
         </div>
       </ng-template>
     </ion-modal>
 
-    <app-confirm-modal
-      [isOpen]="deleteOpen"
-      title="Delete Announcement"
-      message="Delete this announcement?"
-      confirmLabel="Delete"
-      [isDanger]="true"
-      (confirmed)="deleteConfirmed()"
-      (cancelled)="deleteOpen = false"
-    ></app-confirm-modal>
-  `,
-  styleUrl: './announcements.page.scss'
+    <ion-modal [isOpen]="!!deletingId" (didDismiss)="closeDeleteModal()">
+      <ng-template>
+        <app-confirm-modal
+          title="Delete Announcement"
+          message="Are you sure you want to delete this announcement?"
+          confirmLabel="Delete"
+          (confirm)="confirmDelete()"
+          (cancel)="closeDeleteModal()"
+        ></app-confirm-modal>
+      </ng-template>
+    </ion-modal>`,
 })
-export class AnnouncementsPage implements OnInit {
+export class AnnouncementsPage extends BaseComponent implements OnInit {
   private readonly api = inject(ApiService);
-  private readonly toastCtrl = inject(ToastController);
 
   announcements: Announcement[] = [];
   isLoading = false;
-  isSaving = false;
   loadError = false;
   loadErrorDescription = '';
-  saveError = '';
+
   modalOpen = false;
-  deleteOpen = false;
   editingId: string | null = null;
   deletingId: string | null = null;
-  draft: Announcement = this.emptyDraft();
+
+  draft = this.emptyDraft();
 
   ngOnInit(): void {
     this.loadAnnouncements();
   }
 
-  private async loadAnnouncements(): Promise<void> {
+  private loadAnnouncements(): void {
     this.isLoading = true;
     this.loadError = false;
-    try {
-      const data: any[] = await this.api.get<any[]>('announcements').toPromise() ?? [];
-      this.announcements = data.map(mapApiRow);
-    } catch (err: any) {
-      this.loadError = true;
-      this.loadErrorDescription = 'Failed to load announcements.';
-      console.error('[AnnouncementsPage] Error loading announcements:', err?.message ?? err);
-      this.announcements = [];
-    }
-    this.isLoading = false;
+    this.api.get<any[]>('announcements').pipe(takeUntil(this.ngUnsubscribe)).subscribe({
+      next: (data: any) => {
+        this.announcements = ((data ?? []) as Record<string, unknown>[]).map(mapApiRow);
+        this.isLoading = false;
+      },
+      error: (err: any) => {
+        this.loadError = true;
+        this.loadErrorDescription = 'Failed to load announcements.';
+        console.error('[AnnouncementsPage] Error loading announcements:', err?.message ?? err);
+        this.announcements = [];
+        this.isLoading = false;
+      }
+    });
   }
 
   openModal(): void {
     this.editingId = null;
     this.draft = this.emptyDraft();
-    this.saveError = '';
     this.modalOpen = true;
   }
 
-  edit(announcement: Announcement): void {
-    this.editingId = announcement.id;
-    this.draft = { ...announcement };
-    this.saveError = '';
+  edit(ann: Announcement): void {
+    this.editingId = ann.id;
+    this.draft = { ...ann };
     this.modalOpen = true;
   }
 
-  async save(): Promise<void> {
-    this.isSaving = true;
-    this.saveError = '';
-
-    if (this.editingId) {
-      await this.api.put('announcements/' + this.editingId, { title: this.draft.title, body: this.draft.body, isActive: this.draft.isActive }).toPromise();
-
-      this.announcements = this.announcements.map((announcement) =>
-        announcement.id === this.editingId ? { ...this.draft } : announcement
-      );
-      this.modalOpen = false;
-    } else {
-      await this.api.post('announcements', { title: this.draft.title, body: this.draft.body, isActive: this.draft.isActive }).toPromise();
-
-      this.announcements = [
-        { ...this.draft, createdAt: new Date().toISOString() },
-        ...this.announcements
-      ];
-      this.modalOpen = false;
-    }
-    this.isSaving = false;
+  closeModal(): void {
+    this.modalOpen = false;
+    this.editingId = null;
+    this.draft = this.emptyDraft();
   }
 
-  async toggle(id: string): Promise<void> {
+  save(): void {
+    const obs$ = this.editingId
+      ? this.api.put('announcements/' + this.editingId, { title: this.draft.title, body: this.draft.body, isActive: this.draft.isActive })
+      : this.api.post('announcements', { title: this.draft.title, body: this.draft.body, isActive: this.draft.isActive });
+    obs$.pipe(takeUntil(this.ngUnsubscribe)).subscribe({
+      next: () => {
+        void this.showToast(this.editingId ? 'Announcement updated.' : 'Announcement created.');
+        this.loadAnnouncements();
+        this.closeModal();
+      },
+      error: (err) => console.error('Failed to save announcement.', err)
+    });
+  }
+
+  toggle(id: string): void {
     const target = this.announcements.find((a) => a.id === id);
-    if (!target) { return; }
-
+    if (!target) return;
     const newActive = !target.isActive;
-    await this.api.put('announcements/' + id, { isActive: newActive }).toPromise();
-
-    this.announcements = this.announcements.map((announcement) =>
-      announcement.id === id ? { ...announcement, isActive: newActive } : announcement
-    );
+    this.api.put('announcements/' + id, { isActive: newActive }).pipe(takeUntil(this.ngUnsubscribe)).subscribe({
+      next: () => this.loadAnnouncements(),
+      error: (err) => console.error('Failed to toggle announcement.', err)
+    });
   }
 
   askDelete(id: string): void {
     this.deletingId = id;
-    this.deleteOpen = true;
   }
 
-  async deleteConfirmed(): Promise<void> {
+  closeDeleteModal(): void {
+    this.deletingId = null;
+  }
+
+  confirmDelete(): void {
     if (this.deletingId) {
-      await this.api.delete('announcements/' + this.deletingId).toPromise();
-
-      this.announcements = this.announcements.filter((announcement) => announcement.id !== this.deletingId);
+      this.api.delete('announcements/' + this.deletingId).pipe(takeUntil(this.ngUnsubscribe)).subscribe({
+        next: () => {
+          this.loadAnnouncements();
+          this.closeDeleteModal();
+        },
+        error: (err) => console.error('Failed to delete announcement.', err)
+      });
     }
-    this.deleteOpen = false;
-  }
-
-  private async presentToast(message: string, color: 'success' | 'danger' = 'danger'): Promise<void> {
-    const toast = await this.toastCtrl.create({
-      message,
-      duration: 3000,
-      color,
-      position: 'top'
-    });
-    await toast.present();
   }
 
   private emptyDraft(): Announcement {
-    return {
-      id: '',
-      title: '',
-      body: '',
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
+    return { id: '', title: '', body: '', isActive: true, createdAt: new Date().toISOString() };
   }
 }
 
 function mapApiRow(row: Record<string, unknown>): Announcement {
   return {
-    id: String(row['id'] ?? ''),
-    title: String(row['title'] ?? ''),
-    body: String(row['body'] ?? ''),
-    imageUrl: row['imageUrl'] ? String(row['imageUrl']) : undefined,
-    isActive: Boolean(row['isActive'] ?? true),
-    createdAt: String(row['createdAt'] ?? row['created_at'] ?? new Date().toISOString())
+    id: (row['id'] ?? '') as string,
+    title: (row['title'] ?? '') as string,
+    body: (row['body'] ?? '') as string,
+    isActive: (row['isActive'] ?? row['is_active'] ?? true) as boolean,
+    createdAt: (row['createdAt'] ?? row['created_at'] ?? new Date().toISOString()) as string,
   };
 }

@@ -318,7 +318,7 @@ export class DoctorPatientDetailPage {
 
   private async buildClinicalHistory(patientId: string): Promise<PatientClinicalHistoryDto> {
     // Load patient from API
-    const patientRow: any = await this.api.get('patients/' + patientId).toPromise();
+    const patientRow: any = await firstValueFrom(this.api.get('patients/' + patientId));
 
     const patient: PatientClinicalHistoryPatientDto = {
       id: patientId,
@@ -331,7 +331,7 @@ export class DoctorPatientDetailPage {
     };
 
     const [bookingRowsResult, recordState] = await Promise.all([
-      this.api.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50').toPromise(),
+      firstValueFrom(this.api.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50')),
       firstValueFrom(
         forkJoin({
           consultations: this.medicalRecords.getConsultationsByPatientId(patientId),

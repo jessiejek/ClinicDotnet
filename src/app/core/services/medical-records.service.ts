@@ -117,45 +117,64 @@ export class MedicalRecordsService {
   // ── Individual queries ──
 
   getConsultationByBookingId(bookingId: string): Observable<Consultation | undefined> {
-    return from(this.fetchOne<any>('medical-records/consultations', 'bookingId', bookingId).then(mapConsultationRow));
+    return this.api.get<any[]>('medical-records/consultations?patientId=' + bookingId).pipe(
+      map((rows) => {
+        const items = (rows ?? []) as Record<string, unknown>[];
+        return items.length > 0 ? mapConsultationRow(items[0]) : undefined;
+      })
+    );
   }
 
   getConsultationsByPatientId(patientId: string): Observable<Consultation[]> {
-    return from(this.fetchMany<any>('medical-records/consultations', patientId).then((r) => r.map(mapConsultationRow)));
+    return this.api.get<any[]>('medical-records/consultations?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapConsultationRow))
+    );
   }
 
   getPrescriptionsByPatientId(patientId: string): Observable<Prescription[]> {
-    return from(this.fetchMany<any>('medical-records/prescriptions', patientId).then((r) => r.map(mapPrescriptionRow)));
+    return this.api.get<any[]>('medical-records/prescriptions?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapPrescriptionRow))
+    );
   }
 
   getAllergiesByPatientId(patientId: string): Observable<Allergy[]> {
-    return from(this.fetchMany<any>('medical-records/allergies', patientId).then((r) => r.map(mapAllergyRow)));
+    return this.api.get<any[]>('medical-records/allergies?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapAllergyRow))
+    );
   }
 
   getLabRequestsByPatientId(patientId: string): Observable<LabRequest[]> {
-    return from(this.fetchMany<any>('medical-records/lab-orders', patientId).then((r) => r.map(mapLabOrderRow)));
+    return this.api.get<any[]>('medical-records/lab-orders?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapLabOrderRow))
+    );
   }
 
   getLabResultsByPatientId(patientId: string): Observable<LabResult[]> {
-    return from(this.fetchMany<any>('medical-records/lab-results', patientId).then((r) => r.map(mapLabResultViewRow)));
+    return this.api.get<any[]>('medical-records/lab-results?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapLabResultViewRow))
+    );
   }
 
   getVaccinationsByPatientId(patientId: string): Observable<VaccinationRecord[]> {
-    return from(this.fetchMany<any>('medical-records/vaccinations', patientId).then((r) => r.map(mapVaccinationRow)));
+    return this.api.get<any[]>('medical-records/vaccinations?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapVaccinationRow))
+    );
   }
 
   getFollowUpsByPatientId(patientId: string): Observable<FollowUp[]> {
-    return from(this.fetchMany<any>('medical-records/follow-ups', patientId).then((r) => r.map(mapFollowUpRow)));
+    return this.api.get<any[]>('medical-records/follow-ups?patientId=' + patientId).pipe(
+      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapFollowUpRow))
+    );
   }
 
   // ── CRUD operations ──
 
   createAllergy(allergy: Partial<Allergy>): Observable<Allergy> {
-    return from(this.api.post<any>('medical-records/allergies', allergy).toPromise().then(mapAllergyRow));
+    return this.api.post<any>('medical-records/allergies', allergy).pipe(map(mapAllergyRow));
   }
 
   updateAllergy(id: string, allergy: Partial<Allergy>): Observable<Allergy> {
-    return from(this.api.put<any>('medical-records/allergies/' + id, allergy).toPromise().then(mapAllergyRow));
+    return this.api.put<any>('medical-records/allergies/' + id, allergy).pipe(map(mapAllergyRow));
   }
 
   addAllergy(allergy: Partial<Allergy>): Observable<Allergy> {
@@ -163,11 +182,11 @@ export class MedicalRecordsService {
   }
 
   deleteAllergy(id: string): Observable<unknown> {
-    return from(this.api.delete('medical-records/allergies/' + id).toPromise());
+    return this.api.delete('medical-records/allergies/' + id);
   }
 
   createLabResult(result: Partial<LabResult>): Observable<LabResult> {
-    return from(this.api.post<any>('medical-records/lab-results', result).toPromise().then(mapLabResultViewRow));
+    return this.api.post<any>('medical-records/lab-results', result).pipe(map(mapLabResultViewRow));
   }
 
   addLabResult(result: Partial<LabResult>): Observable<LabResult> {
@@ -175,15 +194,15 @@ export class MedicalRecordsService {
   }
 
   deleteLabResult(id: string): Observable<unknown> {
-    return from(this.api.delete('medical-records/lab-results/' + id).toPromise());
+    return this.api.delete('medical-records/lab-results/' + id);
   }
 
   createVaccination(record: Partial<VaccinationRecord>): Observable<VaccinationRecord> {
-    return from(this.api.post<any>('medical-records/vaccinations', record).toPromise().then(mapVaccinationRow));
+    return this.api.post<any>('medical-records/vaccinations', record).pipe(map(mapVaccinationRow));
   }
 
   updateVaccination(id: string, record: Partial<VaccinationRecord>): Observable<VaccinationRecord> {
-    return from(this.api.put<any>('medical-records/vaccinations/' + id, record).toPromise().then(mapVaccinationRow));
+    return this.api.put<any>('medical-records/vaccinations/' + id, record).pipe(map(mapVaccinationRow));
   }
 
   addVaccinationRecord(record: Partial<VaccinationRecord>): Observable<VaccinationRecord> {
@@ -191,30 +210,19 @@ export class MedicalRecordsService {
   }
 
   deleteVaccination(id: string): Observable<unknown> {
-    return from(this.api.delete('medical-records/vaccinations/' + id).toPromise());
+    return this.api.delete('medical-records/vaccinations/' + id);
   }
 
   createFollowUp(followUp: Partial<FollowUp>): Observable<FollowUp> {
-    return from(this.api.post<any>('medical-records/follow-ups', followUp).toPromise().then(mapFollowUpRow));
+    return this.api.post<any>('medical-records/follow-ups', followUp).pipe(map(mapFollowUpRow));
   }
 
   updateFollowUp(id: string, followUp: Partial<FollowUp>): Observable<FollowUp> {
-    return from(this.api.put<any>('medical-records/follow-ups/' + id, followUp).toPromise().then(mapFollowUpRow));
+    return this.api.put<any>('medical-records/follow-ups/' + id, followUp).pipe(map(mapFollowUpRow));
   }
 
   deleteFollowUp(id: string): Observable<unknown> {
-    return from(this.api.delete('medical-records/follow-ups/' + id).toPromise());
-  }
-
-  // ── Helpers ──
-
-  private async fetchMany<T>(endpoint: string, patientId: string): Promise<T[]> {
-    return (await this.api.get<T[]>(endpoint + '?patientId=' + patientId).toPromise()) ?? [];
-  }
-
-  private async fetchOne<T>(endpoint: string, field: string, value: string): Promise<T | undefined> {
-    const rows = await this.fetchMany<T>(endpoint, value);
-    return rows.length > 0 ? rows[0] : undefined;
+    return this.api.delete('medical-records/follow-ups/' + id);
   }
 }
 

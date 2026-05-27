@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
-import { Observable, from } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import {
   DayOfWeek,
   Doctor,
@@ -63,7 +63,9 @@ export class AdminDoctorsService {
   private readonly api = inject(ApiService);
 
   getAllDoctors(): Observable<DoctorSummary[]> {
-    return from(this.fetchAllDoctors());
+    return this.api.get<any[]>('doctors/admin').pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDtoToDoctor))
+    );
   }
 
   getDoctors(): Observable<DoctorSummary[]> {
@@ -71,7 +73,18 @@ export class AdminDoctorsService {
   }
 
   createDoctor(dto: CreateDoctorDto): Observable<DoctorDetail> {
-    return from(this.createDoctorAsync(dto));
+    return this.api.post('doctors', {
+      fullName: dto.fullName,
+      specialization: dto.specialization,
+      bio: dto.bio ?? null,
+      licenseNumber: dto.licenseNumber ?? null,
+      ptrNumber: dto.ptrNumber ?? null,
+      s2Number: dto.s2Number ?? null,
+      consultationFee: dto.consultationFee,
+      slotDurationMinutes: dto.slotDurationMinutes,
+      slotCapacity: dto.slotCapacity,
+      dailyPatientLimit: dto.dailyPatientLimit ?? null,
+    }).pipe(map((data) => mapDtoToDoctor((data ?? {}) as Record<string, unknown>)));
   }
 
   addDoctor(doctor: CreateDoctorDto): Observable<DoctorDetail> {
@@ -83,73 +96,6 @@ export class AdminDoctorsService {
   }
 
   updateDoctor(id: string, dto: UpdateDoctorDto): Observable<DoctorDetail> {
-    return from(this.updateDoctorAsync(id, dto));
-  }
-
-  updateDoctorLegacy(doctor: Doctor): Observable<DoctorDetail> {
-    return from(this.updateDoctorAsync(doctor.id, doctor as unknown as UpdateDoctorDto));
-  }
-
-  deactivateDoctor(id: string): Observable<void> {
-    return from(this.deactivateDoctorAsync(id));
-  }
-
-  getSchedule(id: string): Observable<DoctorSchedule[]> {
-    return from(this.fetchSchedule(id));
-  }
-
-  updateSchedule(id: string, dto: UpsertSchedulesDto): Observable<DoctorSchedule[]> {
-    return from(this.upsertScheduleAsync(id, dto));
-  }
-
-  getBlockedDates(id: string): Observable<BlockedDate[]> {
-    return from(this.fetchBlockedDates(id));
-  }
-
-  addBlockedDate(id: string, dto: BlockDateDto): Observable<BlockedDate> {
-    return from(this.addBlockedDateAsync(id, dto));
-  }
-
-  deleteBlockedDate(doctorId: string, bdId: string): Observable<void> {
-    return from(this.removeBlockedDateAsync(doctorId, bdId));
-  }
-
-  private async fetchAllDoctors(): Promise<DoctorSummary[]> {
-    const data: any[] = await this.api.get<any[]>('doctors/admin').toPromise() ?? [];
-    return data.map(mapDtoToDoctor);
-  }
-
-  private async fetchSchedule(id: string): Promise<DoctorSchedule[]> {
-    const data: any[] = await this.api.get<any[]>(`doctors/${id}/schedule`).toPromise() ?? [];
-    return data.map(mapDtoToSchedule);
-  }
-
-  private async fetchBlockedDates(id: string): Promise<BlockedDate[]> {
-    const data: any[] = await this.api.get<any[]>(`doctors/${id}/blocked-dates`).toPromise() ?? [];
-    return data.map(mapDtoToBlockedDate);
-  }
-
-  private async deactivateDoctorAsync(id: string): Promise<void> {
-    await this.api.put(`doctors/${id}`, { status: 'Inactive' }).toPromise();
-  }
-
-  private async createDoctorAsync(dto: CreateDoctorDto): Promise<DoctorSummary> {
-    const data: any = await this.api.post('doctors', {
-      fullName: dto.fullName,
-      specialization: dto.specialization,
-      bio: dto.bio ?? null,
-      licenseNumber: dto.licenseNumber ?? null,
-      ptrNumber: dto.ptrNumber ?? null,
-      s2Number: dto.s2Number ?? null,
-      consultationFee: dto.consultationFee,
-      slotDurationMinutes: dto.slotDurationMinutes,
-      slotCapacity: dto.slotCapacity,
-      dailyPatientLimit: dto.dailyPatientLimit ?? null,
-    }).toPromise();
-    return mapDtoToDoctor(data ?? {});
-  }
-
-  private async updateDoctorAsync(id: string, dto: UpdateDoctorDto): Promise<DoctorDetail> {
     const payload: Record<string, unknown> = {};
     if (dto.fullName !== undefined) payload['fullName'] = dto.fullName;
     if (dto.specialization !== undefined) payload['specialization'] = dto.specialization;
@@ -162,32 +108,50 @@ export class AdminDoctorsService {
     if (dto.slotCapacity !== undefined) payload['slotCapacity'] = dto.slotCapacity;
     if (dto.dailyPatientLimit !== undefined) payload['dailyPatientLimit'] = dto.dailyPatientLimit;
     if (dto.status !== undefined) payload['status'] = dto.status;
-
-    const data: any = await this.api.put(`doctors/${id}`, payload).toPromise();
-    return mapDtoToDoctor(data ?? {});
+    return this.api.put(`doctors/${id}`, payload).pipe(map((data) => mapDtoToDoctor((data ?? {}) as Record<string, unknown>)));
   }
 
-  private async upsertScheduleAsync(id: string, dto: UpsertSchedulesDto): Promise<DoctorSchedule[]> {
-    const data: any[] = await this.api.put<any[]>(`doctors/${id}/schedule`, {
+  updateDoctorLegacy(doctor: Doctor): Observable<DoctorDetail> {
+    return this.updateDoctor(doctor.id, doctor as unknown as UpdateDoctorDto);
+  }
+
+  deactivateDoctor(id: string): Observable<void> {
+    return this.api.put(`doctors/${id}`, { status: 'Inactive' }).pipe(map(() => void 0));
+  }
+
+  getSchedule(id: string): Observable<DoctorSchedule[]> {
+    return this.api.get<any[]>('doctors/' + id + '/schedule').pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDtoToSchedule))
+    );
+  }
+
+  updateSchedule(id: string, dto: UpsertSchedulesDto): Observable<DoctorSchedule[]> {
+    return this.api.put<any[]>('doctors/' + id + '/schedule', {
       schedules: dto.schedules.map((s) => ({
         dayOfWeek: s.dayOfWeek,
         startTime: s.startTime,
         endTime: s.endTime,
       }))
-    }).toPromise() ?? [];
-    return data.map(mapDtoToSchedule);
+    }).pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDtoToSchedule))
+    );
   }
 
-  private async addBlockedDateAsync(id: string, dto: BlockDateDto): Promise<BlockedDate> {
-    const data: any = await this.api.post(`doctors/${id}/blocked-dates`, {
+  getBlockedDates(id: string): Observable<BlockedDate[]> {
+    return this.api.get<any[]>('doctors/' + id + '/blocked-dates').pipe(
+      map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDtoToBlockedDate))
+    );
+  }
+
+  addBlockedDate(id: string, dto: BlockDateDto): Observable<BlockedDate> {
+    return this.api.post('doctors/' + id + '/blocked-dates', {
       date: dto.blockedDate,
       reason: dto.reason ?? null,
-    }).toPromise();
-    return mapDtoToBlockedDate(data ?? {});
+    }).pipe(map((data) => mapDtoToBlockedDate((data ?? {}) as Record<string, unknown>)));
   }
 
-  private async removeBlockedDateAsync(doctorId: string, bdId: string): Promise<void> {
-    await this.api.delete(`doctors/${doctorId}/blocked-dates/${bdId}`).toPromise();
+  deleteBlockedDate(doctorId: string, bdId: string): Observable<void> {
+    return this.api.delete('doctors/' + doctorId + '/blocked-dates/' + bdId).pipe(map(() => void 0));
   }
 
   private normalizeDoctorFromRow(row: Record<string, unknown>): DoctorSummary {
