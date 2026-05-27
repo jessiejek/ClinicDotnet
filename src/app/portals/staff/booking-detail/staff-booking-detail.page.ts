@@ -3,7 +3,7 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, map, of, switchMap, take, throwError } from 'rxjs';
+import { catchError, map, of, switchMap, throwError } from 'rxjs';
 import {
   IonButton,
   IonButtons,
@@ -17,7 +17,6 @@ import {
 import { Booking, ReceiptData } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import {
-  BookingService,
   ConfirmPaymentRequest
 } from '../../../core/services/booking.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
@@ -322,7 +321,6 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
 })
 export class StaffBookingDetailPage implements OnInit {
   private readonly apiService = inject(ApiService);
-  private readonly bookingService = inject(BookingService);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -474,20 +472,7 @@ export class StaffBookingDetailPage implements OnInit {
 
   ngOnInit(): void {
     this.bookingId = this.route.snapshot.paramMap.get('id') ?? '';
-
-    this.bookingService
-      .getBookingById$(this.bookingId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((booking) => {
-        this.booking = booking ?? null;
-      });
-
-    this.bookingService.isLoading$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((loading) => {
-        this.isLoading = loading;
-      });
-
+    this.loadBooking(this.bookingId);
     this.printDocumentData = null;
   }
 
@@ -800,7 +785,49 @@ export class StaffBookingDetailPage implements OnInit {
       return;
     }
 
-    this.bookingService.getBookingById$(this.bookingId).pipe(take(1)).subscribe();
+    void this.loadBooking(this.bookingId, false);
+  }
+
+  private loadBooking(bookingId: string, trackLoading = true): Promise<void> {
+    if (!bookingId) {
+      return Promise.resolve();
+    }
+
+    if (trackLoading) {
+      this.isLoading = true;
+    }
+
+    return new Promise<void>((resolve) => {
+      this.apiService
+        .get<any>('bookings/' + bookingId)
+        .pipe(
+          map((data) => (data ? normalizeBookingRow(data) : null)),
+          catchError((error: unknown) => {
+            console.error('Failed to load booking details:', error);
+            return of(null);
+          })
+        )
+        .subscribe({
+          next: (booking) => {
+            this.booking = booking;
+            if (trackLoading) {
+              this.isLoading = false;
+            }
+          },
+          error: () => {
+            if (trackLoading) {
+              this.isLoading = false;
+            }
+            resolve();
+          },
+          complete: () => {
+            if (trackLoading) {
+              this.isLoading = false;
+            }
+            resolve();
+          }
+        });
+    });
   }
 
   private async presentToast(
