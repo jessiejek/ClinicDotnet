@@ -19,7 +19,7 @@ import {
   DoctorSummary,
   UpsertSchedulesDto
 } from '../services/admin-doctors.service';
-import { AdminServicesService, ManagedService } from '../services/admin-services.service';
+import { ManagedService } from '../services/admin-services.service';
 
 const DAY_NAMES: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -176,7 +176,6 @@ const DAY_NAMES: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 export class DoctorFormPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly adminDoctorsService = inject(AdminDoctorsService);
-  private readonly adminServicesService = inject(AdminServicesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toastController = inject(ToastController);

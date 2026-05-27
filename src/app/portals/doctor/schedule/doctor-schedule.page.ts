@@ -2,15 +2,15 @@ import { AsyncPipe, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { ToastController } from '@ionic/angular/standalone';
 import { EMPTY, forkJoin } from 'rxjs';
-import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ApiService } from '../../../core/services/api.service';
 import {
   DoctorBlockedDate,
   DayOfWeek,
   DoctorScheduleInput,
   TimeSlot
 } from '../../../core/models';
-import { DoctorService } from '../services/doctor.service';
 import {
   DoctorScheduleEditorComponent,
   DoctorScheduleSavePayload,
@@ -71,7 +71,7 @@ const DAY_NAMES: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thu
   styleUrl: './doctor-schedule.page.scss'
 })
 export class DoctorSchedulePage implements OnInit {
-  private readonly doctorService = inject(DoctorService);
+  private readonly apiService = inject(ApiService);
   private readonly toastController = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -95,7 +95,13 @@ export class DoctorSchedulePage implements OnInit {
   loadData(): void {
     this.isLoading = true;
     this.error = false;
-    this.doctorService.getMyProfile().pipe(
+    this.apiService.get<any>('doctors/me').pipe(
+      map((data) => {
+        if (!data) {
+          throw new Error('Doctor profile not found.');
+        }
+        return mapDoctorRow(data as Record<string, unknown>);
+      }),
       catchError(() => {
         this.isLoading = false;
         this.error = true;
@@ -116,8 +122,12 @@ export class DoctorSchedulePage implements OnInit {
       };
       this.dailyPatientLimit = this.currentDoctor.dailyPatientLimit;
       forkJoin([
-        this.doctorService.getDoctorSchedules(doctor.id),
-        this.doctorService.getDoctorBlockedDates(doctor.id)
+        this.apiService.get<any[]>('doctors/' + doctor.id + '/schedule').pipe(
+          map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorScheduleRow))
+        ),
+        this.apiService.get<any[]>('doctors/' + doctor.id + '/blocked-dates').pipe(
+          map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorBlockedDateRow))
+        )
       ]).pipe(
         catchError(() => {
           this.isLoading = false;
@@ -153,13 +163,21 @@ export class DoctorSchedulePage implements OnInit {
     };
 
     this.isSaving = true;
-    this.doctorService.updateSchedule(this.doctorId, activeSchedules).pipe(
+    this.apiService.put<any[]>('doctors/' + this.doctorId + '/schedule', {
+      schedules: activeSchedules.map((s) => ({
+        dayOfWeek: s.dayOfWeek,
+        startTime: s.startTime,
+        endTime: s.endTime
+      }))
+    }).pipe(
       switchMap(() =>
-        this.doctorService.updateScheduleSettings(this.doctorId, {
+        this.apiService.put<any>('doctors/' + this.doctorId, {
           slotDurationMinutes: scheduleSettings.slotDurationMinutes,
           slotCapacity: scheduleSettings.slotCapacity,
           dailyPatientLimit: this.dailyPatientLimit
-        })
+        }).pipe(
+          map((data) => mapDoctorRow((data ?? {}) as Record<string, unknown>))
+        )
       ),
       finalize(() => (this.isSaving = false)),
       catchError(() => {
@@ -179,7 +197,11 @@ export class DoctorSchedulePage implements OnInit {
       return;
     }
     this.isSaving = true;
-    this.doctorService.createBlockedDate(this.doctorId, { blockedDate, reason: reason || null }).pipe(
+    this.apiService.post<any>('doctors/' + this.doctorId + '/blocked-dates', {
+      date: blockedDate,
+      reason: reason || null
+    }).pipe(
+      map((data) => mapDoctorBlockedDateRow((data ?? {}) as Record<string, unknown>)),
       finalize(() => (this.isSaving = false)),
       catchError(() => {
         void this.presentToast('Failed to add blocked date.', 'danger');
@@ -198,7 +220,8 @@ export class DoctorSchedulePage implements OnInit {
       return;
     }
     this.isSaving = true;
-    this.doctorService.deleteBlockedDate(this.doctorId, id).pipe(
+    this.apiService.delete('doctors/' + this.doctorId + '/blocked-dates/' + id).pipe(
+      map(() => void 0),
       finalize(() => (this.isSaving = false)),
       catchError(() => {
         void this.presentToast('Failed to remove blocked date.', 'danger');
@@ -361,4 +384,70 @@ export class DoctorSchedulePage implements OnInit {
     });
     await toast.present();
   }
+}
+
+function mapDoctorRow(row: Record<string, unknown>): { slotDurationMinutes: number; slotCapacity: number; dailyPatientLimit: number | null; id: string } & Record<string, unknown> {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    slotDurationMinutes: resolveNum(row, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(row, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(row, 'dailyPatientLimit') ?? null,
+    fullName: resolveStr(row, 'fullName') ?? 'Doctor',
+    specialization: resolveStr(row, 'specialization') ?? '',
+    bio: resolveStr(row, 'bio'),
+    licenseNumber: resolveStr(row, 'licenseNumber') ?? '',
+    ptrNumber: resolveStr(row, 'ptrNumber') ?? '',
+    s2Number: resolveStr(row, 's2Number') ?? '',
+    consultationFee: resolveNum(row, 'consultationFee') ?? 0,
+    status: resolveStr(row, 'status') ?? 'Active'
+  };
+}
+
+function mapDoctorScheduleRow(row: Record<string, unknown>): { dayOfWeek: DayOfWeek; startTime: string; endTime: string } {
+  return {
+    dayOfWeek: normalizeDayOfWeek(resolveStr(row, 'dayOfWeek')),
+    startTime: normalizeTime(resolveStr(row, 'startTime')),
+    endTime: normalizeTime(resolveStr(row, 'endTime'))
+  };
+}
+
+function mapDoctorBlockedDateRow(row: Record<string, unknown>): DoctorBlockedDate {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    doctorId: resolveStr(row, 'doctorId') ?? '',
+    blockedDate: resolveStr(row, 'blockedDate') ?? resolveStr(row, 'date') ?? '',
+    reason: resolveStr(row, 'reason')
+  };
+}
+
+function normalizeDayOfWeek(value: string | undefined): DayOfWeek {
+  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  if (!value) return 'Monday';
+  const normalized = value.trim().toLowerCase();
+  return days.find((d) => d.toLowerCase() === normalized) ?? 'Monday';
+}
+
+function normalizeTime(value: string | undefined): string {
+  if (!value) return '00:00';
+  return value.length >= 5 ? value.slice(0, 5) : value;
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  return trimmed || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | null {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val);
+    if (isFinite(parsed)) return parsed;
+  }
+  return null;
 }

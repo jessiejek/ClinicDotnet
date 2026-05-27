@@ -9,6 +9,7 @@ import {
   Consultation,
   Diagnosis,
   LabRequest,
+  Doctor,
   Patient,
   Prescription,
   PrescriptionItem,
@@ -37,7 +38,6 @@ import { SoapFormValue } from '../components/soap-form/soap-form.component';
 import { PatientIdentityStripComponent } from './components/patient-identity-strip.component';
 import { AllergyConfirmationState } from './components/allergy-badge.component';
 import { buildPatientAvatarStyle } from './components/patient-avatar.util';
-import { DoctorService } from '../services/doctor.service';
 import { ConsultationSummaryComponent } from './components/consultation-summary.component';
 import { SoapLastVisitModalComponent } from './components/soap-last-visit-modal.component';
 import {
@@ -621,7 +621,6 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
   private readonly auditLogService = inject(AuditLogService);
-  private readonly doctorService = inject(DoctorService);
   private readonly medicalRecords = inject(MedicalRecordsService);
   private readonly modalCtrl = inject(ModalController);
   private readonly offlineQueue = inject(OfflineConsultationQueueService);
@@ -726,7 +725,15 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
 
           return combineLatest([
             of(booking),
-            this.doctorService.getMyProfile().pipe(catchError(() => of(undefined))),
+            this.apiService.get<any>('doctors/me').pipe(
+              map((data) => {
+                if (!data) {
+                  throw new Error('Doctor profile not found.');
+                }
+                return mapDoctorRow(data as Record<string, unknown>);
+              }),
+              catchError(() => of(undefined))
+            ),
             this.resolvePatient$(booking)
           ]).pipe(
             switchMap(([resolvedBooking, doctor, patient]) => {
@@ -3409,6 +3416,47 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function mapDoctorRow(row: Record<string, unknown>): Doctor {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    userId: resolveStr(row, 'userId') ?? '',
+    fullName: resolveStr(row, 'fullName') ?? 'Doctor',
+    specialization: resolveStr(row, 'specialization') ?? '',
+    bio: resolveStr(row, 'bio'),
+    profilePhotoUrl: resolveStr(row, 'profilePhotoUrl') ?? resolveStr(row, 'profile_photo_url'),
+    licenseNumber: resolveStr(row, 'licenseNumber') ?? '',
+    ptrNumber: resolveStr(row, 'ptrNumber') ?? '',
+    s2Number: resolveStr(row, 's2Number') ?? '',
+    consultationFee: resolveNum(row, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(row, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(row, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(row, 'dailyPatientLimit') ?? null,
+    status: (resolveStr(row, 'status') as Doctor['status']) ?? 'Active',
+    averageRating: resolveNum(row, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(row, 'reviewCount') ?? undefined
+  };
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  return trimmed || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | null {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val);
+    if (isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function buildConsultationDraftKey(bookingId: string): string {

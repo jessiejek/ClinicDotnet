@@ -25,7 +25,7 @@ import {
 } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { BookingService, CreateWalkInRequest } from '../../../core/services/booking.service';
-import { AdminPatientsService } from '../../admin/services/admin-patients.service';
+import { rowToSummary } from '../../admin/services/admin-patients.service';
 import { AvailableSlot } from '../../public/services/public.service';
 import { BookingAvailabilityService } from '../../public/services/booking-availability.service';
 import { StaffService } from '../services/staff.service';
@@ -577,7 +577,6 @@ export class StaffWalkInPage implements OnInit {
   private readonly staffService = inject(StaffService);
   private readonly apiService = inject(ApiService);
   private readonly availabilityService = inject(BookingAvailabilityService);
-  private readonly adminPatientsService = inject(AdminPatientsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toastCtrl = inject(ToastController);
@@ -892,7 +891,7 @@ export class StaffWalkInPage implements OnInit {
     this.isSavingPatient = true;
 
     try {
-      const patient = await firstValueFrom(this.adminPatientsService.createGuestPatient(dto));
+      const patient = await firstValueFrom(this.apiService.post<any>('patients', dto));
       this.selectedPatient = mapCreatedPatient(patient);
       this.searchResults = [];
       this.searchErrorMessage = null;
@@ -977,43 +976,54 @@ export class StaffWalkInPage implements OnInit {
     this.isSearchingPatients = true;
     this.hasLoadedPatients = false;
 
-    this.staffService
-      .getPatients(1, this.patientPageSize, trimmed)
-      .pipe(
-        finalize(() => {
-          if (token === this.searchRequestToken) {
-            this.isSearchingPatients = false;
-          }
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe({
-        next: (result) => {
-          if (token !== this.searchRequestToken) {
-            return;
-          }
+    let endpoint = 'patients?page=1&pageSize=' + this.patientPageSize;
+    if (trimmed) endpoint += '&search=' + encodeURIComponent(trimmed);
 
-          this.searchResults = result.items.map((patient) => mapSearchPatient(patient));
-          this.patientTotalCount = result.totalCount ?? result.total ?? this.searchResults.length;
-          this.patientCurrentPage = result.page || 1;
-          this.patientPageSize = result.pageSize || this.patientPageSize;
-          this.patientTotalPages = result.totalPages || 0;
-          this.hasLoadedPatients = true;
-        },
-        error: async (error) => {
-          if (token !== this.searchRequestToken) {
-            return;
-          }
-
-          this.searchResults = [];
-          this.searchErrorMessage = extractApiErrorMessage(error, fallbackErrorMessage);
-          this.patientTotalCount = 0;
-          this.patientCurrentPage = 1;
-          this.patientTotalPages = 0;
-          this.hasLoadedPatients = true;
-          await this.presentToast(this.searchErrorMessage, 'danger');
+    this.apiService.get<any>(endpoint).pipe(
+      map((data) => {
+        const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map((row) => rowToSummary(row));
+        return {
+          items,
+          totalCount: data?.totalCount ?? items.length,
+          page: data?.page ?? 1,
+          pageSize: data?.pageSize ?? items.length,
+          totalPages: data?.totalPages ?? 0,
+          total: data?.total ?? items.length
+        };
+      }),
+      finalize(() => {
+        if (token === this.searchRequestToken) {
+          this.isSearchingPatients = false;
         }
-      });
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (result) => {
+        if (token !== this.searchRequestToken) {
+          return;
+        }
+
+        this.searchResults = result.items.map((patient) => mapSearchPatient(patient));
+        this.patientTotalCount = result.totalCount ?? result.total ?? this.searchResults.length;
+        this.patientCurrentPage = result.page || 1;
+        this.patientPageSize = result.pageSize || this.patientPageSize;
+        this.patientTotalPages = result.totalPages || 0;
+        this.hasLoadedPatients = true;
+      },
+      error: async (error) => {
+        if (token !== this.searchRequestToken) {
+          return;
+        }
+
+        this.searchResults = [];
+        this.searchErrorMessage = extractApiErrorMessage(error, fallbackErrorMessage);
+        this.patientTotalCount = 0;
+        this.patientCurrentPage = 1;
+        this.patientTotalPages = 0;
+        this.hasLoadedPatients = true;
+        await this.presentToast(this.searchErrorMessage, 'danger');
+      }
+    });
   }
 
   private onDoctorChanged(doctorId: string): void {

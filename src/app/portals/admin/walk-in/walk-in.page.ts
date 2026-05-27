@@ -25,7 +25,7 @@ import {
 } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { BookingService, CreateWalkInRequest } from '../../../core/services/booking.service';
-import { AdminPatientsService } from '../services/admin-patients.service';
+import { rowToSummary } from '../services/admin-patients.service';
 import { AvailableSlot } from '../../public/services/public.service';
 import { BookingAvailabilityService } from '../../public/services/booking-availability.service';
 import { CreatePatientRequest, Doctor, PatientDetail, PatientSummary, Service, TimeSlot } from '../../../core/models';
@@ -554,7 +554,6 @@ export class WalkInPage implements OnInit {
   private readonly bookingService = inject(BookingService);
   private readonly apiService = inject(ApiService);
   private readonly availabilityService = inject(BookingAvailabilityService);
-  private readonly adminPatientsService = inject(AdminPatientsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toastCtrl = inject(ToastController);
@@ -826,7 +825,7 @@ export class WalkInPage implements OnInit {
     this.isSavingPatient = true;
 
     try {
-      const patient = await firstValueFrom(this.adminPatientsService.createGuestPatient(dto));
+      const patient = await firstValueFrom(this.apiService.post<any>('patients', dto));
       this.selectedPatient = mapCreatedPatient(patient);
       this.searchResults = [];
       this.searchErrorMessage = null;
@@ -907,7 +906,21 @@ export class WalkInPage implements OnInit {
     this.isSearchingPatients = true;
     this.hasLoadedPatients = false;
 
-    this.adminPatientsService.getPatients(1, this.patientPageSize, trimmed).pipe(
+    let endpoint = 'patients?page=1&pageSize=' + this.patientPageSize;
+    if (trimmed) endpoint += '&search=' + encodeURIComponent(trimmed);
+
+    this.apiService.get<any>(endpoint).pipe(
+      map((data) => {
+        const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map((row) => rowToSummary(row));
+        return {
+          items,
+          totalCount: data?.totalCount ?? items.length,
+          page: data?.page ?? 1,
+          pageSize: data?.pageSize ?? items.length,
+          totalPages: data?.totalPages ?? 0,
+          total: data?.total ?? items.length
+        };
+      }),
       finalize(() => { if (token === this.searchRequestToken) this.isSearchingPatients = false; }),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({

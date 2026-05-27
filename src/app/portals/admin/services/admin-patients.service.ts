@@ -1,98 +1,79 @@
-import { Injectable, inject } from '@angular/core';
-import { Observable, map } from 'rxjs';
-import { ApiService } from '../../../core/services/api.service';
-import { CreatePatientPortalAccountRequest, CreatePatientRequest, PagedResult, PatientDetail, PatientSummary, UpdatePatientRequest } from '../../../core/models';
+import { PatientDetail, PatientSummary } from '../../../core/models';
 
 type NullableString = string | null | undefined;
 
 interface PatientRow {
   id: string;
-  patient_code?: NullableString; first_name?: NullableString; middle_name?: NullableString;
-  last_name?: NullableString; date_of_birth?: NullableString; sex?: NullableString;
-  civil_status?: NullableString; address?: NullableString; city?: NullableString;
-  zip_code?: NullableString; contact_number?: NullableString; contact_email?: NullableString;
-  emergency_contact_name?: NullableString; emergency_contact_number?: NullableString;
-  emergency_contact_relationship?: NullableString; blood_type?: NullableString;
-  phil_health_number?: NullableString; hmo_provider?: NullableString; hmo_card_number?: NullableString;
-  user_id?: NullableString; is_guest?: boolean | null;
-  consented_at?: NullableString; consent_version?: NullableString;
+  patient_code?: NullableString;
+  first_name?: NullableString;
+  middle_name?: NullableString;
+  last_name?: NullableString;
+  date_of_birth?: NullableString;
+  sex?: NullableString;
+  civil_status?: NullableString;
+  address?: NullableString;
+  city?: NullableString;
+  zip_code?: NullableString;
+  contact_number?: NullableString;
+  contact_email?: NullableString;
+  emergency_contact_name?: NullableString;
+  emergency_contact_number?: NullableString;
+  emergency_contact_relationship?: NullableString;
+  blood_type?: NullableString;
+  phil_health_number?: NullableString;
+  hmo_provider?: NullableString;
+  hmo_card_number?: NullableString;
+  user_id?: NullableString;
+  is_guest?: boolean | null;
+  consented_at?: NullableString;
+  consent_version?: NullableString;
 }
 
-function rowToSummary(row: PatientRow): PatientSummary {
+export function rowToSummary(row: Record<string, unknown>): PatientSummary {
+  const patientRow = row as unknown as PatientRow;
   return {
-    id: row.id,
-    patientCode: row.patient_code ?? '',
-    firstName: row.first_name ?? '', middleName: row.middle_name ?? undefined, lastName: row.last_name ?? '',
-    fullName: [row.first_name, row.middle_name, row.last_name].filter(Boolean).join(' '),
-    dateOfBirth: row.date_of_birth ?? '', sex: row.sex ?? '',
-    contactNumber: row.contact_number ?? undefined, email: row.contact_email ?? undefined,
-    userId: row.user_id ?? undefined, hasAccount: !!row.user_id, isGuest: row.is_guest ?? false,
+    id: patientRow.id,
+    patientCode: patientRow.patient_code ?? '',
+    firstName: patientRow.first_name ?? '',
+    middleName: patientRow.middle_name ?? undefined,
+    lastName: patientRow.last_name ?? '',
+    fullName: [patientRow.first_name, patientRow.middle_name, patientRow.last_name].filter(Boolean).join(' '),
+    dateOfBirth: patientRow.date_of_birth ?? '',
+    sex: patientRow.sex ?? '',
+    contactNumber: patientRow.contact_number ?? undefined,
+    email: patientRow.contact_email ?? undefined,
+    userId: patientRow.user_id ?? undefined,
+    hasAccount: !!patientRow.user_id,
+    isGuest: patientRow.is_guest ?? false,
   };
 }
 
-function rowToDetail(row: PatientRow): PatientDetail {
+export function rowToDetail(row: Record<string, unknown>): PatientDetail {
+  const patientRow = row as unknown as PatientRow;
   return {
-    id: row.id, patientCode: row.patient_code ?? '',
-    firstName: row.first_name ?? '', middleName: row.middle_name ?? undefined, lastName: row.last_name ?? '',
-    dateOfBirth: row.date_of_birth ?? '', sex: row.sex ?? '',
-    civilStatus: row.civil_status ?? undefined, address: row.address ?? undefined,
-    city: row.city ?? undefined, zipCode: row.zip_code ?? undefined,
-    contactNumber: row.contact_number ?? undefined, email: row.contact_email ?? undefined,
-    emergencyContactName: row.emergency_contact_name ?? undefined,
-    emergencyContactNumber: row.emergency_contact_number ?? undefined,
-    emergencyContactRelationship: row.emergency_contact_relationship ?? undefined,
-    bloodType: row.blood_type ?? undefined, philHealthNumber: row.phil_health_number ?? undefined,
-    hmoProvider: row.hmo_provider ?? undefined, hmoCardNumber: row.hmo_card_number ?? undefined,
-    userId: row.user_id ?? undefined, hasAccount: !!row.user_id,
-    isEmailVerified: false, isGuest: row.is_guest ?? false,
-    consentedAt: row.consented_at ?? undefined, consentVersion: row.consent_version ?? undefined,
+    id: patientRow.id,
+    patientCode: patientRow.patient_code ?? '',
+    firstName: patientRow.first_name ?? '',
+    middleName: patientRow.middle_name ?? undefined,
+    lastName: patientRow.last_name ?? '',
+    dateOfBirth: patientRow.date_of_birth ?? '',
+    sex: patientRow.sex ?? '',
+    civilStatus: patientRow.civil_status ?? undefined,
+    address: patientRow.address ?? undefined,
+    city: patientRow.city ?? undefined,
+    zipCode: patientRow.zip_code ?? undefined,
+    contactNumber: patientRow.contact_number ?? undefined,
+    email: patientRow.contact_email ?? undefined,
+    emergencyContactName: patientRow.emergency_contact_name ?? undefined,
+    emergencyContactNumber: patientRow.emergency_contact_number ?? undefined,
+    emergencyContactRelationship: patientRow.emergency_contact_relationship ?? undefined,
+    bloodType: patientRow.blood_type ?? undefined,
+    philHealthNumber: patientRow.phil_health_number ?? undefined,
+    hmoProvider: patientRow.hmo_provider ?? undefined,
+    hmoCardNumber: patientRow.hmo_card_number ?? undefined,
+    userId: patientRow.user_id ?? undefined,
+    hasAccount: !!patientRow.user_id,
+    isEmailVerified: false, isGuest: patientRow.is_guest ?? false,
+    consentedAt: patientRow.consented_at ?? undefined, consentVersion: patientRow.consent_version ?? undefined,
   };
-}
-
-@Injectable({ providedIn: 'root' })
-export class AdminPatientsService {
-  private readonly api = inject(ApiService);
-
-  getPatients(page = 1, pageSize = 20, search?: string): Observable<PagedResult<PatientSummary>> {
-    let endpoint = 'patients?page=' + page + '&pageSize=' + pageSize;
-    if (search) endpoint += '&search=' + encodeURIComponent(search);
-    return this.api.get<any>(endpoint).pipe(
-      map((data) => {
-        const items = (data?.items ?? data ?? []).map(rowToSummary) as PatientSummary[];
-        return {
-          items,
-          totalCount: data?.totalCount ?? items.length,
-          page: data?.page ?? 1,
-          pageSize: data?.pageSize ?? items.length,
-        } as PagedResult<PatientSummary>;
-      })
-    );
-  }
-
-  createGuestPatient(dto: CreatePatientRequest): Observable<PatientDetail> {
-    return this.createPatient(dto);
-  }
-
-  getPatientById(id: string): Observable<PatientDetail> {
-    return this.api.get<any>('patients/' + id).pipe(
-      map((data) => rowToDetail(data as PatientRow))
-    );
-  }
-
-  createPatient(dto: CreatePatientRequest): Observable<PatientDetail> {
-    return this.api.post<any>('patients', dto).pipe(
-      map((data) => rowToDetail(data as PatientRow))
-    );
-  }
-
-  updatePatient(id: string, dto: UpdatePatientRequest): Observable<PatientDetail> {
-    return this.api.put<any>('patients/' + id, dto).pipe(
-      map((data) => rowToDetail(data as PatientRow))
-    );
-  }
-
-  createPortalAccount(patientIdOrRequest: any, request?: any): Observable<any> {
-    const payload = request ?? patientIdOrRequest;
-    return this.api.post('patients', payload);
-  }
 }

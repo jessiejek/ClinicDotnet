@@ -15,11 +15,13 @@ import {
   ToastController
 } from '@ionic/angular/standalone';
 import { firstValueFrom } from 'rxjs';
+import { map } from 'rxjs';
 import { closeOutline } from 'ionicons/icons';
 import { PatientDetail, UpdatePatientRequest } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { passwordStrengthValidator } from '../../../shared/validators/password-strength.validator';
-import { AdminPatientsService } from '../services/admin-patients.service';
+import { rowToDetail } from '../services/admin-patients.service';
 
 type PatientEditFormValue = {
   firstName: string;
@@ -306,7 +308,7 @@ type PatientEditFormValue = {
 export class AdminPatientEditModalComponent {
   private _patient: PatientDetail | null = null;
 
-  private readonly adminPatientsService = inject(AdminPatientsService);
+  private readonly apiService = inject(ApiService);
   private readonly modalCtrl = inject(ModalController);
   private readonly toastCtrl = inject(ToastController);
   private readonly fb = inject(FormBuilder);
@@ -401,7 +403,11 @@ export class AdminPatientEditModalComponent {
     try {
       const accountUserId = await this.resolveAccountUserId(values);
       const dto = this.buildUpdateRequest(values, accountUserId);
-      await firstValueFrom(this.adminPatientsService.updatePatient(this.patient.id, dto));
+      await firstValueFrom(
+      this.apiService.put<any>('patients/' + this.patient.id, dto).pipe(
+        map((data) => rowToDetail((data ?? {}) as Record<string, unknown>))
+      )
+      );
 
       await this.presentToast('Patient updated successfully.');
       this.resetForm();
@@ -516,7 +522,7 @@ export class AdminPatientEditModalComponent {
     }
 
     const createdPatient = await firstValueFrom(
-      this.adminPatientsService.createPortalAccount(patient.id, {
+      this.apiService.post<any>('patients', {
         email: this.requiredValue(values.email),
         temporaryPassword: values.accountPassword
       })

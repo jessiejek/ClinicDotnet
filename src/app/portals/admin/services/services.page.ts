@@ -2,13 +2,14 @@ import { NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { IonModal, IonSpinner, ToastController } from '@ionic/angular/standalone';
-import { catchError, finalize, forkJoin, of } from 'rxjs';
+import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ServiceCategory } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { AdminDoctorsService, DoctorSummary } from '../services/admin-doctors.service';
-import { AdminServicesService, ManagedService, ServiceWriteDto } from '../services/admin-services.service';
+import { ManagedService, ServiceWriteDto, mapServiceRow } from '../services/admin-services.service';
 
 @Component({
   selector: 'app-admin-services-page',
@@ -158,7 +159,7 @@ import { AdminServicesService, ManagedService, ServiceWriteDto } from '../servic
   styleUrl: './services.page.scss'
 })
 export class ServicesPage implements OnInit {
-  private readonly adminServicesService = inject(AdminServicesService);
+  private readonly apiService = inject(ApiService);
   private readonly adminDoctorsService = inject(AdminDoctorsService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
@@ -216,9 +217,10 @@ export class ServicesPage implements OnInit {
     }
 
     this.busyServiceIds.add(service.id);
-    this.adminServicesService
-      .toggleServiceStatus(service, !service.isActive)
+    this.apiService
+      .put<any>('services/' + service.id, { isActive: !service.isActive })
       .pipe(
+        map(() => ({ ...service, isActive: !service.isActive })),
         finalize(() => {
           this.busyServiceIds.delete(service.id);
         }),
@@ -240,8 +242,8 @@ export class ServicesPage implements OnInit {
     }
 
     this.busyServiceIds.add(id);
-    this.adminServicesService
-      .deleteService(id)
+    this.apiService
+      .delete('services/' + id)
       .pipe(
         finalize(() => {
           this.busyServiceIds.delete(id);
@@ -271,8 +273,12 @@ export class ServicesPage implements OnInit {
     this.isSaving = true;
     const payload = this.buildWritePayload(this.draft);
     const request$ = this.editingId
-      ? this.adminServicesService.updateService(this.editingId, payload)
-      : this.adminServicesService.createService(payload);
+      ? this.apiService.put<any>('services/' + this.editingId, payload).pipe(
+          map((data) => mapServiceRow((data ?? {}) as Record<string, unknown>) as ManagedService)
+        )
+      : this.apiService.post<any>('services', payload).pipe(
+          map((data) => mapServiceRow((data ?? {}) as Record<string, unknown>) as ManagedService)
+        );
 
     request$
       .pipe(
@@ -300,7 +306,8 @@ export class ServicesPage implements OnInit {
     this.isLoading = true;
 
     forkJoin({
-      services: this.adminServicesService.getServices().pipe(
+      services: this.apiService.get<any[]>('services').pipe(
+        map((data) => ((data ?? []) as Record<string, unknown>[]).map((row) => mapServiceRow(row) as ManagedService)),
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to load services.'));
           return of([] as ManagedService[]);

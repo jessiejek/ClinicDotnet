@@ -2,7 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonLabel, IonSegment, IonSegmentButton, ModalController } from '@ionic/angular/standalone';
+import { map } from 'rxjs';
 import { Allergy, Booking, Consultation, FollowUp, LabResult, Patient, Prescription, VaccinationRecord } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { MedicalRecordsService } from '../../../core/services/medical-records.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
@@ -10,7 +12,7 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { MedicalRecordsTabComponent } from '../components/medical-records-tab/medical-records-tab.component';
 import { AdminPatientEditModalComponent } from './admin-patient-edit-modal.component';
-import { AdminPatientsService } from '../services/admin-patients.service';
+import { rowToDetail } from '../services/admin-patients.service';
 
 @Component({
   selector: 'app-admin-patient-detail-page',
@@ -131,7 +133,7 @@ import { AdminPatientsService } from '../services/admin-patients.service';
   styleUrl: './patient-detail.page.scss'
 })
 export class PatientDetailPage implements OnInit {
-  private readonly adminPatientsService = inject(AdminPatientsService);
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly medicalRecords = inject(MedicalRecordsService);
   private readonly modalCtrl = inject(ModalController);
@@ -189,7 +191,9 @@ export class PatientDetailPage implements OnInit {
   }
 
   private loadPatient(id: string): void {
-    this.adminPatientsService.getPatientById(id).subscribe((patient) => {
+    this.apiService.get<any>('patients/' + id).pipe(
+      map((data) => (data ? rowToDetail(data as Record<string, unknown>) : undefined))
+    ).subscribe((patient) => {
       this.patient = patient ?? null;
     });
   }

@@ -7,14 +7,13 @@ import { IonSpinner, ToastController } from '@ionic/angular/standalone';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, forkJoin, map, of, filter, take } from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
-import { AvailabilityStatus, Booking, Doctor, DoctorDayStatus, DoctorSchedule } from '../../../core/models';
+import { AvailabilityStatus, Booking, DayOfWeek, Doctor, DoctorDayStatus, DoctorSchedule } from '../../../core/models';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { DoctorTodaySummary } from '../../../core/services/booking.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { DoctorService } from '../services/doctor.service';
 
 @Component({
   standalone: true,
@@ -161,7 +160,6 @@ import { DoctorService } from '../services/doctor.service';
 export class DoctorDashboardPage implements OnInit {
   private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
-  private readonly doctorService = inject(DoctorService);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
@@ -252,7 +250,13 @@ export class DoctorDashboardPage implements OnInit {
 
   loadDashboard(): void {
     this.isLoading = true;
-    this.doctorService.getMyProfile().pipe(
+    this.apiService.get<any>('doctors/me').pipe(
+      map((data) => {
+        if (!data) {
+          throw new Error('Doctor profile not found.');
+        }
+        return mapDoctorRow(data as Record<string, unknown>);
+      }),
       switchMap((doc) => {
         if (!doc) return of(null);
         this.doctor = doc;
@@ -279,8 +283,21 @@ export class DoctorDashboardPage implements OnInit {
             }),
             catchError(() => of(null))
           ),
-          schedule: this.doctorService.getDoctorSchedules(doc.id).pipe(catchError(() => of([] as DoctorSchedule[]))),
-          dayStatus: this.doctorService.getDayStatus(doc.id).pipe(catchError(() => of(null as DoctorDayStatus | null)))
+          schedule: this.apiService.get<any[]>('doctors/' + doc.id + '/schedule').pipe(
+            map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorScheduleRow)),
+            catchError(() => of([] as DoctorSchedule[]))
+          ),
+          dayStatus: this.apiService.get<any[]>('doctors/' + doc.id + '/day-status').pipe(
+            map((data) => {
+              const rows = (data ?? []) as Record<string, unknown>[];
+              const today = new Date().toISOString().slice(0, 10);
+              const match = rows.find((r) => (r['date'] ?? r['targetDate'] ?? r['target_date']) === today);
+              return match
+                ? mapDoctorDayStatusRow(match)
+                : { id: '', doctorId: doc.id, date: today, status: 'Available' as AvailabilityStatus };
+            }),
+            catchError(() => of(null as DoctorDayStatus | null))
+          )
         });
       }),
       catchError(() => of(null)),
@@ -297,11 +314,14 @@ export class DoctorDashboardPage implements OnInit {
 
   updateStatus(status: AvailabilityStatus): void {
     if (!this.doctor) return;
-    this.doctorService.setDayStatus(this.doctor.id, {
+    this.apiService.post<any>('doctors/' + this.doctor.id + '/day-status', {
       date: this.todayStr(),
       status,
       runningLateMinutes: status === 'RunningLate' ? this.runningLateMinutes : null
-    }).pipe(catchError(() => { this.showToast('Failed to update status.', 'danger'); return of(null); }))
+    }).pipe(
+      map((data) => mapDoctorDayStatusRow((data ?? {}) as Record<string, unknown>)),
+      catchError(() => { this.showToast('Failed to update status.', 'danger'); return of(null); })
+    )
       .subscribe((res) => {
         if (!res) return;
         this.todayStatus = res.status as AvailabilityStatus;
@@ -463,6 +483,79 @@ export class DoctorDashboardPage implements OnInit {
     const t = await this.toastCtrl.create({ message: msg, duration: 1800, color, position: 'top' });
     await t.present();
   }
+}
+
+function mapDoctorRow(row: Record<string, unknown>): Doctor {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    userId: resolveStr(row, 'userId') ?? '',
+    fullName: resolveStr(row, 'fullName') ?? 'Doctor',
+    specialization: resolveStr(row, 'specialization') ?? '',
+    bio: resolveStr(row, 'bio'),
+    profilePhotoUrl: resolveStr(row, 'profilePhotoUrl') ?? resolveStr(row, 'profile_photo_url'),
+    licenseNumber: resolveStr(row, 'licenseNumber') ?? '',
+    ptrNumber: resolveStr(row, 'ptrNumber') ?? '',
+    s2Number: resolveStr(row, 's2Number') ?? '',
+    consultationFee: resolveNum(row, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(row, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(row, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(row, 'dailyPatientLimit') ?? null,
+    status: (resolveStr(row, 'status') as Doctor['status']) ?? 'Active',
+    averageRating: resolveNum(row, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(row, 'reviewCount') ?? undefined,
+  };
+}
+
+function mapDoctorScheduleRow(row: Record<string, unknown>): DoctorSchedule {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    doctorId: resolveStr(row, 'doctorId') ?? '',
+    dayOfWeek: normalizeDayOfWeek(resolveStr(row, 'dayOfWeek')),
+    startTime: normalizeTime(resolveStr(row, 'startTime')),
+    endTime: normalizeTime(resolveStr(row, 'endTime')),
+  };
+}
+
+function mapDoctorDayStatusRow(row: Record<string, unknown>): DoctorDayStatus {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    doctorId: resolveStr(row, 'doctorId') ?? '',
+    date: resolveStr(row, 'date') ?? resolveStr(row, 'targetDate') ?? '',
+    status: (resolveStr(row, 'status') as AvailabilityStatus) ?? 'Available',
+    runningLateMinutes: resolveNum(row, 'runningLateMinutes') ?? undefined,
+  };
+}
+
+function normalizeDayOfWeek(value: string | undefined): DayOfWeek {
+  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  if (!value) return 'Monday';
+  const normalized = value.trim().toLowerCase();
+  return days.find((d) => d.toLowerCase() === normalized) ?? 'Monday';
+}
+
+function normalizeTime(value: string | undefined): string {
+  if (!value) return '00:00';
+  return value.length >= 5 ? value.slice(0, 5) : value;
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  return trimmed || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | null {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val);
+    if (isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function normalizeQueueBooking(row: Record<string, unknown>): Booking | undefined {

@@ -17,9 +17,9 @@ import {
 import { firstValueFrom } from 'rxjs';
 import { closeOutline } from 'ionicons/icons';
 import { CreatePatientRequest } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { passwordStrengthValidator } from '../../../shared/validators/password-strength.validator';
-import { AdminPatientsService } from '../services/admin-patients.service';
 
 type PatientCreateFormValue = {
   firstName: string;
@@ -296,7 +296,7 @@ type PatientCreateFormValue = {
   styleUrl: './admin-patient-create-modal.component.scss'
 })
 export class AdminPatientCreateModalComponent {
-  private readonly adminPatientsService = inject(AdminPatientsService);
+  private readonly apiService = inject(ApiService);
   private readonly modalCtrl = inject(ModalController);
   private readonly toastCtrl = inject(ToastController);
   private readonly fb = inject(FormBuilder);
@@ -369,7 +369,7 @@ export class AdminPatientCreateModalComponent {
     try {
       const accountUserId = wantsAccount ? await this.ensureAccountUserId(values) : null;
       const dto = this.buildPatientRequest(values, accountUserId);
-      await firstValueFrom(this.adminPatientsService.createPatient(dto));
+      await firstValueFrom(this.apiService.post<any>('patients', dto));
 
       await this.presentToast(wantsAccount ? 'Patient and login account created successfully.' : 'Patient created successfully.');
       this.resetForm();
@@ -440,7 +440,7 @@ export class AdminPatientCreateModalComponent {
       avatarUrl: this.optionalValue(values.accountAvatarUrl)
     };
 
-    const userId = await firstValueFrom(this.adminPatientsService.createPortalAccount(accountPayload));
+    const userId = await firstValueFrom(this.apiService.post<any>('patients', accountPayload));
     this.pendingAccountUserId = userId;
     this.syncAccountState();
     return userId;

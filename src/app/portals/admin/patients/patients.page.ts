@@ -5,14 +5,15 @@ import { Router } from '@angular/router';
 import { IonIcon, ModalController, ToastController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { addOutline, searchOutline } from 'ionicons/icons';
-import { debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { debounceTime, distinctUntilChanged, finalize, map } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PatientSummary } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { AdminPatientCreateModalComponent } from './admin-patient-create-modal.component';
-import { AdminPatientsService } from '../services/admin-patients.service';
+import { rowToSummary } from '../services/admin-patients.service';
 
 @Component({
   selector: 'app-admin-patients-page',
@@ -127,7 +128,7 @@ import { AdminPatientsService } from '../services/admin-patients.service';
   styleUrl: './patients.page.scss'
 })
 export class PatientsPage implements OnInit {
-  private readonly adminPatientsService = inject(AdminPatientsService);
+  private readonly apiService = inject(ApiService);
   private readonly modalCtrl = inject(ModalController);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
@@ -224,40 +225,50 @@ export class PatientsPage implements OnInit {
     const nextPage = Math.max(1, page);
     const token = ++this.loadToken;
     this.isLoading = true;
+    let endpoint = 'patients?page=' + nextPage + '&pageSize=' + this.pageSize;
+    if (this.searchTerm) endpoint += '&search=' + encodeURIComponent(this.searchTerm);
 
-    this.adminPatientsService
-      .getPatients(nextPage, this.pageSize, this.searchTerm)
-      .pipe(
-        finalize(() => {
-          if (token === this.loadToken) {
-            this.isLoading = false;
-          }
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe({
-        next: (result) => {
-          if (token !== this.loadToken) {
-            return;
-          }
-
-          this.patients = result.items;
-          this.totalCount = result.totalCount ?? result.total ?? 0;
-          this.currentPage = Math.max(1, result.page || nextPage);
-          this.totalPages = Math.max(1, result.totalPages || 1);
-        },
-        error: async () => {
-          if (token !== this.loadToken) {
-            return;
-          }
-
-          this.patients = [];
-          this.totalCount = 0;
-          this.currentPage = 1;
-          this.totalPages = 1;
-          await this.presentToast('Failed to load patients.', 'danger');
+    this.apiService.get<any>(endpoint).pipe(
+      map((data) => {
+        const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map((row) => rowToSummary(row));
+        return {
+          items,
+          totalCount: data?.totalCount ?? items.length,
+          page: data?.page ?? 1,
+          pageSize: data?.pageSize ?? items.length,
+          totalPages: data?.totalPages ?? 1,
+          total: data?.total ?? items.length
+        };
+      }),
+      finalize(() => {
+        if (token === this.loadToken) {
+          this.isLoading = false;
         }
-      });
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (result) => {
+        if (token !== this.loadToken) {
+          return;
+        }
+
+        this.patients = result.items;
+        this.totalCount = result.totalCount ?? result.total ?? 0;
+        this.currentPage = Math.max(1, result.page || nextPage);
+        this.totalPages = Math.max(1, result.totalPages || 1);
+      },
+      error: async () => {
+        if (token !== this.loadToken) {
+          return;
+        }
+
+        this.patients = [];
+        this.totalCount = 0;
+        this.currentPage = 1;
+        this.totalPages = 1;
+        await this.presentToast('Failed to load patients.', 'danger');
+      }
+    });
   }
 
   private async presentToast(message: string, color: 'success' | 'danger' = 'success'): Promise<void> {

@@ -4,15 +4,13 @@ import { RouterLink } from '@angular/router';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ToastController, IonIcon, IonNote, IonProgressBar, IonSpinner } from '@ionic/angular/standalone';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, finalize, of } from 'rxjs';
+import { catchError, finalize, map, of } from 'rxjs';
 import { Doctor } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { passwordStrengthValidator, getPasswordStrength } from '../../../shared/validators/password-strength.validator';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { DoctorService } from '../services/doctor.service';
-
 interface SummaryItem {
   label: string;
   value: string;
@@ -256,7 +254,6 @@ interface SummaryItem {
 })
 export class DoctorProfilePage implements OnInit {
   private readonly fb = inject(FormBuilder);
-  private readonly doctorService = inject(DoctorService);
   private readonly apiService = inject(ApiService);
   private readonly toastController = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
@@ -425,9 +422,10 @@ export class DoctorProfilePage implements OnInit {
 
     this.isSaving = true;
 
-    this.doctorService
-      .updateMyProfile(payload)
+    this.apiService
+      .put<any>('doctors/me', payload)
       .pipe(
+        map((data) => mapDoctorRow(data as Record<string, unknown>)),
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to update profile.'));
           return of(null);
@@ -488,9 +486,15 @@ export class DoctorProfilePage implements OnInit {
     this.loadError = null;
     this.doctor = null;
 
-    this.doctorService
-      .getMyProfile()
+    this.apiService
+      .get<any>('doctors/me')
       .pipe(
+        map((data) => {
+          if (!data) {
+            throw new Error('Doctor profile not found.');
+          }
+          return mapDoctorRow(data as Record<string, unknown>);
+        }),
         catchError((error: unknown) => {
           this.loadError = extractApiErrorMessage(error, 'The doctor profile could not be loaded.');
           void this.presentToast(this.loadError);
@@ -532,6 +536,47 @@ export class DoctorProfilePage implements OnInit {
     });
     await toast.present();
   }
+}
+
+function mapDoctorRow(row: Record<string, unknown>): Doctor {
+  return {
+    id: resolveStr(row, 'id') ?? '',
+    userId: resolveStr(row, 'userId') ?? '',
+    fullName: resolveStr(row, 'fullName') ?? 'Doctor',
+    specialization: resolveStr(row, 'specialization') ?? '',
+    bio: resolveStr(row, 'bio'),
+    profilePhotoUrl: resolveStr(row, 'profilePhotoUrl') ?? resolveStr(row, 'profile_photo_url'),
+    licenseNumber: resolveStr(row, 'licenseNumber') ?? '',
+    ptrNumber: resolveStr(row, 'ptrNumber') ?? '',
+    s2Number: resolveStr(row, 's2Number') ?? '',
+    consultationFee: resolveNum(row, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(row, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(row, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(row, 'dailyPatientLimit') ?? null,
+    status: (resolveStr(row, 'status') as Doctor['status']) ?? 'Active',
+    averageRating: resolveNum(row, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(row, 'reviewCount') ?? undefined
+  };
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  return trimmed || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | null {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val);
+    if (isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function passwordMatchValidator(group: AbstractControl): ValidationErrors | null {
