@@ -4,6 +4,9 @@ export const environment = {
   // .NET backend API URL (production)
   apiUrl: 'https://api.yourclinicdomain.com/api',
 
+  // SignalR hub URL (same origin, different path)
+  signalrHubUrl: 'https://api.yourclinicdomain.com/hubs/clinic-dashboard',
+
   // Legacy alias
   apiBaseUrl: 'https://api.yourclinicdomain.com/api',
 
