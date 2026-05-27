@@ -23,6 +23,7 @@ import { catchError, finalize, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthUser, Patient, UpdatePatientRequest } from '../../../core/models';
 import { AuthStateService } from '../../../core/services/auth-state.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { PatientService } from '../services/patient.service';
 import {
   getPasswordStrength,
@@ -346,6 +347,7 @@ interface NameParts {
 })
 export class PatientProfilePage implements OnInit {
   private readonly authState = inject(AuthStateService);
+  private readonly authService = inject(AuthService);
   private readonly patientService = inject(PatientService);
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
@@ -505,16 +507,27 @@ export class PatientProfilePage implements OnInit {
     }
 
     this.changingPassword = true;
-    setTimeout(async () => {
-      this.changingPassword = false;
-      this.passwordForm.reset({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
+    const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
+
+    this.authService.changePassword(currentPassword, newPassword, confirmPassword)
+      .pipe(
+        finalize(() => { this.changingPassword = false; }),
+        catchError((err: unknown) => {
+          const msg = extractApiErrorMessage(err, 'Failed to update password. Please try again.');
+          void this.presentToast(msg, 'danger');
+          return of();
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(async () => {
+        this.passwordForm.reset({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+        this.passwordStrength = 0;
+        await this.presentToast('Password updated successfully.', 'success');
       });
-      this.passwordStrength = 0;
-      await this.presentToast('Password updated successfully.', 'success');
-    }, 800);
   }
 
   submitConsent(): void {

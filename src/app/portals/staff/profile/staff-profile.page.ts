@@ -1,10 +1,12 @@
 import { NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ToastController } from '@ionic/angular/standalone';
-import { timer } from 'rxjs';
+import { catchError, finalize, of } from 'rxjs';
 import { AuthUser } from '../../../core/models';
 import { AuthStateService } from '../../../core/services/auth-state.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { passwordStrengthValidator, getPasswordStrength } from '../../../shared/validators/password-strength.validator';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 
@@ -80,6 +82,7 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
 })
 export class StaffProfilePage implements OnInit {
   private readonly authState = inject(AuthStateService);
+  private readonly authService = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
   private readonly currentUserSignal = this.authState.currentUser;
@@ -154,22 +157,38 @@ export class StaffProfilePage implements OnInit {
     }
 
     this.changingPassword = true;
-    timer(800).subscribe(async () => {
-      this.changingPassword = false;
-      this.passwordForm.reset({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
+    const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
+
+    this.authService.changePassword(currentPassword, newPassword, confirmPassword)
+      .pipe(
+        finalize(() => { this.changingPassword = false; }),
+        catchError(async (err: HttpErrorResponse) => {
+          const msg = err.error?.message || err.message || 'Failed to update password. Please try again.';
+          const toast = await this.toastCtrl.create({
+            message: msg,
+            duration: 4000,
+            color: 'danger',
+            position: 'top'
+          });
+          await toast.present();
+          return of();
+        })
+      )
+      .subscribe(async () => {
+        this.passwordForm.reset({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+        this.passwordStrength = 0;
+        const toast = await this.toastCtrl.create({
+          message: 'Password updated successfully',
+          duration: 2200,
+          color: 'success',
+          position: 'top'
+        });
+        await toast.present();
       });
-      this.passwordStrength = 0;
-      const toast = await this.toastCtrl.create({
-        message: 'Password updated successfully',
-        duration: 2200,
-        color: 'success',
-        position: 'top'
-      });
-      await toast.present();
-    });
   }
 
   private async presentToast(message: string): Promise<void> {

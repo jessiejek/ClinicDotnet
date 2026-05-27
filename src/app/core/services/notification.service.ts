@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { BehaviorSubject, combineLatest, map, of, switchMap } from 'rxjs';
+import { BehaviorSubject, combineLatest, filter, first, map, of, switchMap } from 'rxjs';
 import { Notification } from '../models';
 import { ApiService } from './api.service';
 import { AuthStateService } from './auth-state.service';
@@ -69,16 +69,20 @@ export class NotificationService {
   readonly unreadCount = toSignal(this.unreadCount$, { initialValue: 0 });
 
   constructor() {
+    // Fetch notifications once on login (not on every user emission)
     this.authState.currentUser$.pipe(
-      switchMap((user) => {
-        if (!user) {
-          this.notificationsSubject.next([]);
-          return of([] as Notification[]);
-        }
-        return this.fetchNotifications();
-      })
+      filter((user): user is NonNullable<typeof user> => !!user),
+      first(),
+      switchMap(() => this.fetchNotifications())
     ).subscribe((notifications) => {
       this.notificationsSubject.next(notifications);
+    });
+
+    // Clear on logout
+    this.authState.currentUser$.pipe(
+      filter((user) => !user)
+    ).subscribe(() => {
+      this.notificationsSubject.next([]);
     });
 
     this.pushNotificationService.notifications$.subscribe((live) => {
@@ -102,9 +106,14 @@ export class NotificationService {
       return;
     }
     this.loadingSubject.next(true);
-    this.fetchNotifications().subscribe((notifications) => {
-      this.notificationsSubject.next(notifications);
-      this.loadingSubject.next(false);
+    this.fetchNotifications().subscribe({
+      next: (notifications) => {
+        this.notificationsSubject.next(notifications);
+        this.loadingSubject.next(false);
+      },
+      error: () => {
+        this.loadingSubject.next(false);
+      }
     });
   }
 

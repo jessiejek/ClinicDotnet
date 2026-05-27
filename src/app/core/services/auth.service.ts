@@ -130,6 +130,18 @@ export class AuthService {
     );
   }
 
+  changePassword(currentPassword: string, newPassword: string, confirmPassword: string): Observable<void> {
+    return this.api.post<void>('auth/change-password', {
+      currentPassword,
+      newPassword,
+      confirmPassword
+    }).pipe(
+      tap(() => {
+        // Password changed successfully on server
+      })
+    );
+  }
+
   updateProfile(payload: { fullName?: string; avatarUrl?: string }): Observable<AuthUserDto> {
     return this.api.put<AuthUserDto>('auth/me', payload).pipe(
       tap((user) => {
