@@ -114,6 +114,7 @@ export class AdminLayoutComponent implements OnInit {
   ngOnInit(): void {
     this.clinicName = this.clinicSettingsService.load().clinicName;
     this.updatePageTitle();
+    this.loadNotifications();
     this.bookingService
       .getBookingsByStatus('Pending')
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -156,5 +157,12 @@ export class AdminLayoutComponent implements OnInit {
       current = current.firstChild;
     }
     return current;
+  }
+
+  private loadNotifications(): void {
+    this.apiService
+      .get<any[]>('notifications')
+      .pipe(catchError(() => of([] as any[])))
+      .subscribe((items) => this.notificationService.setNotifications(items as any));
   }
 }

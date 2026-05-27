@@ -1,32 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { BehaviorSubject, combineLatest, filter, first, map, of, switchMap } from 'rxjs';
+import { BehaviorSubject, combineLatest, filter, map } from 'rxjs';
 import { Notification } from '../models';
-import { ApiService } from './api.service';
 import { AuthStateService } from './auth-state.service';
 import { PushNotificationService, InAppNotification } from './push-notification.service';
-
-interface NotificationDto {
-  id: string;
-  userId: string;
-  title: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
-  navigateTo?: string;
-}
-
-function dtoToNotification(dto: NotificationDto): Notification {
-  return {
-    id: dto.id,
-    userId: dto.userId,
-    title: dto.title,
-    message: dto.message,
-    isRead: dto.isRead,
-    createdAt: dto.createdAt,
-    navigateTo: dto.navigateTo,
-  };
-}
 
 function liveToLegacyNotification(n: InAppNotification): Notification {
   return {
@@ -42,14 +19,11 @@ function liveToLegacyNotification(n: InAppNotification): Notification {
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
-  private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
   private readonly pushNotificationService = inject(PushNotificationService);
   private readonly notificationsSubject = new BehaviorSubject<Notification[]>([]);
-  private readonly loadingSubject = new BehaviorSubject(false);
 
   readonly notifications$ = this.notificationsSubject.asObservable();
-  readonly isLoading$ = this.loadingSubject.asObservable();
 
   readonly currentUserNotifications$ = combineLatest([
     this.notifications$,
@@ -69,15 +43,6 @@ export class NotificationService {
   readonly unreadCount = toSignal(this.unreadCount$, { initialValue: 0 });
 
   constructor() {
-    // Fetch notifications once on login (not on every user emission)
-    this.authState.currentUser$.pipe(
-      filter((user): user is NonNullable<typeof user> => !!user),
-      first(),
-      switchMap(() => this.fetchNotifications())
-    ).subscribe((notifications) => {
-      this.notificationsSubject.next(notifications);
-    });
-
     // Clear on logout
     this.authState.currentUser$.pipe(
       filter((user) => !user)
@@ -99,22 +64,12 @@ export class NotificationService {
     });
   }
 
-  refresh(): void {
-    const user = this.authState.currentUser();
-    if (!user) {
-      this.notificationsSubject.next([]);
-      return;
-    }
-    this.loadingSubject.next(true);
-    this.fetchNotifications().subscribe({
-      next: (notifications) => {
-        this.notificationsSubject.next(notifications);
-        this.loadingSubject.next(false);
-      },
-      error: () => {
-        this.loadingSubject.next(false);
-      }
-    });
+  setNotifications(notifications: Notification[]): void {
+    this.notificationsSubject.next(this.sortNotifications(notifications));
+  }
+
+  replaceNotifications(notifications: Notification[]): void {
+    this.setNotifications(notifications);
   }
 
   markRead(id: string): void {
@@ -123,9 +78,6 @@ export class NotificationService {
         n.id === id ? { ...n, isRead: true } : n
       )
     );
-    this.apiService.put(`notifications/${id}/read`, {}).subscribe({
-      error: (err) => console.warn('[NotificationService] Failed to mark notification as read:', err)
-    });
   }
 
   markAllRead(userId?: string): void {
@@ -137,14 +89,25 @@ export class NotificationService {
         n.userId === uid ? { ...n, isRead: true } : n
       )
     );
-    this.apiService.put('notifications/read-all', {}).subscribe({
-      error: (err) => console.warn('[NotificationService] Failed to mark all as read:', err)
-    });
   }
 
-  private fetchNotifications() {
-    return this.apiService.get<NotificationDto[]>('notifications').pipe(
-      map((data) => (data ?? []).map(dtoToNotification))
+  markReadLocal(id: string): void {
+    this.markRead(id);
+  }
+
+  markAllReadLocal(userId?: string): void {
+    this.markAllRead(userId);
+  }
+
+  refresh(): void {
+    // State-only helper: notifications are owned by the panel or push stream.
+    const current = this.notificationsSubject.value;
+    this.notificationsSubject.next(this.sortNotifications(current));
+  }
+
+  private sortNotifications(notifications: Notification[]): Notification[] {
+    return [...notifications].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }
 }

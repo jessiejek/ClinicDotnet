@@ -174,6 +174,7 @@ export class PortalLayoutComponent implements OnInit {
     this.resolvedNavItems = (this.route.snapshot.data['navItems'] as NavItem[]) ?? this.navItems;
     this.portalLabel = (this.route.snapshot.data['portalLabel'] as string | undefined) ?? this.portalLabel;
     this.updatePageTitle();
+    this.loadNotifications();
 
     this.router.events
       .pipe(
@@ -220,5 +221,12 @@ export class PortalLayoutComponent implements OnInit {
       current = current.firstChild;
     }
     return current;
+  }
+
+  private loadNotifications(): void {
+    this.apiService
+      .get<any[]>('notifications')
+      .pipe(catchError(() => of([] as any[])))
+      .subscribe((items) => this.notificationService.setNotifications(items as any));
   }
 }

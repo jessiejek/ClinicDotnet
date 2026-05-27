@@ -125,6 +125,7 @@ export class PatientLayoutComponent implements OnInit {
   ngOnInit(): void {
     this.clinicName = this.clinicSettingsService.load().clinicName;
     this.updatePageTitle();
+    this.loadNotifications();
 
     this.router.events
       .pipe(
@@ -197,6 +198,13 @@ export class PatientLayoutComponent implements OnInit {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  private loadNotifications(): void {
+    this.apiService
+      .get<any[]>('notifications')
+      .pipe(catchError(() => of([] as any[])))
+      .subscribe((items) => this.notificationService.setNotifications(items as any));
   }
 
   private async showToast(message: string): Promise<void> {

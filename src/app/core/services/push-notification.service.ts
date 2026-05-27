@@ -5,7 +5,6 @@ import { getMessaging, getToken, isSupported, onMessage, type Messaging } from '
 import { BehaviorSubject, Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthStateService } from './auth-state.service';
-import { ApiService } from './api.service';
 
 /** Shape of a notification received from SignalR. */
 export interface InAppNotification {
@@ -41,8 +40,6 @@ type FirebaseWebConfig = {
   vapidKey: string;
 };
 
-const FIREBASE_WEB_PLATFORM = 'firebase-web';
-
 /**
  * Push notification service.
  *
@@ -57,7 +54,6 @@ const FIREBASE_WEB_PLATFORM = 'firebase-web';
 @Injectable({ providedIn: 'root' })
 export class PushNotificationService {
   private readonly authState = inject(AuthStateService);
-  private readonly apiService = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly notificationsSubject = new BehaviorSubject<InAppNotification[]>([]);
@@ -156,17 +152,8 @@ export class PushNotificationService {
         return { success: false, error: 'Failed to obtain Firebase token.' };
       }
 
-      this.apiService.post('device-tokens', {
-        token,
-        platform: FIREBASE_WEB_PLATFORM
-      }).subscribe({
-        next: () => {
-          this.deviceRegisteredSubject.next(true);
-        },
-        error: (err) => {
-          console.error('[PushNotification] Failed to register device token:', err);
-        }
-      });
+      console.info('[PushNotification] Device token acquired locally.');
+      this.deviceRegisteredSubject.next(true);
       return { success: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error.';
@@ -182,9 +169,6 @@ export class PushNotificationService {
       )
     );
     this.recalculateUnreadCount();
-    this.apiService.put(`notifications/${notificationId}/read`, {}).subscribe({
-      error: (err) => console.error('[PushNotification] Failed to mark notification read:', err)
-    });
   }
 
   async markAllRead(): Promise<void> {
@@ -195,10 +179,6 @@ export class PushNotificationService {
       this.notificationsSubject.value.map((n) => ({ ...n, isRead: true }))
     );
     this.unreadCountSubject.next(0);
-
-    this.apiService.put('notifications/read-all', {}).subscribe({
-      error: (err) => console.error('[PushNotification] Failed to mark all read:', err)
-    });
   }
 
   private cleanup(): void {

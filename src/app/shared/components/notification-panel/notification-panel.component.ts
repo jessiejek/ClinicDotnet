@@ -14,6 +14,7 @@ import { catchError, map, of } from 'rxjs';
 import { Notification } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
+import { NotificationService } from '../../../core/services/notification.service';
 
 @Component({
   selector: 'app-notification-panel',
@@ -70,6 +71,7 @@ import { AuthStateService } from '../../../core/services/auth-state.service';
 export class NotificationPanelComponent implements OnInit {
   private readonly authState = inject(AuthStateService);
   private readonly apiService = inject(ApiService);
+  private readonly notificationService = inject(NotificationService);
   private readonly router = inject(Router);
 
   readonly notifications = signal<Notification[]>([]);
@@ -108,6 +110,7 @@ export class NotificationPanelComponent implements OnInit {
             notification.userId === userId ? { ...notification, isRead: true } : notification
           )
         );
+        this.notificationService.markAllReadLocal(userId);
       }
     });
   }
@@ -118,6 +121,7 @@ export class NotificationPanelComponent implements OnInit {
         this.notifications.update((items) =>
           items.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item))
         );
+        this.notificationService.markReadLocal(notification.id);
         if (notification.navigateTo) {
           void this.router.navigateByUrl(notification.navigateTo);
         }
@@ -167,7 +171,9 @@ export class NotificationPanelComponent implements OnInit {
         catchError(() => of([] as Notification[]))
       )
       .subscribe((items) => {
-        this.notifications.set(items.filter((notification) => notification.userId === this.currentUser()?.id));
+        const userNotifications = items.filter((notification) => notification.userId === this.currentUser()?.id);
+        this.notifications.set(userNotifications);
+        this.notificationService.setNotifications(userNotifications);
       });
   }
 }

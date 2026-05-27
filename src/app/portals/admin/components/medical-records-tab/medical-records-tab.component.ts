@@ -9,7 +9,6 @@ import {
   Prescription,
   VaccinationRecord
 } from '../../../../core/models';
-import { MedicalRecordsService } from '../../../../core/services/medical-records.service';
 import { ConsultationTimelineComponent } from '../consultation-timeline/consultation-timeline.component';
 import { VitalsTrendChartComponent } from '../../../doctor/components/vitals-trend-chart/vitals-trend-chart.component';
 import { IonBadge, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonTextarea } from '@ionic/angular/standalone';
@@ -171,7 +170,6 @@ export class MedicalRecordsTabComponent implements OnChanges {
   @Input() followUps: FollowUp[] = [];
 
   private readonly fb = inject(FormBuilder);
-  private readonly medicalRecords = inject(MedicalRecordsService);
 
   readonly allergyForm = this.fb.group({
     allergen: ['', Validators.required],
@@ -205,14 +203,17 @@ export class MedicalRecordsTabComponent implements OnChanges {
       return;
     }
     const value = this.allergyForm.getRawValue();
-    this.medicalRecords.addAllergy({
-          id: `allergy-${Date.now()}`,
-          patientId: this.patientId,
-          allergen: value.allergen ?? '',
-          reaction: value.reaction ?? '',
-          severity: (value.severity as Allergy['severity']) ?? 'Moderate',
-          notes: value.notes ?? ''
-        });
+    this.allergies = [
+      ...this.allergies,
+      {
+        id: `allergy-${Date.now()}`,
+        patientId: this.patientId,
+        allergen: value.allergen ?? '',
+        reaction: value.reaction ?? '',
+        severity: (value.severity as Allergy['severity']) ?? 'Moderate',
+        notes: value.notes ?? ''
+      }
+    ];
     this.allergyForm.reset({ severity: 'Moderate' });
   }
 
@@ -221,14 +222,17 @@ export class MedicalRecordsTabComponent implements OnChanges {
       return;
     }
     const value = this.labResultForm.getRawValue();
-    this.medicalRecords.addLabResult({
-          id: `labres-${Date.now()}`,
-          labRequestId: value.labRequestId || `manual-${Date.now()}`,
-          patientId: this.patientId,
-          fileName: value.fileName ?? '',
-          resultDate: new Date().toISOString(),
-          notes: value.notes ?? ''
-        });
+    this.labResults = [
+      ...this.labResults,
+      {
+        id: `labres-${Date.now()}`,
+        labRequestId: value.labRequestId || `manual-${Date.now()}`,
+        patientId: this.patientId,
+        fileName: value.fileName ?? '',
+        resultDate: new Date().toISOString(),
+        notes: value.notes ?? ''
+      }
+    ];
     this.labResultForm.reset();
   }
 
@@ -237,13 +241,16 @@ export class MedicalRecordsTabComponent implements OnChanges {
       return;
     }
     const value = this.vaccinationForm.getRawValue();
-    this.medicalRecords.addVaccinationRecord({
-          id: `vac-${Date.now()}`,
-          patientId: this.patientId,
-          vaccineName: value.vaccineName ?? '',
-          dateGiven: value.dateGiven ?? '',
-          remarks: value.remarks ?? ''
-        });
+    this.vaccinations = [
+      ...this.vaccinations,
+      {
+        id: `vac-${Date.now()}`,
+        patientId: this.patientId,
+        vaccineName: value.vaccineName ?? '',
+        dateGiven: value.dateGiven ?? '',
+        remarks: value.remarks ?? ''
+      }
+    ];
     this.vaccinationForm.reset();
   }
 }

@@ -2,14 +2,17 @@ import { AsyncPipe, DatePipe, NgClass, NgFor, NgIf, NgStyle } from '@angular/com
 import { AfterViewChecked, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ModalController, ToastController } from '@ionic/angular/standalone';
-import { BehaviorSubject, Observable, combineLatest, firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, firstValueFrom, forkJoin, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 import {
+  Allergy,
   Booking,
   AuditLog,
   Consultation,
   Diagnosis,
+  FollowUp,
   LabRequest,
+  LabResult,
   Doctor,
   Patient,
   Prescription,
@@ -741,7 +744,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
                 return of(null);
               }
 
-              return this.medicalRecords.fetchPatientMedicalRecords(patient.id).pipe(
+              return this.loadPatientMedicalRecords$(patient.id).pipe(
                 catchError(() => of(EMPTY_RECORDS)),
                 switchMap((records) =>
                   this.loadConsultationRecord$(resolvedBooking).pipe(
@@ -940,7 +943,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     this.clinicalHistoryDrawerOpen = true;
     this.clinicalHistoryPatientName = [vm.patient.firstName, vm.patient.lastName].filter(Boolean).join(' ') || 'Patient';
     this.clinicalHistory = undefined;
-    this.patientClinicalHistoryService.getPatientClinicalHistory(vm.patient.id).pipe(take(1)).subscribe((history) => {
+    this.loadPatientClinicalHistory$(vm.patient.id).pipe(take(1)).subscribe((history) => {
       this.clinicalHistory = history;
     });
   }
@@ -2767,6 +2770,124 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     );
   }
 
+  private loadPatientMedicalRecords$(patientId: string): Observable<MedicalRecordsState> {
+    return forkJoin({
+      consultations: this.apiService.get<any[]>('medical-records/consultations?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapConsultationRows(rows ?? [])),
+        catchError(() => of([] as Consultation[]))
+      ),
+      prescriptions: this.apiService.get<any[]>('medical-records/prescriptions?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapPrescriptionRows(rows ?? [])),
+        catchError(() => of([] as Prescription[]))
+      ),
+      allergies: this.apiService.get<any[]>('medical-records/allergies?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapAllergyRows(rows ?? [])),
+        catchError(() => of([] as Allergy[]))
+      ),
+      labRequests: this.apiService.get<any[]>('medical-records/lab-orders?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapLabRequestRows(rows ?? [])),
+        catchError(() => of([] as LabRequest[]))
+      ),
+      labResults: this.apiService.get<any[]>('medical-records/lab-results?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapLabResultRows(rows ?? [])),
+        catchError(() => of([] as LabResult[]))
+      ),
+      vaccinations: this.apiService.get<any[]>('medical-records/vaccinations?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapVaccinationRows(rows ?? [])),
+        catchError(() => of([] as MedicalRecordsState['vaccinations']))
+      ),
+      followUps: this.apiService.get<any[]>('medical-records/follow-ups?patientId=' + patientId).pipe(
+        map((rows) => this.medicalRecords.mapFollowUpRows(rows ?? [])),
+        catchError(() => of([] as MedicalRecordsState['followUps']))
+      )
+    }).pipe(
+      map((records) => ({
+        consultations: records.consultations,
+        prescriptions: records.prescriptions,
+        allergies: records.allergies,
+        labRequests: records.labRequests,
+        labResults: records.labResults,
+        vaccinations: records.vaccinations,
+        followUps: records.followUps,
+        isLoading: false,
+        error: null
+      }))
+    );
+  }
+
+  private loadPatientClinicalHistory$(patientId: string): Observable<PatientClinicalHistoryDto | null> {
+    return forkJoin({
+      patientRow: this.apiService.get<any>('patients/' + patientId).pipe(catchError(() => of(null))),
+      bookingRows: this.apiService.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50').pipe(catchError(() => of([] as Record<string, unknown>[]))),
+      records: this.loadPatientMedicalRecords$(patientId).pipe(catchError(() => of(EMPTY_RECORDS)))
+    }).pipe(
+      switchMap(({ patientRow, bookingRows, records }) =>
+        from(this.loadPrescriptionsFromConsultationRecords((bookingRows ?? []) as Record<string, unknown>[])).pipe(
+          map((extraPrescriptions) =>
+            this.patientClinicalHistoryService.buildPatientClinicalHistory({
+              patientId,
+              patientRow: patientRow as Record<string, unknown> | null,
+              bookingRows: (bookingRows ?? []) as Record<string, unknown>[],
+              records,
+              extraPrescriptions
+            })
+          )
+        )
+      ),
+      catchError((error) => {
+        console.error('[DoctorConsultationPage] failed to load clinical history', error);
+        return of(null);
+      })
+    );
+  }
+
+  private async loadPrescriptionsFromConsultationRecords(
+    bookings: Record<string, unknown>[]
+  ): Promise<PatientClinicalHistoryDto['prescriptions']> {
+    const bookingIds = bookings
+      .map((booking) => trimStr(booking['booking_id']) ?? '')
+      .filter((bookingId): bookingId is string => Boolean(bookingId));
+
+    if (bookingIds.length === 0) {
+      return [];
+    }
+
+    const consultationRecords = await firstValueFrom(
+      forkJoin(
+        bookingIds.map((bookingId) =>
+          this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').pipe(
+            map((data) => (data ? this.medicalRecords.mapConsultationRecordRow(data) : null)),
+            catchError(() => of(null))
+          )
+        )
+      )
+    );
+
+    return consultationRecords
+      .filter((record): record is NonNullable<typeof record> => Boolean(record?.prescription))
+      .map((record) => {
+        const bookingDate = trimStr(
+          bookings.find((booking) => trimStr(booking['booking_id']) === record.bookingId)?.['appointment_date']
+        );
+
+        return {
+          prescriptionDate: bookingDate ?? record.followUp?.followUpDate ?? record.bookingId,
+          notes: record.prescription?.notes ?? record.generalNotes ?? null,
+          items: (record.prescription?.items ?? []).map((item) => ({
+            medicationName: item.medicationName,
+            strength: item.strength,
+            dosage: item.dosage,
+            route: item.route,
+            frequency: item.frequency,
+            duration: item.duration,
+            quantity: item.quantity,
+            instructions: item.instructions
+          }))
+        };
+      })
+      .filter((prescription) => prescription.items.length > 0);
+  }
+
   private resolvePatient$(booking: Booking): Observable<Patient | undefined> {
     return this.patientState.getPatientById(booking.patientId).pipe(
       map((patient) => patient ?? buildFallbackPatient(booking))
@@ -3349,6 +3470,10 @@ function trimOptionalString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function trimStr(value: unknown): string | undefined {
+  return trimOptionalString(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

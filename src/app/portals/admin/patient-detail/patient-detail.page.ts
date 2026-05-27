@@ -210,12 +210,30 @@ export class PatientDetailPage implements OnInit {
         catchError(() => of([] as Booking[]))
       )
       .subscribe((bookings) => (this.bookings = bookings));
-    this.medicalRecords.getConsultationsByPatientId(id).subscribe((consultations) => (this.consultations = consultations));
-    this.medicalRecords.getPrescriptionsByPatientId(id).subscribe((prescriptions) => (this.prescriptions = prescriptions));
-    this.medicalRecords.getAllergiesByPatientId(id).subscribe((allergies) => (this.allergies = allergies));
-    this.medicalRecords.getLabResultsByPatientId(id).subscribe((labResults) => (this.labResults = labResults));
-    this.medicalRecords.getVaccinationsByPatientId(id).subscribe((vaccinations) => (this.vaccinations = vaccinations));
-    this.medicalRecords.getFollowUpsByPatientId(id).subscribe((followUps) => (this.followUps = followUps));
+    this.apiService.get<any[]>('medical-records/consultations?patientId=' + id).pipe(
+      map((rows) => this.medicalRecords.mapConsultationRows(rows ?? [])),
+      catchError(() => of([] as Consultation[]))
+    ).subscribe((consultations) => (this.consultations = consultations));
+    this.apiService.get<any[]>('medical-records/prescriptions?patientId=' + id).pipe(
+      map((rows) => this.medicalRecords.mapPrescriptionRows(rows ?? [])),
+      catchError(() => of([] as Prescription[]))
+    ).subscribe((prescriptions) => (this.prescriptions = prescriptions));
+    this.apiService.get<any[]>('medical-records/allergies?patientId=' + id).pipe(
+      map((rows) => this.medicalRecords.mapAllergyRows(rows ?? [])),
+      catchError(() => of([] as Allergy[]))
+    ).subscribe((allergies) => (this.allergies = allergies));
+    this.apiService.get<any[]>('medical-records/lab-results?patientId=' + id).pipe(
+      map((rows) => this.medicalRecords.mapLabResultRows(rows ?? [])),
+      catchError(() => of([] as LabResult[]))
+    ).subscribe((labResults) => (this.labResults = labResults));
+    this.apiService.get<any[]>('medical-records/vaccinations?patientId=' + id).pipe(
+      map((rows) => this.medicalRecords.mapVaccinationRows(rows ?? [])),
+      catchError(() => of([] as VaccinationRecord[]))
+    ).subscribe((vaccinations) => (this.vaccinations = vaccinations));
+    this.apiService.get<any[]>('medical-records/follow-ups?patientId=' + id).pipe(
+      map((rows) => this.medicalRecords.mapFollowUpRows(rows ?? [])),
+      catchError(() => of([] as FollowUp[]))
+    ).subscribe((followUps) => (this.followUps = followUps));
   }
 
   patientAccountStatus(patient: Patient): 'LinkedAccount' | 'NoAccount' | 'AccountUnknown' {

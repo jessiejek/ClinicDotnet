@@ -302,8 +302,14 @@ export class PatientDashboardPage implements OnInit {
       }
 
       return combineLatest([
-        this.medicalRecords.getConsultationsByPatientId(patient.id),
-        this.medicalRecords.getPrescriptionsByPatientId(patient.id),
+        this.apiService.get<any[]>('medical-records/consultations?patientId=' + patient.id).pipe(
+          map((rows) => this.medicalRecords.mapConsultationRows(rows ?? [])),
+          catchError(() => of([] as Consultation[]))
+        ),
+        this.apiService.get<any[]>('medical-records/prescriptions?patientId=' + patient.id).pipe(
+          map((rows) => this.medicalRecords.mapPrescriptionRows(rows ?? [])),
+          catchError(() => of([] as Prescription[]))
+        ),
         this.clinicSettings.settings$
       ]).pipe(
         map((result: [any, any, any]) => {

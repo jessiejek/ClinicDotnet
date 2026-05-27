@@ -333,11 +333,21 @@ export class DoctorPatientDetailPage {
       firstValueFrom(this.apiService.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50')),
       firstValueFrom(
         forkJoin({
-          consultations: this.medicalRecords.getConsultationsByPatientId(patientId),
-          prescriptions: this.medicalRecords.getPrescriptionsByPatientId(patientId),
-          labResults: this.medicalRecords.getLabResultsByPatientId(patientId),
-          vaccinations: this.medicalRecords.getVaccinationsByPatientId(patientId),
-          followUps: this.medicalRecords.getFollowUpsByPatientId(patientId)
+          consultations: this.apiService.get<any[]>('medical-records/consultations?patientId=' + patientId).pipe(
+            map((rows) => this.medicalRecords.mapConsultationRows(rows ?? []))
+          ),
+          prescriptions: this.apiService.get<any[]>('medical-records/prescriptions?patientId=' + patientId).pipe(
+            map((rows) => this.medicalRecords.mapPrescriptionRows(rows ?? []))
+          ),
+          labResults: this.apiService.get<any[]>('medical-records/lab-results?patientId=' + patientId).pipe(
+            map((rows) => this.medicalRecords.mapLabResultRows(rows ?? []))
+          ),
+          vaccinations: this.apiService.get<any[]>('medical-records/vaccinations?patientId=' + patientId).pipe(
+            map((rows) => this.medicalRecords.mapVaccinationRows(rows ?? []))
+          ),
+          followUps: this.apiService.get<any[]>('medical-records/follow-ups?patientId=' + patientId).pipe(
+            map((rows) => this.medicalRecords.mapFollowUpRows(rows ?? []))
+          )
         })
       )
     ]);

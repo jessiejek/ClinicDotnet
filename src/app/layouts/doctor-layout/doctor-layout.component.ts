@@ -86,6 +86,7 @@ export class DoctorLayoutComponent implements OnInit {
   ngOnInit(): void {
     this.clinicName = this.clinicSettingsService.load().clinicName;
     this.updatePageTitle();
+    this.loadNotifications();
 
     this.router.events
       .pipe(
@@ -124,5 +125,12 @@ export class DoctorLayoutComponent implements OnInit {
       current = current.firstChild;
     }
     return current;
+  }
+
+  private loadNotifications(): void {
+    this.apiService
+      .get<any[]>('notifications')
+      .pipe(catchError(() => of([] as any[])))
+      .subscribe((items) => this.notificationService.setNotifications(items as any));
   }
 }

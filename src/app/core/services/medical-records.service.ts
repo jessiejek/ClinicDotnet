@@ -1,9 +1,14 @@
-import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, forkJoin, from, map, of, throwError } from 'rxjs';
-import { ApiService } from './api.service';
+import { Injectable } from '@angular/core';
 import {
-  Allergy, Consultation, Diagnosis, FollowUp, LabRequest, LabResult,
-  Prescription, PrescriptionItem, VitalSigns
+  Allergy,
+  Consultation,
+  Diagnosis,
+  FollowUp,
+  LabRequest,
+  LabResult,
+  Prescription,
+  PrescriptionItem,
+  VitalSigns
 } from '../models';
 
 export interface MedicalRecordsState {
@@ -43,11 +48,22 @@ export interface DiagnosisUpsertRequest {
 export interface PrescriptionUpsertRequest {
   notes?: string;
   items: Array<{
-    medicineName: string; genericName?: string; dosageForm: string; strength: string;
-    sig: string; quantity: number; frequency?: string; duration?: string;
-    instructions?: string; isControlledSubstance?: boolean; route?: string;
-    routeDescription?: string; unitOfMeasure?: string; unitOfMeasureDescription?: string;
-    frequencyCode?: string; brandName?: string;
+    medicineName: string;
+    genericName?: string;
+    dosageForm: string;
+    strength: string;
+    sig: string;
+    quantity: number;
+    frequency?: string;
+    duration?: string;
+    instructions?: string;
+    isControlledSubstance?: boolean;
+    route?: string;
+    routeDescription?: string;
+    unitOfMeasure?: string;
+    unitOfMeasureDescription?: string;
+    frequencyCode?: string;
+    brandName?: string;
   }>;
 }
 
@@ -56,181 +72,101 @@ export interface LabRequestUpsertRequest {
   reason?: string;
 }
 
+export interface ConsultationRecordResponse {
+  bookingId: string;
+  consultationId?: string | null;
+  patientId: string;
+  doctorId: string;
+  bookingStatus: 'Completed' | 'DoctorCompleted' | 'Billed' | 'Paid' | 'Cancelled' | 'Rejected' | 'CheckedIn' | 'Pending' | 'InProgress' | string;
+  generalNotes?: string | null;
+  vitalSigns: VitalSigns | null;
+  soap: {
+    chiefComplaint?: string | null;
+    subjective?: string | null;
+    objective?: string | null;
+    assessment?: string | null;
+    plan?: string | null;
+  } | null;
+  diagnoses: Diagnosis[];
+  prescription: {
+    id?: string | null;
+    notes?: string | null;
+    items: Array<{
+      id?: string | null;
+      medicationName: string;
+      strength?: string | null;
+      dosage?: string | null;
+      route?: string | null;
+      frequency?: string | null;
+      duration?: string | null;
+      quantity?: string | null;
+      instructions?: string | null;
+    }>;
+  } | null;
+  labOrders: Array<{
+    id?: string | null;
+    notes?: string | null;
+    items: Array<{
+      id?: string | null;
+      testName: string;
+      testCode?: string | null;
+      instructions?: string | null;
+    }>;
+  }>;
+  followUp: {
+    id?: string | null;
+    followUpDate?: string | null;
+    instructions?: string | null;
+    reason?: string | null;
+  } | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MedicalRecordsService {
-  private readonly api = inject(ApiService);
-
-  // ── Stubbed methods (not yet implemented on .NET) ──
-  fetchConsultation(_id: string): Observable<Consultation> {
-    return throwError(() => new Error('fetchConsultation — not implemented.'));
-  }
-  createConsultation(_body: ConsultationUpsertRequest): Observable<Consultation> {
-    return throwError(() => new Error('createConsultation — not implemented.'));
-  }
-  updateConsultation(_id: string, _body: ConsultationUpsertRequest): Observable<Consultation> {
-    return throwError(() => new Error('updateConsultation — not implemented.'));
-  }
-  lockConsultation$(_id: string): Observable<Consultation> {
-    return throwError(() => new Error('lockConsultation$ — not implemented.'));
-  }
-  saveVitalSigns(_consultationId: string, _body: VitalSigns): Observable<VitalSigns> {
-    return throwError(() => new Error('saveVitalSigns — not implemented.'));
-  }
-  addDiagnosis(_consultationId: string, _body: DiagnosisUpsertRequest): Observable<Diagnosis> {
-    return throwError(() => new Error('addDiagnosis — not implemented.'));
-  }
-  deleteDiagnosis(_consultationId: string, _diagnosisId: string): Observable<unknown> {
-    return throwError(() => new Error('deleteDiagnosis — not implemented.'));
-  }
-  addPrescription(_consultationId: string, _body: PrescriptionUpsertRequest): Observable<Prescription> {
-    return throwError(() => new Error('addPrescription — not implemented.'));
-  }
-  updatePrescription(_consultationId: string, _prescriptionId: string, _body: PrescriptionUpsertRequest): Observable<Prescription> {
-    return throwError(() => new Error('updatePrescription — not implemented.'));
-  }
-  deletePrescription(_consultationId: string, _prescriptionId: string): Observable<unknown> {
-    return throwError(() => new Error('deletePrescription — not implemented.'));
-  }
-  addLabRequest(_consultationId: string, _body: LabRequestUpsertRequest): Observable<LabRequest> {
-    return throwError(() => new Error('addLabRequest — not implemented.'));
-  }
-  deleteLabRequest(_consultationId: string, _requestId: string): Observable<unknown> {
-    return throwError(() => new Error('deleteLabRequest — not implemented.'));
+  mapConsultationRows(rows: unknown[]): Consultation[] {
+    return asRecords(rows).map(mapConsultationRow).filter((item): item is Consultation => Boolean(item));
   }
 
-  // ── Full patient records (via API) ──
-  fetchPatientMedicalRecords(patientId: string): Observable<MedicalRecordsState> {
-    return forkJoin({
-      consultations: this.getConsultationsByPatientId(patientId).pipe(catchError(() => of([]))),
-      prescriptions: this.getPrescriptionsByPatientId(patientId).pipe(catchError(() => of([]))),
-      allergies: this.getAllergiesByPatientId(patientId).pipe(catchError(() => of([]))),
-      labRequests: this.getLabRequestsByPatientId(patientId).pipe(catchError(() => of([]))),
-      labResults: this.getLabResultsByPatientId(patientId).pipe(catchError(() => of([]))),
-      vaccinations: this.getVaccinationsByPatientId(patientId).pipe(catchError(() => of([]))),
-      followUps: this.getFollowUpsByPatientId(patientId).pipe(catchError(() => of([]))),
-    }).pipe(
-      map((results) => ({ ...results, isLoading: false, error: null })),
-      map((state) => state as MedicalRecordsState)
-    );
+  mapPrescriptionRows(rows: unknown[]): Prescription[] {
+    return asRecords(rows).map(mapPrescriptionRow).filter((item): item is Prescription => Boolean(item));
   }
 
-  // ── Individual queries ──
-
-  getConsultationByBookingId(bookingId: string): Observable<Consultation | undefined> {
-    return this.api.get<any[]>('medical-records/consultations?patientId=' + bookingId).pipe(
-      map((rows) => {
-        const items = (rows ?? []) as Record<string, unknown>[];
-        return items.length > 0 ? mapConsultationRow(items[0]) : undefined;
-      })
-    );
+  mapAllergyRows(rows: unknown[]): Allergy[] {
+    return asRecords(rows).map(mapAllergyRow).filter((item): item is Allergy => Boolean(item));
   }
 
-  getConsultationsByPatientId(patientId: string): Observable<Consultation[]> {
-    return this.api.get<any[]>('medical-records/consultations?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapConsultationRow))
-    );
+  mapLabRequestRows(rows: unknown[]): LabRequest[] {
+    return asRecords(rows).map(mapLabOrderRow).filter((item): item is LabRequest => Boolean(item));
   }
 
-  getPrescriptionsByPatientId(patientId: string): Observable<Prescription[]> {
-    return this.api.get<any[]>('medical-records/prescriptions?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapPrescriptionRow))
-    );
+  mapLabResultRows(rows: unknown[]): LabResult[] {
+    return asRecords(rows).map(mapLabResultViewRow).filter((item): item is LabResult => Boolean(item));
   }
 
-  getAllergiesByPatientId(patientId: string): Observable<Allergy[]> {
-    return this.api.get<any[]>('medical-records/allergies?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapAllergyRow))
-    );
+  mapVaccinationRows(rows: unknown[]): VaccinationRecord[] {
+    return asRecords(rows).map(mapVaccinationRow).filter((item): item is VaccinationRecord => Boolean(item));
   }
 
-  getLabRequestsByPatientId(patientId: string): Observable<LabRequest[]> {
-    return this.api.get<any[]>('medical-records/lab-orders?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapLabOrderRow))
-    );
+  mapFollowUpRows(rows: unknown[]): FollowUp[] {
+    return asRecords(rows).map(mapFollowUpRow).filter((item): item is FollowUp => Boolean(item));
   }
 
-  getLabResultsByPatientId(patientId: string): Observable<LabResult[]> {
-    return this.api.get<any[]>('medical-records/lab-results?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapLabResultViewRow))
-    );
-  }
-
-  getVaccinationsByPatientId(patientId: string): Observable<VaccinationRecord[]> {
-    return this.api.get<any[]>('medical-records/vaccinations?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapVaccinationRow))
-    );
-  }
-
-  getFollowUpsByPatientId(patientId: string): Observable<FollowUp[]> {
-    return this.api.get<any[]>('medical-records/follow-ups?patientId=' + patientId).pipe(
-      map((rows) => ((rows ?? []) as Record<string, unknown>[]).map(mapFollowUpRow))
-    );
-  }
-
-  // ── CRUD operations ──
-
-  createAllergy(allergy: Partial<Allergy>): Observable<Allergy> {
-    return this.api.post<any>('medical-records/allergies', allergy).pipe(map(mapAllergyRow));
-  }
-
-  updateAllergy(id: string, allergy: Partial<Allergy>): Observable<Allergy> {
-    return this.api.put<any>('medical-records/allergies/' + id, allergy).pipe(map(mapAllergyRow));
-  }
-
-  addAllergy(allergy: Partial<Allergy>): Observable<Allergy> {
-    return this.createAllergy(allergy);
-  }
-
-  deleteAllergy(id: string): Observable<unknown> {
-    return this.api.delete('medical-records/allergies/' + id);
-  }
-
-  createLabResult(result: Partial<LabResult>): Observable<LabResult> {
-    return this.api.post<any>('medical-records/lab-results', result).pipe(map(mapLabResultViewRow));
-  }
-
-  addLabResult(result: Partial<LabResult>): Observable<LabResult> {
-    return this.createLabResult(result);
-  }
-
-  deleteLabResult(id: string): Observable<unknown> {
-    return this.api.delete('medical-records/lab-results/' + id);
-  }
-
-  createVaccination(record: Partial<VaccinationRecord>): Observable<VaccinationRecord> {
-    return this.api.post<any>('medical-records/vaccinations', record).pipe(map(mapVaccinationRow));
-  }
-
-  updateVaccination(id: string, record: Partial<VaccinationRecord>): Observable<VaccinationRecord> {
-    return this.api.put<any>('medical-records/vaccinations/' + id, record).pipe(map(mapVaccinationRow));
-  }
-
-  addVaccinationRecord(record: Partial<VaccinationRecord>): Observable<VaccinationRecord> {
-    return this.createVaccination(record);
-  }
-
-  deleteVaccination(id: string): Observable<unknown> {
-    return this.api.delete('medical-records/vaccinations/' + id);
-  }
-
-  createFollowUp(followUp: Partial<FollowUp>): Observable<FollowUp> {
-    return this.api.post<any>('medical-records/follow-ups', followUp).pipe(map(mapFollowUpRow));
-  }
-
-  updateFollowUp(id: string, followUp: Partial<FollowUp>): Observable<FollowUp> {
-    return this.api.put<any>('medical-records/follow-ups/' + id, followUp).pipe(map(mapFollowUpRow));
-  }
-
-  deleteFollowUp(id: string): Observable<unknown> {
-    return this.api.delete('medical-records/follow-ups/' + id);
+  mapConsultationRecordRow(row: unknown): ConsultationRecordResponse | null {
+    if (!isRecord(row)) {
+      return null;
+    }
+    return mapConsultationRecordRowInternal(row);
   }
 }
 
-// ── Mapping functions ──
+function mapConsultationRow(row: Record<string, unknown>): Consultation | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
 
-function mapConsultationRow(row: Record<string, unknown>): Consultation {
   return {
-    id: str(row, 'id'),
+    id,
     bookingId: str(row, 'bookingId'),
     patientId: str(row, 'patientId'),
     doctorId: str(row, 'doctorId'),
@@ -256,9 +192,14 @@ function mapConsultationRow(row: Record<string, unknown>): Consultation {
   };
 }
 
-function mapPrescriptionRow(row: Record<string, unknown>): Prescription {
+function mapPrescriptionRow(row: Record<string, unknown>): Prescription | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
+
   return {
-    id: str(row, 'id'),
+    id,
     consultationId: str(row, 'consultationId'),
     patientId: str(row, 'patientId'),
     doctorId: str(row, 'doctorId'),
@@ -269,9 +210,14 @@ function mapPrescriptionRow(row: Record<string, unknown>): Prescription {
   };
 }
 
-function mapAllergyRow(row: Record<string, unknown>): Allergy {
+function mapAllergyRow(row: Record<string, unknown>): Allergy | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
+
   return {
-    id: str(row, 'id'),
+    id,
     patientId: str(row, 'patientId'),
     allergen: str(row, 'allergen'),
     reaction: str(row, 'reaction'),
@@ -280,9 +226,14 @@ function mapAllergyRow(row: Record<string, unknown>): Allergy {
   };
 }
 
-function mapLabOrderRow(row: Record<string, unknown>): LabRequest {
+function mapLabOrderRow(row: Record<string, unknown>): LabRequest | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
+
   return {
-    id: str(row, 'id'),
+    id,
     consultationId: str(row, 'consultationId'),
     patientId: str(row, 'patientId'),
     doctorId: str(row, 'doctorId'),
@@ -293,9 +244,14 @@ function mapLabOrderRow(row: Record<string, unknown>): LabRequest {
   };
 }
 
-function mapLabResultViewRow(row: Record<string, unknown>): LabResult {
+function mapLabResultViewRow(row: Record<string, unknown>): LabResult | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
+
   return {
-    id: str(row, 'id'),
+    id,
     labRequestId: str(row, 'labRequestId'),
     patientId: str(row, 'patientId'),
     fileName: str(row, 'fileName'),
@@ -304,9 +260,14 @@ function mapLabResultViewRow(row: Record<string, unknown>): LabResult {
   };
 }
 
-function mapVaccinationRow(row: Record<string, unknown>): VaccinationRecord {
+function mapVaccinationRow(row: Record<string, unknown>): VaccinationRecord | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
+
   return {
-    id: str(row, 'id'),
+    id,
     patientId: str(row, 'patientId'),
     vaccineName: str(row, 'vaccineName'),
     dateGiven: str(row, 'dateGiven'),
@@ -321,9 +282,14 @@ function mapVaccinationRow(row: Record<string, unknown>): VaccinationRecord {
   };
 }
 
-function mapFollowUpRow(row: Record<string, unknown>): FollowUp {
+function mapFollowUpRow(row: Record<string, unknown>): FollowUp | null {
+  const id = str(row, 'id');
+  if (!id) {
+    return null;
+  }
+
   return {
-    id: str(row, 'id'),
+    id,
     consultationId: str(row, 'consultationId'),
     patientId: str(row, 'patientId'),
     doctorId: str(row, 'doctorId'),
@@ -333,16 +299,72 @@ function mapFollowUpRow(row: Record<string, unknown>): FollowUp {
   };
 }
 
+function mapConsultationRecordRowInternal(row: Record<string, unknown>): ConsultationRecordResponse {
+  const prescriptionRows = Array.isArray(row['prescriptions']) ? row['prescriptions'] : [];
+  const firstPrescription = prescriptionRows.find((item) => typeof item === 'object' && item !== null) as
+    | Record<string, unknown>
+    | undefined;
+  const firstFollowUpRow = Array.isArray(row['follow_ups'])
+    ? (row['follow_ups'].find((item) => typeof item === 'object' && item !== null) as Record<string, unknown> | undefined)
+    : undefined;
+
+  const prescription = firstPrescription
+    ? {
+        id: strOpt(firstPrescription, 'id'),
+        notes: strOpt(firstPrescription, 'notes'),
+        items: Array.isArray(firstPrescription['items'])
+          ? firstPrescription['items']
+              .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+              .map((item) => ({
+                id: strOpt(item, 'id'),
+                medicationName: str(item, 'medication_name') ?? '',
+                strength: strOpt(item, 'strength'),
+                dosage: strOpt(item, 'dosage'),
+                route: strOpt(item, 'route'),
+                frequency: strOpt(item, 'frequency'),
+                duration: strOpt(item, 'duration'),
+                quantity: strOpt(item, 'quantity'),
+                instructions: strOpt(item, 'instructions')
+              }))
+              .filter((item) => item.medicationName.length > 0)
+          : []
+      }
+    : null;
+
+  return {
+    bookingId: str(row, 'booking_id') ?? '',
+    consultationId: strOpt(row, 'consultation_id'),
+    patientId: str(row, 'patient_id') ?? '',
+    doctorId: str(row, 'doctor_id') ?? '',
+    bookingStatus: (str(row, 'booking_status') ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
+    generalNotes: strOpt(row, 'general_notes'),
+    vitalSigns: null,
+    soap: null,
+    diagnoses: [],
+    prescription,
+    labOrders: [],
+    followUp: firstFollowUpRow
+      ? {
+          id: strOpt(firstFollowUpRow, 'id'),
+          followUpDate: strOpt(firstFollowUpRow, 'follow_up_date'),
+          instructions: strOpt(firstFollowUpRow, 'instructions'),
+          reason: strOpt(firstFollowUpRow, 'reason')
+        }
+      : null
+  };
+}
+
 function str(row: Record<string, unknown>, key: string): string {
   const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
   const val = row[key] ?? row[snake];
   if (typeof val !== 'string') return '';
-  return val.trim();
+  const trimmed = val.trim();
+  return trimmed || '';
 }
 
 function strOpt(row: Record<string, unknown>, key: string): string | undefined {
-  const v = str(row, key);
-  return v || undefined;
+  const value = str(row, key);
+  return value || undefined;
 }
 
 function num(row: Record<string, unknown>, key: string): number | undefined {
@@ -350,4 +372,12 @@ function num(row: Record<string, unknown>, key: string): number | undefined {
   const val = row[key] ?? row[snake];
   if (typeof val === 'number' && isFinite(val)) return val;
   return undefined;
+}
+
+function asRecords(rows: unknown[]): Record<string, unknown>[] {
+  return rows.filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
