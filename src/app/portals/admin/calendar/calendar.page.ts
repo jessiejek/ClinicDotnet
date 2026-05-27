@@ -3,7 +3,6 @@ import { Component, OnInit, inject } from '@angular/core';
 import { Booking, Doctor } from '../../../core/models';
 import { catchError, finalize, map, of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { BookingService } from '../../../core/services/booking.service';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
@@ -56,7 +55,6 @@ import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.
 })
 export class CalendarPage implements OnInit {
   private readonly apiService = inject(ApiService);
-  private readonly bookingService = inject(BookingService);
   private readonly doctorState = inject(DoctorStateService);
 
   bookings: Booking[] = [];
@@ -65,9 +63,8 @@ export class CalendarPage implements OnInit {
   currentWeekStart = this.startOfWeek(new Date());
 
   ngOnInit(): void {
-    this.bookingService.getBookings().subscribe((bookings) => (this.bookings = bookings));
-    this.bookingService.isLoading$.subscribe((loading) => (this.isLoading = loading));
     this.doctorState.doctors$.subscribe((doctors) => (this.doctors = doctors));
+    this.loadBookings();
     this.loadDoctors();
   }
 
@@ -103,6 +100,30 @@ export class CalendarPage implements OnInit {
     return this.weekBookings.filter((booking) => booking.doctorId === doctorId && booking.appointmentDate === day);
   }
 
+  private loadBookings(): void {
+    this.isLoading = true;
+    this.apiService
+      .get<any>('bookings')
+      .pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+          return rows
+            .map((row) => this.normalizeBookingRow(row))
+            .filter((booking): booking is Booking => Boolean(booking));
+        }),
+        catchError((error: unknown) => {
+          console.warn('Failed to load bookings:', error);
+          return of([] as Booking[]);
+        }),
+        finalize(() => {
+          this.isLoading = false;
+        })
+      )
+      .subscribe((bookings) => {
+        this.bookings = bookings;
+      });
+  }
+
   private loadDoctors(): void {
     this.doctorState.setLoading(true);
     this.apiService
@@ -132,5 +153,111 @@ export class CalendarPage implements OnInit {
   private isoDate(date: Date): string {
     const offset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+  }
+
+  private normalizeBookingRow(row: Record<string, unknown>): Booking | null {
+    const id = this.asOptionalString(row['id'] ?? row['bookingId'] ?? row['booking_id']);
+    if (!id) {
+      return null;
+    }
+
+    const serviceNames = this.normalizeStringArray(row['serviceNames'] ?? row['service_names']);
+    const serviceName = this.asOptionalString(row['serviceName'] ?? row['primary_service_name']) ?? serviceNames[0];
+
+    return {
+      id,
+      patientId: this.asOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
+      patientName: this.asOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
+      doctorId: this.asOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
+      doctorName: this.asOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+      serviceId: this.asOptionalString(row['serviceId'] ?? row['primary_service_id']) ?? '',
+      serviceIds: this.normalizeStringArray(row['serviceIds'] ?? row['service_ids']),
+      serviceName: serviceName ?? '',
+      serviceNames,
+      services: [],
+      appointmentDate: this.normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+      slotStartTime: this.normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+      slotEndTime: this.normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']),
+      status: (this.asOptionalString(row['status'] ?? row['booking_status']) as Booking['status']) ?? 'Pending',
+      paymentStatus: (this.asOptionalString(row['paymentStatus'] ?? row['payment_status']) as Booking['paymentStatus']) ?? 'Unpaid',
+      paymentMode: (this.asOptionalString(row['paymentMode'] ?? row['payment_mode']) as Booking['paymentMode']) ?? 'PayAtClinic',
+      queueNumber: this.normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+      totalFee: this.normalizeNumber(row['totalFee'] ?? row['total_fee']),
+      finalAmount: this.normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+      amountDue: this.normalizeNullableNumber(row['amountDue'] ?? row['amount_due']),
+      consultationFeeSnapshot: this.normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+      serviceFeeSnapshot: this.normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+      isWalkIn: this.normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in']),
+      createdAt: this.asOptionalString(row['createdAt'] ?? row['created_at']) ?? new Date().toISOString(),
+      orNumber: this.asOptionalString(row['orNumber'] ?? row['or_number']),
+      checkedInAt: this.asOptionalString(row['checkedInAt'] ?? row['checked_in_at']),
+      doctorCompletedAt: this.asOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
+      isProfessionalFeeWaived: this.normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+      professionalFeeWaivedReason: this.asOptionalString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason'])
+    };
+  }
+
+  private normalizeStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((item) => this.asOptionalString(item)).filter((item): item is string => Boolean(item));
+  }
+
+  private normalizeDateOnly(value: unknown): string {
+    const raw = this.asOptionalString(value);
+    return raw ? raw.slice(0, 10) : '';
+  }
+
+  private normalizeTimeOnly(value: unknown): string {
+    const raw = this.asOptionalString(value);
+    return raw ? raw.slice(0, 5) : '';
+  }
+
+  private normalizeNumber(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+  }
+
+  private normalizeNullableNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  }
+
+  private normalizeBoolean(value: unknown): boolean {
+    return value === true || value === 'true' || value === 1 || value === '1';
+  }
+
+  private normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+
+    return this.normalizeBoolean(value);
+  }
+
+  private asOptionalString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 }

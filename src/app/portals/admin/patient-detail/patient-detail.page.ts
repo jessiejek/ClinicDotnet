@@ -2,10 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonLabel, IonSegment, IonSegmentButton, ModalController } from '@ionic/angular/standalone';
-import { map } from 'rxjs';
+import { catchError, map, of } from 'rxjs';
 import { Allergy, Booking, Consultation, FollowUp, LabResult, Patient, Prescription, VaccinationRecord } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
-import { BookingService } from '../../../core/services/booking.service';
 import { MedicalRecordsService } from '../../../core/services/medical-records.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -134,7 +133,6 @@ import { rowToDetail } from '../services/admin-patients.service';
 })
 export class PatientDetailPage implements OnInit {
   private readonly apiService = inject(ApiService);
-  private readonly bookingService = inject(BookingService);
   private readonly medicalRecords = inject(MedicalRecordsService);
   private readonly modalCtrl = inject(ModalController);
   private readonly route = inject(ActivatedRoute);
@@ -199,7 +197,19 @@ export class PatientDetailPage implements OnInit {
   }
 
   private loadSupportingData(id: string): void {
-    this.bookingService.getBookingsByPatientId(id).subscribe((bookings) => (this.bookings = bookings));
+    this.apiService
+      .get<any>('bookings')
+      .pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+          return rows
+            .map((row) => normalizeBookingRow(row))
+            .filter((booking): booking is Booking => Boolean(booking))
+            .filter((booking) => booking.patientId === id);
+        }),
+        catchError(() => of([] as Booking[]))
+      )
+      .subscribe((bookings) => (this.bookings = bookings));
     this.medicalRecords.getConsultationsByPatientId(id).subscribe((consultations) => (this.consultations = consultations));
     this.medicalRecords.getPrescriptionsByPatientId(id).subscribe((prescriptions) => (this.prescriptions = prescriptions));
     this.medicalRecords.getAllergiesByPatientId(id).subscribe((allergies) => (this.allergies = allergies));
@@ -230,4 +240,144 @@ export class PatientDetailPage implements OnInit {
         return 'Account Unknown';
     }
   }
+}
+
+function normalizeBookingRow(row: Record<string, unknown>): Booking | null {
+  const id = normalizeOptionalString(asString(row['id'] ?? row['bookingId'] ?? row['booking_id']));
+  if (!id) {
+    return null;
+  }
+
+  const serviceNames = normalizeStringArray(row['serviceNames'] ?? row['service_names']);
+  const serviceName = normalizeOptionalString(asString(row['serviceName'] ?? row['primary_service_name'])) ?? serviceNames[0];
+
+  return {
+    id,
+    patientId: normalizeOptionalString(asString(row['patientId'] ?? row['patient_id'])) ?? '',
+    patientName: normalizeOptionalString(asString(row['patientName'] ?? row['patient_name'])) ?? 'Patient',
+    doctorId: normalizeOptionalString(asString(row['doctorId'] ?? row['doctor_id'])) ?? '',
+    doctorName: normalizeOptionalString(asString(row['doctorName'] ?? row['doctor_name'])) ?? 'Doctor',
+    serviceId: normalizeOptionalString(asString(row['serviceId'] ?? row['primary_service_id'])) ?? '',
+    serviceIds: normalizeStringArray(row['serviceIds'] ?? row['service_ids']),
+    serviceName: serviceName ?? '',
+    serviceNames,
+    services: normalizeBookingServices(row['services']),
+    appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+    slotStartTime: normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    slotEndTime: normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']),
+    status: (normalizeOptionalString(asString(row['status'] ?? row['booking_status'])) as Booking['status']) ?? 'Pending',
+    paymentStatus: (normalizeOptionalString(asString(row['paymentStatus'] ?? row['payment_status'])) as Booking['paymentStatus']) ?? 'Unpaid',
+    paymentMode: (normalizeOptionalString(asString(row['paymentMode'] ?? row['payment_mode'])) as Booking['paymentMode']) ?? 'PayAtClinic',
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amountDue'] ?? row['amount_due']),
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in']),
+    createdAt: normalizeOptionalString(asString(row['createdAt'] ?? row['created_at'])) ?? new Date().toISOString(),
+    orNumber: normalizeOptionalString(asString(row['orNumber'] ?? row['or_number'])),
+    checkedInAt: normalizeOptionalString(asString(row['checkedInAt'] ?? row['checked_in_at'])),
+    doctorCompletedAt: normalizeOptionalString(asString(row['doctorCompletedAt'] ?? row['doctor_completed_at'])),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: normalizeOptionalString(asString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']))
+  };
+}
+
+function normalizeBookingServices(value: unknown): Array<{ id: string; name: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const name = item.trim();
+        return name ? { id: '', name } : undefined;
+      }
+
+      if (!isRecord(item)) {
+        return undefined;
+      }
+
+      const name = normalizeOptionalString(asString(item['name'] ?? item['serviceName'] ?? item['service_name']));
+      return {
+        id: normalizeOptionalString(asString(item['id'] ?? item['serviceId'])) ?? '',
+        name: name ?? ''
+      };
+    })
+    .filter((item): item is { id: string; name: string } => Boolean(item && (item.id || item.name)));
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => normalizeOptionalString(asString(item))).filter((item): item is string => Boolean(item));
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const raw = normalizeOptionalString(asString(value));
+  return raw ? raw.slice(0, 10) : '';
+}
+
+function normalizeTimeOnly(value: unknown): string {
+  const raw = normalizeOptionalString(asString(value));
+  return raw ? raw.slice(0, 5) : '';
+}
+
+function normalizeNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined;
+  }
+
+  return normalizeBoolean(value);
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }

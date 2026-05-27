@@ -2,7 +2,7 @@ import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, Input, OnChanges, OnInit, SimpleChanges, inject } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, map, of } from 'rxjs';
+import { Observable, catchError, map, of } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { IonSearchbar, IonSpinner, ToastController, IonIcon, ModalController, IonSelect, IonSelectOption } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -26,7 +26,6 @@ import {
 } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { PatientDocumentsService } from '../../../core/services/patient-documents.service';
-import { BookingService } from '../../../core/services/booking.service';
 import { SecureImageComponent } from '../secure-image/secure-image.component';
 import { PatientMediaPreviewModalComponent } from './patient-media-preview.modal';
 
@@ -200,7 +199,6 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
-  private readonly bookingService = inject(BookingService);
   private readonly modalCtrl = inject(ModalController);
 
   readonly form = this.fb.nonNullable.group({
@@ -253,26 +251,15 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
     });
 
     if (this.allowUpload) {
-      const bookings$ = this.patientId
-        ? this.bookingService.getBookingsByPatientId(this.patientId).pipe(catchError(() => of([])))
-        : this.apiService.get<any>('bookings?page=1&pageSize=100').pipe(
-            map((data: any) => {
-              const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
-              return rows
-                .map((row) => mapBookingRow(row))
-                .filter((booking): booking is Booking => Boolean(booking));
-            }),
-            catchError(() => of([]))
-          );
+      const bookings$ = this.loadSelectableBookings();
 
       bookings$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((items) => {
         this.bookings = items;
         this.applyPendingBookingSelection();
       });
     } else if (this.patientId) {
-      this.bookingService
-        .getBookingsByPatientId(this.patientId)
-        .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
+      this.loadSelectableBookings()
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((items) => {
           this.bookings = items;
         });
@@ -680,6 +667,29 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
     this.fromQueryParam = true;
     this.applyPendingBookingSelection();
     this.applyFilter();
+  }
+
+  private loadSelectableBookings(): Observable<Booking[]> {
+    const request$ = this.patientId
+      ? this.apiService.get<any>('bookings').pipe(
+          map((data: any) => {
+            const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+            return rows
+              .map((row) => mapBookingRow(row))
+              .filter((booking): booking is Booking => Boolean(booking))
+              .filter((booking) => booking.patientId === this.patientId);
+          })
+        )
+      : this.apiService.get<any>('bookings?page=1&pageSize=100').pipe(
+          map((data: any) => {
+            const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+            return rows
+              .map((row) => mapBookingRow(row))
+              .filter((booking): booking is Booking => Boolean(booking));
+          })
+        );
+
+    return request$.pipe(catchError(() => of([])));
   }
 
   private applyPendingBookingSelection(): void {

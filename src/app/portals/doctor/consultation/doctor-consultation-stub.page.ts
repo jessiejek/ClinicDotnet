@@ -1,11 +1,11 @@
 import { AsyncPipe, DatePipe, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { combineLatest, of } from 'rxjs';
+import { catchError, combineLatest, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { Booking, Patient, Service } from '../../../core/models';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { BookingService } from '../../../core/services/booking.service';
+import { ApiService } from '../../../core/services/api.service';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
 import { MockDataService } from '../../../core/services/mock-data.service';
 import { PatientStateService } from '../../../core/services/patient-state.service';
@@ -71,7 +71,7 @@ imports: [AsyncPipe, DatePipe, NgIf, PageHeaderComponent, EmptyStateComponent],
 })
 export class DoctorConsultationStubPage implements OnInit {
   private readonly authState = inject(AuthStateService);
-  private readonly bookingService = inject(BookingService);
+  private readonly apiService = inject(ApiService);
   private readonly doctorState = inject(DoctorStateService);
   private readonly patientState = inject(PatientStateService);
   private readonly route = inject(ActivatedRoute);
@@ -85,7 +85,10 @@ export class DoctorConsultationStubPage implements OnInit {
     switchMap(([bookingId, user]) =>
       bookingId && user
         ? combineLatest([
-            this.bookingService.getBookingById$(bookingId),
+            this.apiService.get<any>('bookings/' + bookingId).pipe(
+              map((data) => normalizeBookingSnapshot(data)),
+              catchError(() => of(undefined))
+            ),
             this.doctorState.getDoctorByUserId(user.id),
             this.patientState.getPatients()
           ])
@@ -111,4 +114,109 @@ export class DoctorConsultationStubPage implements OnInit {
   backToAppointment(bookingId: string): void {
     void this.router.navigate(['/doctor/appointments', bookingId]);
   }
+}
+
+function normalizeBookingSnapshot(value: unknown): Booking | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const row = value as Record<string, unknown>;
+  const id = normalizeOptionalString(asString(row['id'] ?? row['bookingId'] ?? row['booking_id']));
+  if (!id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    patientId: normalizeOptionalString(asString(row['patientId'] ?? row['patient_id'])) ?? '',
+    patientName: normalizeOptionalString(asString(row['patientName'] ?? row['patient_name'])),
+    doctorId: normalizeOptionalString(asString(row['doctorId'] ?? row['doctor_id'])) ?? '',
+    doctorName: normalizeOptionalString(asString(row['doctorName'] ?? row['doctor_name'])),
+    serviceId: normalizeOptionalString(asString(row['serviceId'] ?? row['service_id'])) ?? '',
+    serviceIds: [],
+    serviceName: normalizeOptionalString(asString(row['serviceName'] ?? row['service_name'])) ?? '',
+    serviceNames: [],
+    services: [],
+    appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+    slotStartTime: normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    slotEndTime: normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']),
+    status: (normalizeOptionalString(asString(row['status'] ?? row['booking_status'])) as Booking['status']) ?? 'Pending',
+    paymentStatus: (normalizeOptionalString(asString(row['paymentStatus'] ?? row['payment_status'])) as Booking['paymentStatus']) ?? 'Unpaid',
+    paymentMode: (normalizeOptionalString(asString(row['paymentMode'] ?? row['payment_mode'])) as Booking['paymentMode']) ?? 'PayAtClinic',
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amountDue'] ?? row['amount_due']),
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in']),
+    createdAt: normalizeOptionalString(asString(row['createdAt'] ?? row['created_at'])) ?? new Date().toISOString(),
+    orNumber: normalizeOptionalString(asString(row['orNumber'] ?? row['or_number'])),
+    checkedInAt: normalizeOptionalString(asString(row['checkedInAt'] ?? row['checked_in_at'])),
+    doctorCompletedAt: normalizeOptionalString(asString(row['doctorCompletedAt'] ?? row['doctor_completed_at'])),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: normalizeOptionalString(asString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']))
+  };
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const raw = normalizeOptionalString(asString(value));
+  return raw ? raw.slice(0, 10) : '';
+}
+
+function normalizeTimeOnly(value: unknown): string {
+  const raw = normalizeOptionalString(asString(value));
+  return raw ? raw.slice(0, 5) : '';
+}
+
+function normalizeNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined;
+  }
+
+  return normalizeBoolean(value);
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
