@@ -288,7 +288,7 @@ const PROOF_TYPES: ProofType[] = ['ReferenceNumber', 'Screenshot'];
 @Injectable({ providedIn: 'root' })
 export class BookingService {
   private readonly apiService = inject(ApiService);
-  private readonly supabase = inject(SupabaseService).client;
+    private readonly supabase = inject(SupabaseService).client;
   private readonly bookingsSubject = new BehaviorSubject<Booking[]>([]);
   private readonly loadingSubject = new BehaviorSubject(false);
   private loadingCounter = 0;
@@ -432,14 +432,7 @@ export class BookingService {
   }
 
   private async fetchSupabaseDoctorPatients(): Promise<DoctorPatientSummaryDto[]> {
-    // RLS on patient_bookings_view automatically limits to the current doctor's bookings.
-    const data: any = await this.supabase
-      .from('patient_bookings_view')
-      .select('*')
-      .order('appointment_date', { ascending: false })
-      .order('slot_start_time', { ascending: false });
-
-    const rows = (data ?? []) as Record<string, unknown>[];
+    const rows: Record<string, unknown>[] = await this.apiService.get<any[]>('bookings/doctor/patients').toPromise() ?? [];
     const patientMap = new Map<string, Record<string, unknown>>();
 
     for (const row of rows) {
@@ -638,14 +631,7 @@ export class BookingService {
     this.runVoidMutation(
       bookingId,
       { status: 'Cancelled', cancellationReason: reason },
-      from(
-        this.supabase.rpc('cancel_booking', {
-          p_booking_id: bookingId,
-          p_reason: reason
-        })
-      ).pipe(map(({ data, error }) => {
-        return data;
-      }))
+      from(this.apiService.put('bookings/' + bookingId + '/cancel', { reason }).toPromise())
     );
   }
 
