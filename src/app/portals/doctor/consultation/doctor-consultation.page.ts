@@ -2,7 +2,7 @@ import { AsyncPipe, DatePipe, NgClass, NgFor, NgIf, NgStyle } from '@angular/com
 import { AfterViewChecked, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ModalController, ToastController } from '@ionic/angular/standalone';
-import { BehaviorSubject, Observable, combineLatest, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, firstValueFrom, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 import {
   Booking,
@@ -18,7 +18,7 @@ import {
 import { CreatePatientVaccinationRequest } from '../../../core/models/vaccination.models';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { BookingService, DoctorCompleteBookingRequest } from '../../../core/services/booking.service';
+import { DoctorCompleteBookingRequest } from '../../../core/services/booking.service';
 import { AuditLogService } from '../../admin/services/audit-log.service';
 import {
   MedicalRecordsService,
@@ -620,7 +620,6 @@ type ProgressSectionId =
 export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestroy {
   private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
-  private readonly bookingService = inject(BookingService);
   private readonly auditLogService = inject(AuditLogService);
   private readonly doctorService = inject(DoctorService);
   private readonly medicalRecords = inject(MedicalRecordsService);
@@ -719,7 +718,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
 
       this.currentClinicalRole = resolveClinicalRole(user);
 
-      return this.bookingService.getBookingById$(bookingId).pipe(
+      return this.loadBookingById$(bookingId).pipe(
         switchMap((booking) => {
           if (!booking) {
             return of(null);
@@ -1505,7 +1504,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
         return;
       }
 
-      await firstValueFrom(this.bookingService.updateConsultationRecord(vm.booking.id, payload));
+      await firstValueFrom(this.updateConsultationRecord$(vm.booking.id, payload));
       await this.queueCurrentDraft('draft');
       await this.offlineQueue.clear(vm.booking.id);
       this.lastSavedDraftSnapshot = this.createDraftSnapshot();
@@ -1582,9 +1581,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
 
     try {
       await this.offlineQueue.flush(this.currentVm.booking.id, async () => {
-        await firstValueFrom(
-          this.bookingService.updateConsultationRecord(this.currentVm!.booking.id, this.buildConsultationRecordUpdatePayload())
-        );
+        await firstValueFrom(this.updateConsultationRecord$(this.currentVm!.booking.id, this.buildConsultationRecordUpdatePayload()));
       });
       this.lastSavedDraftSnapshot = this.createDraftSnapshot();
       this.lastAutosaveAt = Date.now();
@@ -1677,7 +1674,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     this.isSubmittingComplete = true;
 
     try {
-      await firstValueFrom(this.bookingService.doctorCompleteBooking(booking.id, payload));
+      await firstValueFrom(this.completeConsultationBooking$(booking.id, payload));
 
       // Save pending vaccinations
       if (this.pendingVaccinations.length > 0) {
@@ -1768,7 +1765,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     this.isSavingAmendment = true;
 
     try {
-      await firstValueFrom(this.bookingService.updateConsultationRecord(vm.booking.id, payload));
+      await firstValueFrom(this.updateConsultationRecord$(vm.booking.id, payload));
       await this.recordConsultationAmendmentAuditLogs(vm, changedSections);
       this.clearLocalDraft(vm.booking.id);
       this.exitAmendMode(true);
@@ -2742,7 +2739,23 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   }
 
   private loadConsultationRecord$(booking: Booking): Observable<ConsultationRecordResponse | null> {
-    return this.bookingService.fetchConsultationRecordByBookingId(booking.id).pipe(catchError(() => of(null)));
+    return this.apiService.get<any>('bookings/' + booking.id + '/consultation-record').pipe(
+      map((data) => {
+        if (!data) {
+          return {
+            bookingId: booking.id,
+            patientId: booking.patientId ?? '',
+            doctorId: booking.doctorId ?? '',
+            bookingStatus: booking.status ?? 'CheckedIn',
+            diagnoses: [],
+            labOrders: []
+          } as ConsultationRecordResponse;
+        }
+
+        return mapConsultationRecordRow(data as Record<string, unknown>);
+      }),
+      catchError(() => of(null))
+    );
   }
 
   private loadVaccinations$(patientId: string): Observable<any[]> {
@@ -2754,6 +2767,62 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   private resolvePatient$(booking: Booking): Observable<Patient | undefined> {
     return this.patientState.getPatientById(booking.patientId).pipe(
       map((patient) => patient ?? buildFallbackPatient(booking))
+    );
+  }
+
+  private loadBookingById$(bookingId: string): Observable<Booking | undefined> {
+    if (!bookingId) {
+      return of(undefined);
+    }
+
+    return this.apiService.get<any>('bookings/' + bookingId).pipe(
+      map((data) => (data ? normalizeConsultationBookingRow(data as Record<string, unknown>) : undefined)),
+      catchError(() => of(undefined))
+    );
+  }
+
+  private updateConsultationRecord$(bookingId: string, dto: ConsultationRecordUpdateRequest): Observable<ConsultationRecordResponse> {
+    return this.apiService.post<any>('bookings/' + bookingId + '/consultation-record', dto).pipe(
+      switchMap(() => this.apiService.get<any>('bookings/' + bookingId + '/consultation-record')),
+      map((data) =>
+        data
+          ? mapConsultationRecordRow(data as Record<string, unknown>)
+          : ({
+              bookingId,
+              patientId: this.currentVm?.booking.patientId ?? '',
+              doctorId: this.currentVm?.booking.doctorId ?? '',
+              bookingStatus: this.currentVm?.booking.status ?? 'CheckedIn',
+              diagnoses: [],
+              labOrders: []
+            } as ConsultationRecordResponse)
+      ),
+      catchError((error: unknown) =>
+        throwError(() => new Error(extractApiErrorMessage(error, 'Failed to save consultation amendment.')))
+      )
+    );
+  }
+
+  private completeConsultationBooking$(bookingId: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
+    const completion$ = dto.isProfessionalFeeWaived
+      ? this.apiService.patch('bookings/' + bookingId + '/doctor-complete', dto).pipe(
+          switchMap(() =>
+            this.apiService.patch('payments/' + bookingId + '/waive', {
+              reason: dto.professionalFeeWaivedReason ?? 'Professional fee waived.'
+            })
+          )
+        )
+      : this.apiService.patch('bookings/' + bookingId + '/doctor-complete', dto);
+
+    return completion$.pipe(
+      switchMap(() => this.apiService.get<any>('bookings/' + bookingId)),
+      map((data) => {
+        const booking = data ? normalizeConsultationBookingRow(data as Record<string, unknown>) : undefined;
+        if (!booking) {
+          throw new Error('Consultation was saved, but the updated booking could not be loaded.');
+        }
+
+        return booking;
+      })
     );
   }
 
@@ -2999,6 +3068,288 @@ function buildFallbackPatient(booking: Booking): Patient {
 function normalizeString(value: NullableString): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function normalizeConsultationBookingRow(row: Record<string, unknown>): Booking | undefined {
+  const bookingId = trimOptionalString(row['booking_id']) ?? trimOptionalString(row['id']);
+  if (!bookingId) {
+    return undefined;
+  }
+
+  const serviceNames = normalizeStringArray(row['service_names']);
+  const services = normalizeConsultationBookingServices(row['services']);
+  const serviceIds = normalizeStringArray(row['service_ids']);
+  const derivedServiceNames = serviceNames.length > 0
+    ? serviceNames
+    : services
+        .map((service) => service.name)
+        .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  const derivedServiceIds = serviceIds.length > 0
+    ? serviceIds
+    : services.map((service) => service.id).filter((id) => id.trim().length > 0);
+  const serviceName = trimOptionalString(row['service_name']) ?? derivedServiceNames[0] ?? 'Service';
+  const serviceId = trimOptionalString(row['service_id']) ?? derivedServiceIds[0] ?? '';
+  const slotStartTime = normalizeTimeOnly(row['slot_start_time']);
+  const slotEndTime = normalizeTimeOnly(row['slot_end_time']) || slotStartTime;
+
+  return {
+    id: bookingId,
+    patientId: trimOptionalString(row['patient_id']) ?? '',
+    patientName: trimOptionalString(row['patient_name']) ?? undefined,
+    doctorId: trimOptionalString(row['doctor_id']) ?? '',
+    doctorName: trimOptionalString(row['doctor_name']) ?? undefined,
+    serviceId,
+    serviceIds: derivedServiceIds,
+    serviceName,
+    serviceNames: derivedServiceNames,
+    services,
+    appointmentDate: normalizeDateOnly(row['appointment_date']),
+    slotStartTime,
+    slotEndTime,
+    status: (trimOptionalString(row['booking_status']) ?? 'Pending') as Booking['status'],
+    paymentStatus: (trimOptionalString(row['payment_status']) ?? 'Unpaid') as Booking['paymentStatus'],
+    paymentMode: (trimOptionalString(row['payment_mode']) ?? 'PayAtClinic') as Booking['paymentMode'],
+    queueNumber: normalizeNullableNumber(row['queue_number']),
+    totalFee: normalizeNumber(row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amount_due']) ?? normalizeNullableNumber(row['final_amount']),
+    consultationFeeSnapshot: normalizeNumber(row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['is_walk_in'], false),
+    proofType: trimOptionalString(row['proof_type']) as Booking['proofType'],
+    proofValue: trimOptionalString(row['proof_value']),
+    proofSubmittedAt: trimOptionalString(row['proof_submitted_at']),
+    cancellationReason: trimOptionalString(row['cancellation_reason']),
+    notes: trimOptionalString(row['notes']),
+    rescheduledFromBookingId: trimOptionalString(row['rescheduled_from_booking_id']),
+    receiptUrl: trimOptionalString(row['receipt_url']),
+    createdAt: trimOptionalString(row['created_at']) ?? new Date().toISOString(),
+    orNumber: trimOptionalString(row['or_number']),
+    checkedInAt: trimOptionalString(row['checked_in_at']),
+    doctorCompletedAt: trimOptionalString(row['doctor_completed_at']),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: trimOptionalString(row['professional_fee_waived_reason'])
+  };
+}
+
+function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRecordResponse {
+  const diagnoses = extractArray(row['diagnoses'])
+    .filter(isRecord)
+    .map((item) => ({
+      id: trimOptionalString(item['id']),
+      diagnosisText: trimOptionalString(item['diagnosis_text']) ?? '',
+      diagnosisCode: trimOptionalString(item['diagnosis_code']),
+      isPrimary: normalizeBoolean(item['is_primary'], false),
+      notes: trimOptionalString(item['notes'])
+    }))
+    .filter((item) => item.diagnosisText.length > 0);
+
+  const prescriptions = extractArray(row['prescriptions']).filter(isRecord);
+  const firstPrescription = prescriptions[0];
+  const prescription = firstPrescription
+    ? {
+        id: trimOptionalString(firstPrescription['id']),
+        notes: trimOptionalString(firstPrescription['notes']),
+        items: extractArray(firstPrescription['items'])
+          .filter(isRecord)
+          .map((item) => ({
+            id: trimOptionalString(item['id']),
+            medicationName: trimOptionalString(item['medication_name']) ?? '',
+            strength: trimOptionalString(item['strength']),
+            dosage: trimOptionalString(item['dosage']),
+            route: trimOptionalString(item['route']),
+            frequency: trimOptionalString(item['frequency']),
+            duration: trimOptionalString(item['duration']),
+            quantity: trimOptionalString(item['quantity']),
+            instructions: trimOptionalString(item['instructions'])
+          }))
+          .filter((item) => item.medicationName.length > 0)
+      }
+    : null;
+
+  const labOrders = extractArray(row['lab_orders'])
+    .filter(isRecord)
+    .map((order) => ({
+      id: trimOptionalString(order['id']),
+      notes: trimOptionalString(order['notes']),
+      items: extractArray(order['items'])
+        .filter(isRecord)
+        .map((item) => ({
+          id: trimOptionalString(item['id']),
+          testName: trimOptionalString(item['test_name']) ?? '',
+          testCode: trimOptionalString(item['test_code']),
+          instructions: trimOptionalString(item['instructions'])
+        }))
+        .filter((item) => item.testName.length > 0)
+    }));
+
+  const followUpRows = extractArray(row['follow_ups']).filter(isRecord);
+  const firstFollowUp = followUpRows[0];
+
+  const soap = isRecord(row['soap_note'])
+    ? {
+        subjective: trimOptionalString(row['soap_note']['subjective']),
+        objective: trimOptionalString(row['soap_note']['objective']),
+        assessment: trimOptionalString(row['soap_note']['assessment']),
+        plan: trimOptionalString(row['soap_note']['plan'])
+      }
+    : null;
+
+  const vitalRows = extractArray(row['vital_signs']).filter(isRecord);
+  const latestVitals = vitalRows[0];
+
+  return {
+    bookingId: trimOptionalString(row['booking_id']) ?? '',
+    consultationId: trimOptionalString(row['consultation_id']),
+    patientId: trimOptionalString(row['patient_id']) ?? '',
+    doctorId: trimOptionalString(row['doctor_id']) ?? '',
+    bookingStatus: (trimOptionalString(row['booking_status']) ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
+    generalNotes: trimOptionalString(row['general_notes']),
+    vitalSigns: latestVitals
+      ? {
+          systolicBp: normalizeNullableNumber(latestVitals['systolic_bp']),
+          diastolicBp: normalizeNullableNumber(latestVitals['diastolic_bp']),
+          heartRate: normalizeNullableNumber(latestVitals['heart_rate']),
+          respiratoryRate: normalizeNullableNumber(latestVitals['respiratory_rate']),
+          temperature: normalizeNullableNumber(latestVitals['temperature_c']),
+          oxygenSaturation: normalizeNullableNumber(latestVitals['oxygen_saturation']),
+          weight: normalizeNullableNumber(latestVitals['weight_kg']),
+          height: normalizeNullableNumber(latestVitals['height_cm']),
+          bmi: normalizeNullableNumber(latestVitals['bmi']),
+          painScore: normalizeNullableNumber(latestVitals['pain_score']),
+          takenAt: trimOptionalString(latestVitals['taken_at'])
+        }
+      : null,
+    soap,
+    diagnoses,
+    prescription,
+    labOrders,
+    followUp: firstFollowUp
+      ? {
+          id: trimOptionalString(firstFollowUp['id']),
+          followUpDate: trimOptionalString(firstFollowUp['follow_up_date']),
+          instructions: trimOptionalString(firstFollowUp['instructions']),
+          reason: trimOptionalString(firstFollowUp['reason'])
+        }
+      : null
+  };
+}
+
+function normalizeConsultationBookingServices(value: unknown): Array<{ id: string; name: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const name = item.trim();
+        return name ? { id: '', name } : undefined;
+      }
+
+      if (!isRecord(item)) {
+        return undefined;
+      }
+
+      return {
+        id: trimOptionalString(item['id']) ?? trimOptionalString(item['serviceId']) ?? '',
+        name: trimOptionalString(item['serviceName']) ?? trimOptionalString(item['name']) ?? ''
+      };
+    })
+    .filter((item): item is { id: string; name: string } => Boolean(item && (item.id || item.name)));
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => trimOptionalString(item))
+    .filter((item): item is string => Boolean(item));
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return '';
+  }
+
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+function normalizeTimeOnly(value: unknown): string {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return '';
+  }
+
+  return raw.length >= 5 ? raw.slice(0, 5) : raw;
+}
+
+function normalizeBookingStatus(value: unknown): Booking['status'] {
+  return (trimOptionalString(value) ?? 'Pending') as Booking['status'];
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return fallback;
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function extractArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function parsePrescriptionQuantity(value: string | null | undefined): number {
