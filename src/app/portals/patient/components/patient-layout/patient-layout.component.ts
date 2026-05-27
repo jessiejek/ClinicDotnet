@@ -17,7 +17,6 @@ import { NavItem } from '../../../../core/models';
 import { ApiService } from '../../../../core/services/api.service';
 import { AuthStateService } from '../../../../core/services/auth-state.service';
 import { ClinicSettingsService } from '../../../../core/services/clinic-settings.service';
-import { PatientDocumentsService } from '../../../../core/services/patient-documents.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { TokenService } from '../../../../core/services/token.service';
 import { SidebarComponent } from '../../../admin/components/sidebar/sidebar.component';
@@ -93,7 +92,6 @@ export class PatientLayoutComponent implements OnInit {
   private readonly authState = inject(AuthStateService);
   private readonly apiService = inject(ApiService);
   private readonly notificationService = inject(NotificationService);
-  private readonly patientDocuments = inject(PatientDocumentsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
@@ -164,7 +162,7 @@ export class PatientLayoutComponent implements OnInit {
     }
 
     this.downloadingClinicalRecords = true;
-    this.patientDocuments.downloadAllClinicalRecordsPdf().subscribe({
+    this.apiService.getBlob('patient-documents/me/all.pdf').subscribe({
       next: (blob) => {
         this.saveBlob(blob, `clinical-records-${new Date().toISOString().slice(0, 10)}.pdf`);
         this.downloadingClinicalRecords = false;

@@ -7,11 +7,11 @@ import { createOutline, trashOutline } from 'ionicons/icons';
 import { catchError, finalize, forkJoin, map, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Doctor, DoctorSchedule } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { AdminDoctorsService } from '../services/admin-doctors.service';
 
 @Component({
   selector: 'app-admin-doctors-page',
@@ -184,7 +184,7 @@ import { AdminDoctorsService } from '../services/admin-doctors.service';
   styleUrl: './doctors.page.scss'
 })
 export class DoctorsPage implements OnInit {
-  private readonly adminDoctorsService = inject(AdminDoctorsService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
@@ -235,8 +235,8 @@ export class DoctorsPage implements OnInit {
 
     this.deleteOpen = false;
     this.busyDoctorIds.add(doctorId);
-    this.adminDoctorsService
-      .deactivateDoctor(doctorId)
+    this.apiService
+      .put(`doctors/${doctorId}`, { status: 'Inactive' })
       .pipe(
         finalize(() => {
           this.busyDoctorIds.delete(doctorId);
@@ -269,9 +269,10 @@ export class DoctorsPage implements OnInit {
   private loadDoctors(): void {
     this.isLoading = true;
 
-    this.adminDoctorsService
-      .getAllDoctors()
+    this.apiService
+      .get<any[]>('doctors/admin')
       .pipe(
+        map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorSummary)),
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to load doctors.'));
           return of([] as Doctor[]);
@@ -285,7 +286,8 @@ export class DoctorsPage implements OnInit {
 
           return forkJoin(
             doctors.map((doctor) =>
-              this.adminDoctorsService.getSchedule(doctor.id).pipe(
+              this.apiService.get<any[]>('doctors/' + doctor.id + '/schedule').pipe(
+                map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapScheduleRow)),
                 catchError((error: unknown) => {
                   void this.presentToast(
                     extractApiErrorMessage(error, `Failed to load schedule for ${doctor.fullName}.`)
@@ -316,6 +318,64 @@ export class DoctorsPage implements OnInit {
     });
     await toast.present();
   }
+}
+
+function mapDoctorSummary(dto: Record<string, unknown>): Doctor {
+  return {
+    id: resolveStr(dto, 'id') || '',
+    userId: resolveStr(dto, 'userId') || resolveStr(dto, 'id') || '',
+    fullName: resolveStr(dto, 'fullName') || 'Doctor',
+    specialization: resolveStr(dto, 'specialization') || '',
+    bio: resolveStr(dto, 'bio'),
+    profilePhotoUrl: resolveStr(dto, 'profilePhotoUrl'),
+    licenseNumber: resolveStr(dto, 'licenseNumber'),
+    ptrNumber: resolveStr(dto, 'ptrNumber'),
+    s2Number: resolveStr(dto, 's2Number'),
+    consultationFee: resolveNum(dto, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(dto, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(dto, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(dto, 'dailyPatientLimit') ?? null,
+    status: ['Active', 'Inactive', 'OnLeave'].includes(resolveStr(dto, 'status') || 'Active')
+      ? (resolveStr(dto, 'status') as Doctor['status'])
+      : 'Active',
+    averageRating: resolveNum(dto, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(dto, 'reviewCount') ?? undefined
+  };
+}
+
+function mapScheduleRow(dto: Record<string, unknown>): DoctorSchedule {
+  return {
+    id: resolveStr(dto, 'id') || '',
+    doctorId: resolveStr(dto, 'doctorId') || '',
+    dayOfWeek: (resolveStr(dto, 'dayOfWeek') || 'Monday') as DoctorSchedule['dayOfWeek'],
+    startTime: normalizeTime(resolveStr(dto, 'startTime')),
+    endTime: normalizeTime(resolveStr(dto, 'endTime'))
+  };
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const t = val.trim();
+  return t || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return undefined;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const p = parseFloat(val);
+    if (isFinite(p)) return p;
+  }
+  return undefined;
+}
+
+function normalizeTime(value: string | undefined): string {
+  const t = (value || '').trim();
+  return t.length >= 5 ? t.slice(0, 5) : t || '00:00';
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {

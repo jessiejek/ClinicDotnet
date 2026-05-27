@@ -19,8 +19,8 @@ import {
   downloadOutline,
   flaskOutline
 } from 'ionicons/icons';
+import { ApiService } from '../../../core/services/api.service';
 import { Booking, PatientDocument, PatientLabResult } from '../../../core/models';
-import { PatientDocumentsService } from '../../../core/services/patient-documents.service';
 import { SecureImageComponent } from '../secure-image/secure-image.component';
 
 type MediaKind = 'document' | 'lab-result';
@@ -298,7 +298,7 @@ export class PatientMediaPreviewModalComponent implements OnInit {
   @Input() patientId?: string;
 
   private readonly modalCtrl = inject(ModalController);
-  private readonly documentsService = inject(PatientDocumentsService);
+  private readonly apiService = inject(ApiService);
   private readonly downloading = new Set<string>();
 
   activeIndex = 0;
@@ -396,7 +396,13 @@ export class PatientMediaPreviewModalComponent implements OnInit {
     }
 
     this.downloading.add(item.id);
-    this.documentsService.downloadMediaFile(item, this.kind, this.patientId).subscribe({
+    const pid = this.patientId || 'me';
+    const endpoint =
+      this.kind === 'document'
+        ? `patients/${pid}/documents/${item.id}/file`
+        : `patients/${pid}/lab-results/${item.id}/file`;
+
+    this.apiService.getBlob(endpoint).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');

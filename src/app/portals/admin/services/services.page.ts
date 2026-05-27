@@ -8,7 +8,7 @@ import { ServiceCategory } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { AdminDoctorsService, DoctorSummary } from '../services/admin-doctors.service';
+import { DoctorSummary } from '../services/admin-doctors.service';
 import { ManagedService, ServiceWriteDto, mapServiceRow } from '../services/admin-services.service';
 
 @Component({
@@ -160,7 +160,6 @@ import { ManagedService, ServiceWriteDto, mapServiceRow } from '../services/admi
 })
 export class ServicesPage implements OnInit {
   private readonly apiService = inject(ApiService);
-  private readonly adminDoctorsService = inject(AdminDoctorsService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
   @ViewChild('serviceModal', { read: ElementRef }) private readonly serviceModal?: ElementRef<HTMLElement>;
@@ -313,7 +312,8 @@ export class ServicesPage implements OnInit {
           return of([] as ManagedService[]);
         })
       ),
-      doctors: this.adminDoctorsService.getAllDoctors().pipe(
+      doctors: this.apiService.get<any[]>('doctors/admin').pipe(
+        map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorSummary)),
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to load doctors.'));
           return of([] as DoctorSummary[]);
@@ -392,6 +392,47 @@ export class ServicesPage implements OnInit {
     });
     await toast.present();
   }
+}
+
+function mapDoctorSummary(dto: Record<string, unknown>): DoctorSummary {
+  return {
+    id: resolveStr(dto, 'id') || '',
+    userId: resolveStr(dto, 'userId') || resolveStr(dto, 'id') || '',
+    fullName: resolveStr(dto, 'fullName') || 'Doctor',
+    specialization: resolveStr(dto, 'specialization') || '',
+    bio: resolveStr(dto, 'bio'),
+    profilePhotoUrl: resolveStr(dto, 'profilePhotoUrl'),
+    licenseNumber: resolveStr(dto, 'licenseNumber'),
+    ptrNumber: resolveStr(dto, 'ptrNumber'),
+    s2Number: resolveStr(dto, 's2Number'),
+    consultationFee: resolveNum(dto, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(dto, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(dto, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(dto, 'dailyPatientLimit') ?? null,
+    status: (resolveStr(dto, 'status') || 'Active') as DoctorSummary['status'],
+    averageRating: resolveNum(dto, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(dto, 'reviewCount') ?? undefined
+  };
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const t = val.trim();
+  return t || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return undefined;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const p = parseFloat(val);
+    if (isFinite(p)) return p;
+  }
+  return undefined;
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {

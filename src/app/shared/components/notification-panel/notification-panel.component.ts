@@ -1,7 +1,6 @@
 import { DatePipe, NgFor, NgIf } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -11,9 +10,10 @@ import {
   notificationsOutline,
   refreshOutline
 } from 'ionicons/icons';
+import { catchError, map, of } from 'rxjs';
 import { Notification } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { NotificationService } from '../../../core/services/notification.service';
 
 @Component({
   selector: 'app-notification-panel',
@@ -67,13 +67,13 @@ import { NotificationService } from '../../../core/services/notification.service
   `,
   styleUrl: './notification-panel.component.scss'
 })
-export class NotificationPanelComponent {
+export class NotificationPanelComponent implements OnInit {
   private readonly authState = inject(AuthStateService);
-  private readonly notificationService = inject(NotificationService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
 
-  readonly notifications = toSignal(this.notificationService.currentUserNotifications$, { initialValue: [] });
-  readonly unreadCount = this.notificationService.unreadCount;
+  readonly notifications = signal<Notification[]>([]);
+  readonly unreadCount = computed(() => this.notifications().filter((notification) => !notification.isRead).length);
   readonly currentUser = this.authState.currentUser;
 
   constructor() {
@@ -84,6 +84,10 @@ export class NotificationPanelComponent {
       notificationsOutline,
       refreshOutline
     });
+  }
+
+  ngOnInit(): void {
+    this.loadNotifications();
   }
 
   latestNotifications(): Notification[] {
@@ -97,14 +101,28 @@ export class NotificationPanelComponent {
     if (!userId) {
       return;
     }
-    this.notificationService.markAllRead(userId);
+    this.apiService.put('notifications/read-all', {}).subscribe({
+      next: () => {
+        this.notifications.update((items) =>
+          items.map((notification) =>
+            notification.userId === userId ? { ...notification, isRead: true } : notification
+          )
+        );
+      }
+    });
   }
 
   openNotification(notification: Notification): void {
-    this.notificationService.markRead(notification.id);
-    if (notification.navigateTo) {
-      void this.router.navigateByUrl(notification.navigateTo);
-    }
+    this.apiService.put(`notifications/${notification.id}/read`, {}).subscribe({
+      next: () => {
+        this.notifications.update((items) =>
+          items.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item))
+        );
+        if (notification.navigateTo) {
+          void this.router.navigateByUrl(notification.navigateTo);
+        }
+      }
+    });
   }
 
   iconFor(notification: Notification): string {
@@ -140,4 +158,38 @@ export class NotificationPanelComponent {
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
   }
+
+  private loadNotifications(): void {
+    this.apiService
+      .get<NotificationDto[]>('notifications')
+      .pipe(
+        map((data) => (data ?? []).map(dtoToNotification)),
+        catchError(() => of([] as Notification[]))
+      )
+      .subscribe((items) => {
+        this.notifications.set(items.filter((notification) => notification.userId === this.currentUser()?.id));
+      });
+  }
+}
+
+interface NotificationDto {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  navigateTo?: string;
+}
+
+function dtoToNotification(dto: NotificationDto): Notification {
+  return {
+    id: dto.id,
+    userId: dto.userId,
+    title: dto.title,
+    message: dto.message,
+    isRead: dto.isRead,
+    createdAt: dto.createdAt,
+    navigateTo: dto.navigateTo
+  };
 }

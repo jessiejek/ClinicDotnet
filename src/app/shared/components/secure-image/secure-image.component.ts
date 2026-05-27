@@ -1,6 +1,6 @@
 import { Component, Input, OnChanges, OnDestroy, SimpleChanges, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PatientDocumentsService } from '../../../core/services/patient-documents.service';
+import { ApiService } from '../../../core/services/api.service';
 import { Subject, takeUntil, catchError, of } from 'rxjs';
 import { IonSpinner, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -95,7 +95,7 @@ export class SecureImageComponent implements OnChanges, OnDestroy {
   @Input() fit: 'cover' | 'contain' = 'cover';
   @Input() alt = 'Uploaded image';
 
-  private readonly documentsService = inject(PatientDocumentsService);
+  private readonly apiService = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
 
@@ -141,13 +141,13 @@ export class SecureImageComponent implements OnChanges, OnDestroy {
   private loadSource(): void {
     const request$ =
       this.mediaId && this.mediaKind
-        ? this.documentsService.downloadMediaFile(
-            { id: this.mediaId, fileUrl: this.src ?? undefined },
-            this.mediaKind,
-            this.patientId
+        ? this.apiService.getBlob(
+            this.mediaKind === 'document'
+              ? `patients/${this.patientId || 'me'}/documents/${this.mediaId}/file`
+              : `patients/${this.patientId || 'me'}/lab-results/${this.mediaId}/file`
           )
         : this.src?.trim()
-          ? this.documentsService.downloadFile(this.src)
+          ? this.apiService.getBlob(this.src)
           : null;
 
     if (!request$) {

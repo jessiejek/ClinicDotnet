@@ -25,7 +25,6 @@ import {
   Booking
 } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
-import { PatientDocumentsService } from '../../../core/services/patient-documents.service';
 import { SecureImageComponent } from '../secure-image/secure-image.component';
 import { PatientMediaPreviewModalComponent } from './patient-media-preview.modal';
 
@@ -193,7 +192,6 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
   /** When false (doctor view), show all patient uploads instead of filtering to one booking. */
   @Input() filterByBooking = true;
 
-  private readonly documentsService = inject(PatientDocumentsService);
   private readonly apiService = inject(ApiService);
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
@@ -494,9 +492,11 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
         description: normalizeOptionalString(values.notes)
       };
 
-      const upload$ = this.patientId
-        ? this.documentsService.uploadPatientDocument(this.patientId, request)
-        : this.documentsService.uploadMyDocument(request);
+      const endpoint = this.patientId
+        ? `patients/${this.patientId}/documents`
+        : 'patients/me/documents';
+      const formData = buildDocumentFormData(request);
+      const upload$ = this.apiService.postFormData<PatientDocument>(endpoint, formData);
 
       upload$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => this.finishUpload('Document uploaded successfully.'),
@@ -513,9 +513,11 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
       resultText: normalizeOptionalString(values.notes)
     };
 
-    const upload$ = this.patientId
-      ? this.documentsService.uploadPatientLabResult(this.patientId, request)
-      : this.documentsService.uploadMyLabResult(request);
+    const endpoint = this.patientId
+      ? `patients/${this.patientId}/lab-results`
+      : 'patients/me/lab-results';
+    const formData = buildLabResultFormData(request);
+    const upload$ = this.apiService.postFormData<PatientLabResult>(endpoint, formData);
 
     upload$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.finishUpload('Lab result uploaded successfully.'),
@@ -529,8 +531,12 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
     }
 
     this.downloading.add(item.id);
-    this.documentsService
-      .downloadMediaFile(item, this.kind, this.patientId || undefined)
+    const pid = this.patientId || 'me';
+    const download$ = this.kind === 'document'
+      ? this.apiService.getBlob(`patients/${pid}/documents/${item.id}/file`)
+      : this.apiService.getBlob(`patients/${pid}/lab-results/${item.id}/file`);
+
+    download$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: (blob) => {
@@ -601,9 +607,10 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
     const bookingFilter = this.activeBookingFilter;
 
     if (this.kind === 'document') {
-      const request$ = this.patientId
-        ? this.documentsService.getPatientDocuments(this.patientId, bookingFilter)
-        : this.documentsService.getMyDocuments(bookingFilter);
+      const endpoint = this.patientId
+        ? `patients/${this.patientId}/documents`
+        : 'patients/me/documents';
+      const request$ = this.apiService.get<PatientDocument[]>(bookingFilter ? `${endpoint}?bookingId=${bookingFilter}` : endpoint);
 
       request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (records: PatientDocument[]) => {
@@ -629,9 +636,10 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
       return;
     }
 
-    const request$ = this.patientId
-      ? this.documentsService.getPatientLabResults(this.patientId, bookingFilter)
-      : this.documentsService.getMyLabResults(bookingFilter);
+    const endpoint = this.patientId
+      ? `patients/${this.patientId}/lab-results`
+      : 'patients/me/lab-results';
+    const request$ = this.apiService.get<PatientLabResult[]>(bookingFilter ? `${endpoint}?bookingId=${bookingFilter}` : endpoint);
 
     request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (records: PatientLabResult[]) => {
@@ -783,6 +791,25 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
 function normalizeOptionalString(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function buildDocumentFormData(request: PatientDocumentUploadRequest): FormData {
+  const formData = new FormData();
+  formData.append('file', request.file);
+  if (request.bookingId) formData.append('bookingId', request.bookingId);
+  if (request.documentType) formData.append('documentType', request.documentType);
+  if (request.title) formData.append('title', request.title);
+  if (request.description) formData.append('description', request.description);
+  return formData;
+}
+
+function buildLabResultFormData(request: PatientLabResultUploadRequest): FormData {
+  const formData = new FormData();
+  formData.append('file', request.file);
+  if (request.bookingId) formData.append('bookingId', request.bookingId);
+  if (request.resultTitle) formData.append('resultTitle', request.resultTitle);
+  if (request.resultText) formData.append('resultText', request.resultText);
+  return formData;
 }
 
 function mapBookingRow(row: Record<string, unknown>): Booking | null {

@@ -6,6 +6,7 @@ import { IonSpinner, ToastController } from '@ionic/angular/standalone';
 import { catchError, finalize, forkJoin, map, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Doctor, DoctorSchedule, DayOfWeek } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import {
@@ -175,6 +176,7 @@ const DAY_NAMES: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 })
 export class DoctorFormPage implements OnInit {
   private readonly fb = inject(FormBuilder);
+  private readonly apiService = inject(ApiService);
   private readonly adminDoctorsService = inject(AdminDoctorsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -225,13 +227,15 @@ export class DoctorFormPage implements OnInit {
 
     this.isLoading = true;
     forkJoin({
-      doctors: this.adminDoctorsService.getAllDoctors().pipe(
+      doctors: this.apiService.get<any[]>('doctors/admin').pipe(
+        map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapDoctorSummary)),
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to load doctors.'));
           return of([] as DoctorSummary[]);
         })
       ),
-      schedules: this.adminDoctorsService.getSchedule(this.doctorId).pipe(
+      schedules: this.apiService.get<any[]>('doctors/' + this.doctorId + '/schedule').pipe(
+        map((data) => ((data ?? []) as Record<string, unknown>[]).map(mapScheduleRow)),
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to load doctor schedule.'));
           return of([] as DoctorSchedule[]);
@@ -305,16 +309,22 @@ export class DoctorFormPage implements OnInit {
         dailyPatientLimit: value.dailyPatientLimit ?? null
       };
 
-      this.adminDoctorsService.updateDoctor(this.doctorId, updatePayload)
-        .pipe(
-          switchMap((savedDoctor) =>
-            this.adminDoctorsService.updateSchedule(savedDoctor.id, schedulesPayload).pipe(map(() => savedDoctor))
-          ),
-          finalize(() => {
-            this.isSaving = false;
-          }),
-          takeUntilDestroyed(this.destroyRef)
-        )
+      this.apiService.put(`doctors/${this.doctorId}`, updatePayload).pipe(
+        map((data) => mapDoctorSummary((data ?? {}) as Record<string, unknown>)),
+        switchMap((savedDoctor) =>
+          this.apiService.put<any[]>('doctors/' + savedDoctor.id + '/schedule', {
+            schedules: schedulesPayload.schedules.map((s) => ({
+              dayOfWeek: s.dayOfWeek,
+              startTime: s.startTime,
+              endTime: s.endTime
+            }))
+          }).pipe(map(() => savedDoctor))
+        ),
+        finalize(() => {
+          this.isSaving = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
         .subscribe({
           next: async () => {
             await this.presentToast('Doctor updated successfully.', 'success');
@@ -381,7 +391,7 @@ export class DoctorFormPage implements OnInit {
     }
   }
 
-    cancel(): void {
+  cancel(): void {
     void this.router.navigate(['/admin/doctors']);
   }
 
@@ -418,6 +428,71 @@ export class DoctorFormPage implements OnInit {
     });
     await toast.present();
   }
+}
+
+function mapDoctorSummary(dto: Record<string, unknown>): DoctorSummary {
+  const status = resolveStr(dto, 'status') || 'Active';
+
+  return {
+    id: resolveStr(dto, 'id') || '',
+    userId: resolveStr(dto, 'userId') || resolveStr(dto, 'id') || '',
+    fullName: resolveStr(dto, 'fullName') || 'Doctor',
+    specialization: resolveStr(dto, 'specialization') || '',
+    bio: resolveStr(dto, 'bio'),
+    profilePhotoUrl: resolveStr(dto, 'profilePhotoUrl'),
+    licenseNumber: resolveStr(dto, 'licenseNumber'),
+    ptrNumber: resolveStr(dto, 'ptrNumber'),
+    s2Number: resolveStr(dto, 's2Number'),
+    consultationFee: resolveNum(dto, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(dto, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(dto, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(dto, 'dailyPatientLimit') ?? null,
+    status: ['Active', 'Inactive', 'OnLeave'].includes(status) ? (status as Doctor['status']) : 'Active',
+    averageRating: resolveNum(dto, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(dto, 'reviewCount') ?? undefined
+  };
+}
+
+function mapScheduleRow(dto: Record<string, unknown>): DoctorSchedule {
+  return {
+    id: resolveStr(dto, 'id') || '',
+    doctorId: resolveStr(dto, 'doctorId') || '',
+    dayOfWeek: normalizeDayOfWeek(resolveStr(dto, 'dayOfWeek')),
+    startTime: normalizeTime(resolveStr(dto, 'startTime')),
+    endTime: normalizeTime(resolveStr(dto, 'endTime'))
+  };
+}
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (typeof val !== 'string') return undefined;
+  const t = val.trim();
+  return t || undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | undefined {
+  const snake = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const val = row[key] ?? row[snake];
+  if (val === null || val === undefined) return undefined;
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const p = parseFloat(val);
+    if (isFinite(p)) return p;
+  }
+  return undefined;
+}
+
+function normalizeDayOfWeek(value: string | undefined): DayOfWeek {
+  const allowed: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  if (!value) return 'Monday';
+  const n = value.trim().toLowerCase();
+  return allowed.find((a) => a.toLowerCase() === n) ?? 'Monday';
+}
+
+function normalizeTime(value: string | undefined): string {
+  const t = (value || '').trim();
+  return t.length >= 5 ? t.slice(0, 5) : t || '00:00';
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {

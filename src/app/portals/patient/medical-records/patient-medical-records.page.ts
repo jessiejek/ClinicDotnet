@@ -3,7 +3,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { IonSearchbar, IonSpinner, ToastController } from '@ionic/angular/standalone';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PatientMedicalRecord } from '../../../core/models';
-import { PatientDocumentsService } from '../../../core/services/patient-documents.service';
+import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-patient-medical-records-page',
@@ -132,7 +132,7 @@ import { PatientDocumentsService } from '../../../core/services/patient-document
   styleUrl: './patient-medical-records.page.scss'
 })
 export class PatientMedicalRecordsPage implements OnInit {
-  private readonly documents = inject(PatientDocumentsService);
+  private readonly apiService = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
 
   records: PatientMedicalRecord[] = [];
@@ -152,7 +152,7 @@ export class PatientMedicalRecordsPage implements OnInit {
     this.loading = true;
     this.error = '';
 
-    this.documents.getMyMedicalRecords().subscribe({
+    this.apiService.get<any[]>('medical-records/me').subscribe({
       next: (records) => {
         this.records = records;
         this.applyFilter();
@@ -179,7 +179,7 @@ export class PatientMedicalRecordsPage implements OnInit {
     }
 
     this.downloading.add(record.id);
-    this.documents.downloadMedicalRecordPdf(record.id).subscribe({
+    this.apiService.getBlob(`patient-documents/me/medical-records/${record.id}/pdf`).subscribe({
       next: (blob) => {
         this.saveBlob(blob, `medical-record-${record.appointmentDate}-${record.id}.pdf`);
         this.downloading.delete(record.id);
@@ -197,7 +197,7 @@ export class PatientMedicalRecordsPage implements OnInit {
     }
 
     this.downloadingSummary.add(record.bookingId);
-    this.documents.downloadConsultationSummaryPdf(record.bookingId).subscribe({
+    this.apiService.getBlob(`patient-documents/me/bookings/${record.bookingId}/pdf`).subscribe({
       next: (blob) => {
         this.saveBlob(blob, `consultation-summary-${record.appointmentDate}-${record.bookingId}.pdf`);
         this.downloadingSummary.delete(record.bookingId);
@@ -210,7 +210,7 @@ export class PatientMedicalRecordsPage implements OnInit {
   }
 
   downloadAllRecords(): void {
-    this.documents.downloadAllClinicalRecordsPdf().subscribe({
+    this.apiService.getBlob('patient-documents/me/all.pdf').subscribe({
       next: (blob) => this.saveBlob(blob, `clinical-records-${new Date().toISOString().slice(0, 10)}.pdf`),
       error: (error) => void this.showToast(extractMessage(error, 'Document not available yet.'))
     });
