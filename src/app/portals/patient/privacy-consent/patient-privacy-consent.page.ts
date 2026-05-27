@@ -7,8 +7,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, of } from 'rxjs';
 import { AuthUser, ClinicSettings, Patient } from '../../../core/models';
 import { AuthStateService } from '../../../core/services/auth-state.service';
+import { ApiService } from '../../../core/services/api.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
-import { PatientService } from '../services/patient.service';
 
 @Component({
   selector: 'app-patient-privacy-consent-page',
@@ -48,7 +48,7 @@ import { PatientService } from '../services/patient.service';
 export class PatientPrivacyConsentPage implements OnInit {
   private readonly authState = inject(AuthStateService);
   private readonly router = inject(Router);
-  private readonly patientService = inject(PatientService);
+  private readonly apiService = inject(ApiService);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
@@ -66,8 +66,8 @@ export class PatientPrivacyConsentPage implements OnInit {
       .subscribe((user) => {
       this.currentUser = user;
       if (user) {
-        this.patientService
-          .getMyProfile()
+        this.apiService
+          .get<any>('patients/me')
           .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
           .subscribe((patient) => {
             this.currentPatient = patient ?? null;
@@ -81,8 +81,8 @@ export class PatientPrivacyConsentPage implements OnInit {
       return;
     }
 
-    this.patientService
-      .submitConsent(this.settings.consentVersion)
+    this.apiService
+      .post<any>('patients/me/consent', { consentVersion: this.settings.consentVersion })
       .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
       .subscribe(async (updated) => {
         if (!updated) {

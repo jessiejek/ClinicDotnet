@@ -9,7 +9,6 @@ import { BookingService } from '../../../core/services/booking.service';
 import { ApiService } from '../../../core/services/api.service';
 import { ReviewFormComponent } from '../components/review-form/review-form.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
-import { PatientService } from '../services/patient.service';
 
 @Component({
   selector: 'app-patient-reviews-page',
@@ -60,7 +59,6 @@ export class PatientReviewsPage implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
-  private readonly patientService = inject(PatientService);
   private readonly destroyRef = inject(DestroyRef);
 
   booking: Booking | null = null;
@@ -72,7 +70,7 @@ export class PatientReviewsPage implements OnInit {
   ngOnInit(): void {
     const bookingId = this.route.snapshot.paramMap.get('bookingId') ?? '';
     combineLatest([
-      this.patientService.getMyProfile().pipe(catchError(() => of(undefined))),
+      this.api.get<any>('patients/me').pipe(catchError(() => of(undefined))),
       this.bookingService.getBookingById$(bookingId)
     ])
       .pipe(takeUntilDestroyed(this.destroyRef))

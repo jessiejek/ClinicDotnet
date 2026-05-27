@@ -11,7 +11,6 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
 import { ReceiptModalComponent } from '../../../shared/components/receipt-modal/receipt-modal.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { BookingTimelineComponent } from '../components/booking-timeline/booking-timeline.component';
-import { PatientService } from '../services/patient.service';
 
 @Component({
   selector: 'app-patient-booking-detail-page',
@@ -162,7 +161,6 @@ export class PatientBookingDetailPage implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly toastCtrl = inject(ToastController);
-  private readonly patientService = inject(PatientService);
 
   receiptModalOpen = false;
   receiptData: ReceiptData | null = null;
@@ -274,7 +272,7 @@ export class PatientBookingDetailPage implements OnInit {
         switchMap((params) => {
           const bookingId = params.get('id') ?? '';
           return combineLatest([
-            this.patientService.getMyProfile().pipe(catchError(() => of(undefined))),
+            this.apiService.get<any>('patients/me').pipe(catchError(() => of(undefined))),
             this.apiService.get<any>('bookings/' + bookingId).pipe(map((row) => normalizeBookingRow(row)))
           ]);
         }),

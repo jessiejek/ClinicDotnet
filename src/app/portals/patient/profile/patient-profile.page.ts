@@ -24,7 +24,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthUser, Patient, UpdatePatientRequest } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { PatientService } from '../services/patient.service';
 import {
   getPasswordStrength,
   passwordStrengthValidator
@@ -348,7 +347,6 @@ interface NameParts {
 export class PatientProfilePage implements OnInit {
   private readonly authState = inject(AuthStateService);
   private readonly apiService = inject(ApiService);
-  private readonly patientService = inject(PatientService);
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
@@ -470,8 +468,8 @@ export class PatientProfilePage implements OnInit {
     };
 
     this.savingProfile = true;
-    this.patientService
-      .updateMyProfile(payload)
+    this.apiService
+      .put<any>('patients/me', payload)
       .pipe(
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to update profile.'), 'danger');
@@ -541,8 +539,8 @@ export class PatientProfilePage implements OnInit {
     }
 
     this.consentSubmitting = true;
-    this.patientService
-      .submitConsent(this.consentVersion)
+    this.apiService
+      .post<any>('patients/me/consent', { consentVersion: this.consentVersion })
       .pipe(
         catchError((error: unknown) => {
           void this.presentToast(extractApiErrorMessage(error, 'Failed to submit consent.'), 'danger');
@@ -569,8 +567,8 @@ export class PatientProfilePage implements OnInit {
     this.isLoadingProfile = true;
     this.loadError = null;
 
-    this.patientService
-      .getMyProfile()
+    this.apiService
+      .get<any>('patients/me')
       .pipe(
         catchError((error: unknown) => {
           this.loadError = extractApiErrorMessage(error, 'The patient profile could not be loaded.');

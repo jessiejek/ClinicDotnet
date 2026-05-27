@@ -15,7 +15,6 @@ import { MedicalRecordsService } from '../../../core/services/medical-records.se
 import { BannerComponent } from '../../../shared/components/banner/banner.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { DoctorCardComponent } from '../../public/components/doctor-card/doctor-card.component';
-import { PatientService } from '../services/patient.service';
 import { MedicalRecordCardComponent } from '../components/medical-record-card/medical-record-card.component';
 import { PrescriptionCardComponent } from '../components/prescription-card/prescription-card.component';
 import { UpcomingAppointmentCardComponent } from '../components/upcoming-appointment-card/upcoming-appointment-card.component';
@@ -224,12 +223,11 @@ export class PatientDashboardPage implements OnInit {
   private readonly doctorState = inject(DoctorStateService);
   private readonly medicalRecords = inject(MedicalRecordsService);
   private readonly router = inject(Router);
-  private readonly patientService = inject(PatientService);
 
   readonly currentUser$ = this.authState.currentUser$;
   readonly patient$ = this.currentUser$.pipe(
     switchMap((user) =>
-      user ? this.patientService.getMyProfile().pipe(catchError(() => of(undefined))) : of(undefined)
+      user ? this.apiService.get<any>('patients/me').pipe(catchError(() => of(undefined))) : of(undefined)
     )
   );
 
