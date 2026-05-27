@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { ApiService } from '../../../core/services/api.service';
 import {
   IonButton,
   IonButtons,
@@ -13,6 +14,7 @@ import {
   IonToolbar,
   ToastController
 } from '@ionic/angular/standalone';
+import { catchError, map, of, switchMap, throwError } from 'rxjs';
 import { Booking } from '../../../core/models';
 import {
   BookingService,
@@ -277,6 +279,7 @@ type DoctorQueueFilter = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSh
   styleUrl: './doctor-appointments.page.scss'
 })
 export class DoctorAppointmentsPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
   private readonly router = inject(Router);
@@ -362,15 +365,40 @@ export class DoctorAppointmentsPage implements OnInit {
 
   loadSummary(): void {
     this.isLoading = true;
-    this.bookingService.getDoctorTodaySummary().subscribe({
+    this.apiService.get<any[]>('bookings/doctor/today').pipe(
+      switchMap((todayData) => {
+        const queue = ((todayData ?? []) as Record<string, unknown>[])
+          .map((row) => normalizeQueueBooking(row))
+          .filter((booking): booking is Booking => Boolean(booking));
+
+        return this.apiService.get<any>('bookings/doctor/today-summary').pipe(
+          map((summaryResponse) => {
+            const row = (summaryResponse ?? {}) as Record<string, unknown>;
+            return {
+              bookedToday: normalizeNumber(row['today_total'], queue.length),
+              checkedIn: normalizeNumber(row['checked_in_count']),
+              waiting: normalizeNumber(row['checked_in_count']) + normalizeNumber(row['in_progress_count']),
+              completed: normalizeNumber(row['completed_count']),
+              noShow: normalizeNumber(row['no_show_count']),
+              cancelled: 0,
+              items: queue
+            } as DoctorTodaySummary;
+          })
+        );
+      }),
+      catchError((error: unknown) =>
+        throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load today summary from API.')))
+      )
+    ).subscribe({
       next: (summary) => {
         this.summary = summary;
-        this.isLoading = false;
       },
       error: async (error) => {
         this.summary = null;
-        this.isLoading = false;
         await this.presentToast(extractApiErrorMessage(error, 'Failed to load today summary.'), 'danger');
+      },
+      complete: () => {
+        this.isLoading = false;
       }
     });
   }
@@ -501,6 +529,131 @@ function timeRangeLabel(booking: Booking): string {
   }
 
   return `${start} - ${end}`;
+}
+
+function normalizeQueueBooking(row: Record<string, unknown>): Booking | undefined {
+  const id = trimOptionalString(row['id'] ?? row['booking_id'] ?? row['bookingId']);
+  if (!id) {
+    return undefined;
+  }
+
+  const appointmentDate = trimOptionalString(row['appointmentDate'] ?? row['appointment_date']) ?? '';
+  const slotStartTime = trimOptionalString(row['slotStartTime'] ?? row['slot_start_time']) ?? '';
+  const slotEndTime = trimOptionalString(row['slotEndTime'] ?? row['slot_end_time']) ?? slotStartTime;
+
+  return {
+    id,
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
+    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
+    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+    serviceId: trimOptionalString(row['serviceId'] ?? row['service_id']) ?? '',
+    serviceName: trimOptionalString(row['serviceName'] ?? row['service_name']),
+    serviceNames: normalizeTextArray(row['serviceNames'] ?? row['service_names']),
+    services: normalizeServices(row['services']),
+    appointmentDate,
+    slotStartTime,
+    slotEndTime,
+    status: (trimOptionalString(row['status']) as Booking['status']) ?? 'Pending',
+    paymentStatus: (trimOptionalString(row['paymentStatus'] ?? row['payment_status']) as Booking['paymentStatus']) ?? 'Unpaid',
+    paymentMode: (trimOptionalString(row['paymentMode'] ?? row['payment_mode']) as Booking['paymentMode']) ?? 'PayAtClinic',
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in']),
+    createdAt: trimOptionalString(row['createdAt'] ?? row['created_at']) ?? new Date().toISOString(),
+    finalAmount: normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amountDue'] ?? row['amount_due']),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: trimOptionalString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason'])
+  };
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (value == null) {
+    return undefined;
+  }
+
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function normalizeTextArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const items = value.map((entry) => trimOptionalString(entry)).filter((entry): entry is string => Boolean(entry));
+  return items.length > 0 ? items : undefined;
+}
+
+function normalizeServices(value: unknown): Booking['services'] {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const row = entry as Record<string, unknown>;
+      const id = trimOptionalString(row['id'] ?? row['service_id']);
+      const name = trimOptionalString(row['name'] ?? row['service_name']);
+      return id && name ? { id, name } : null;
+    })
+    .filter((entry): entry is NonNullable<Booking['services']>[number] => Boolean(entry));
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  const text = trimOptionalString(value);
+  if (!text) {
+    return fallback;
+  }
+
+  const num = Number(text);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  const text = trimOptionalString(value);
+  if (!text) {
+    return null;
+  }
+
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  const text = trimOptionalString(value);
+  if (!text) {
+    return false;
+  }
+
+  return text.toLowerCase() === 'true' || text === '1';
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  if (value == null) {
+    return undefined;
+  }
+
+  return normalizeBoolean(value);
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {

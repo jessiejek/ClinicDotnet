@@ -2,7 +2,9 @@ import { DecimalPipe, DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, map, throwError } from 'rxjs';
 import { ToastController } from '@ionic/angular/standalone';
+import { ApiService } from '../../../core/services/api.service';
 import {
   BookingService,
   ConfirmPaymentRequest,
@@ -225,6 +227,7 @@ interface CollectPaymentMethodOption {
   styleUrl: './staff-payments.page.scss'
 })
 export class StaffPaymentsPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly toastCtrl = inject(ToastController);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
@@ -461,7 +464,19 @@ export class StaffPaymentsPage implements OnInit {
 
   private loadQueue(): void {
     this.isLoading = true;
-    this.bookingService.getStaffForPayment(this.currentPage, this.pageSize).subscribe({
+    const safePageSize = Math.max(1, this.pageSize);
+    this.apiService.get<any>('bookings/staff/for-payment?page=' + this.currentPage + '&pageSize=' + safePageSize).pipe(
+      map((data: any) => {
+        const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+        const items = rows
+          .map((row) => normalizeStaffForPaymentViewRow(row))
+          .filter((item): item is StaffForPaymentItem => Boolean(item));
+        return { items, totalCount: data?.totalCount ?? items.length, page: this.currentPage, pageSize: safePageSize };
+      }),
+      catchError((error: unknown) =>
+        throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load payment queue from API.')))
+      )
+    ).subscribe({
       next: (result: PagedResult<StaffForPaymentItem>) => {
         this.items = result.items;
         this.currentPage = result.page;
@@ -505,6 +520,71 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffForPaymentItem | undefined {
+  const bookingId = trimOptionalString(row['booking_id'] ?? row['bookingId']) ?? '';
+  const paymentId = trimOptionalString(row['payment_id'] ?? row['paymentId']) ?? bookingId;
+  const patientName = trimOptionalString(row['patient_name'] ?? row['patientName']) ?? 'Patient';
+  const doctorName = trimOptionalString(row['doctor_name'] ?? row['doctorName']) ?? 'Doctor';
+  const services = normalizeTextArray(row['services'] ?? row['service_names'] ?? row['serviceNames']);
+  const appointmentDate = trimOptionalString(row['appointment_date'] ?? row['appointmentDate']) ?? '';
+  const slotStartTime = trimOptionalString(row['slot_start_time'] ?? row['slotStartTime']) ?? '';
+  const status = trimOptionalString(row['booking_status'] ?? row['status']) ?? 'Completed';
+  const paymentStatus = trimOptionalString(row['payment_status'] ?? row['paymentStatus']) ?? 'Unpaid';
+
+  if (!bookingId) {
+    return undefined;
+  }
+
+  return {
+    bookingId,
+    paymentId,
+    patientName,
+    doctorName,
+    services,
+    appointmentDate,
+    slotStartTime,
+    queueNumber: normalizeNullableNumber(row['queue_number'] ?? row['queueNumber']),
+    amountDue: normalizeNumber(row['final_amount'] ?? row['finalAmount']),
+    doctorCompletedAt: trimOptionalString(row['doctor_completed_at'] ?? row['doctorCompletedAt']),
+    paymentStatus: paymentStatus as StaffForPaymentItem['paymentStatus'],
+    status: status as StaffForPaymentItem['status']
+  };
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (value == null) {
+    return undefined;
+  }
+
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  const text = trimOptionalString(value);
+  if (!text) {
+    return fallback;
+  }
+
+  const num = Number(text);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  const text = trimOptionalString(value);
+  if (!text) {
+    return null;
+  }
+
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
 }
 
 function trimText(value: unknown): string {

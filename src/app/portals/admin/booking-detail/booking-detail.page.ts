@@ -223,7 +223,7 @@ interface PatientDetails {
 })
 export class BookingDetailPage extends BaseComponent implements OnInit {
   private readonly bookingService = inject(BookingService);
-  private readonly api = inject(ApiService);
+  private readonly apiService = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly localToastCtrl = inject(ToastController);
@@ -272,7 +272,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
 
   private async loadPatientDetails(patientId: string): Promise<void> {
     try {
-      const data: any = await firstValueFrom(this.api.get('patients/' + patientId));
+      const data: any = await firstValueFrom(this.apiService.get('patients/' + patientId));
 
       if (data) {
         this.patientDetails = {
@@ -373,7 +373,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
           await this.recordAuditLog(bookingId, 'Confirmed booking', currentUserId, reason);
           break;
         case 'reject':
-          await this.bookingService.cancelBooking(bookingId, reason || 'Rejected by admin');
+          await firstValueFrom(this.apiService.patch('bookings/' + bookingId + '/cancel', { reason: reason || 'Rejected by admin' }));
           await this.recordAuditLog(bookingId, 'Rejected booking', currentUserId, reason);
           break;
         case 'confirm-payment':
@@ -389,7 +389,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
           await this.recordAuditLog(bookingId, 'Marked no-show', currentUserId, reason);
           break;
         case 'cancel':
-          await this.bookingService.cancelBooking(bookingId, reason || 'Cancelled by admin');
+          await firstValueFrom(this.apiService.patch('bookings/' + bookingId + '/cancel', { reason: reason || 'Cancelled by admin' }));
           await this.recordAuditLog(bookingId, 'Cancelled booking', currentUserId, reason);
           break;
       }
@@ -411,7 +411,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
     details?: string
   ): Promise<void> {
     try {
-      await firstValueFrom(this.api.post('audit-logs', { entityType: 'Booking', entityId, action, performedBy, details }));
+      await firstValueFrom(this.apiService.post('audit-logs', { entityType: 'Booking', entityId, action, performedBy, details }));
     } catch (err: any) {
       console.warn('Failed to record audit log:', err?.message);
     }
@@ -429,7 +429,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
     this.waiveModalOpen = false;
     this.isLoading = true;
     try {
-      await firstValueFrom(this.api.put('bookings/' + bookingId + '/waive', { reason }));
+      await firstValueFrom(this.apiService.put('bookings/' + bookingId + '/waive', { reason }));
 
       await this.recordAuditLog(
         bookingId,
@@ -450,7 +450,7 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
     this.refundModalOpen = false;
     this.isLoading = true;
     try {
-      await firstValueFrom(this.api.put('bookings/' + bookingId + '/refund', { reason }));
+      await firstValueFrom(this.apiService.put('bookings/' + bookingId + '/refund', { reason }));
 
       await this.recordAuditLog(
         bookingId,

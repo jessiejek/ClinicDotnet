@@ -5,6 +5,7 @@ import { ToastController, IonIcon } from '@ionic/angular/standalone';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, combineLatest, firstValueFrom, of, switchMap } from 'rxjs';
 import { Booking, ReceiptData } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -157,6 +158,7 @@ import { PatientService } from '../services/patient.service';
   styleUrl: './patient-booking-detail.page.scss'
 })
 export class PatientBookingDetailPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -303,7 +305,7 @@ export class PatientBookingDetailPage implements OnInit {
       return;
     }
 
-    this.bookingService.cancelBooking(this.booking.id, 'Cancelled by patient.');
+    void firstValueFrom(this.apiService.patch('bookings/' + this.booking.id + '/cancel', { reason: 'Cancelled by patient.' }));
     this.booking = {
       ...this.booking,
       status: 'Cancelled',

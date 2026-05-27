@@ -3,7 +3,9 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { Booking } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService, MyBookingsPageResult } from '../../../core/services/booking.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
@@ -150,6 +152,7 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
   styleUrl: './patient-bookings.page.scss'
 })
 export class PatientBookingsPage implements OnInit {
+  private readonly apiService = inject(ApiService);
   private readonly bookingService = inject(BookingService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -296,7 +299,7 @@ export class PatientBookingsPage implements OnInit {
       return;
     }
 
-    this.bookingService.cancelBooking(this.bookingToCancel.id, 'Cancelled by patient.');
+    void firstValueFrom(this.apiService.patch('bookings/' + this.bookingToCancel.id + '/cancel', { reason: 'Cancelled by patient.' }));
     this.bookings = this.bookings.map((booking) =>
       booking.id === this.bookingToCancel?.id
         ? { ...booking, status: 'Cancelled', cancellationReason: 'Cancelled by patient.' }
