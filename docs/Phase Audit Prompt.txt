@@ -1,0 +1,19 @@
+Scan my entire codebase and find every HTTP/API call currently being made.
+
+For each one, identify:
+- Which file/component it is in
+- The HTTP method (GET, POST, PUT, PATCH, DELETE)
+- The endpoint string being called
+- How it is currently calling the API (raw HttpClient, a service, etc.)
+
+Then organize everything into a phased checklist like this:
+
+Phase 1 - [Feature Name]
+  [ ] ComponentName — POST "endpoint/here"
+  [ ] ComponentName — GET "endpoint/here"
+
+Phase 2 - [Feature Name]
+  [ ] ...
+
+Group by feature or module, not by file.
+Do not refactor anything yet. Just audit and list.

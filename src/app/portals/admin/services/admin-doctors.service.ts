@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
+import { SupabaseService } from '../../../core/services/supabase.service';
 import { Observable, from, map, switchMap, take } from 'rxjs';
 import { AuthStateService } from '../../../core/services/auth-state.service';
-import { SupabaseService } from '../../../core/services/supabase.service';
 import {
   DayOfWeek,
   Doctor,
@@ -139,7 +139,7 @@ export interface CreateDoctorInviteDto {
 @Injectable({ providedIn: 'root' })
 export class AdminDoctorsService {
   private readonly supabase = inject(SupabaseService).client;
-  private readonly authState = inject(AuthStateService);
+    private readonly authState = inject(AuthStateService);
 
   getAllDoctors(): Observable<DoctorSummary[]> {
     return from(this.fetchAllDoctors());

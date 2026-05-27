@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { SupabaseService } from './supabase.service';
 import { Observable, catchError, forkJoin, from, map, of, throwError } from 'rxjs';
 import {
   Allergy,
@@ -11,7 +12,6 @@ import {
   PrescriptionItem,
   VitalSigns
 } from '../models';
-import { SupabaseService } from './supabase.service';
 
 export interface MedicalRecordsState {
   consultations: Consultation[];
@@ -83,7 +83,7 @@ export interface LabRequestUpsertRequest {
 @Injectable({ providedIn: 'root' })
 export class MedicalRecordsService {
   private readonly supabase = inject(SupabaseService).client;
-
+  
   // ================================================================
   // CONSULTATION CRUD — NOT IMPLEMENTED
   // These methods were previously wired to .NET API endpoints.

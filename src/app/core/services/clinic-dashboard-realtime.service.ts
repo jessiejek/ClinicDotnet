@@ -1,9 +1,9 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
+import { SupabaseService } from './supabase.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { Observable, Subject } from 'rxjs';
 import { AuthStateService } from './auth-state.service';
-import { SupabaseService } from './supabase.service';
 
 // ── Event types — same interface consumers expect ──
 
@@ -33,9 +33,9 @@ export interface ClinicDashboardEvent {
 
 @Injectable({ providedIn: 'root' })
 export class ClinicDashboardRealtimeService {
-  private readonly authState = inject(AuthStateService);
   private readonly supabase = inject(SupabaseService);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly authState = inject(AuthStateService);
+    private readonly destroyRef = inject(DestroyRef);
   private readonly eventsSubject = new Subject<ClinicDashboardEvent>();
 
   private channels: RealtimeChannel[] = [];

@@ -1,0 +1,96 @@
+Create `src/app/core/services/api.service.ts` — a single centralized Angular service that handles all HTTP communication with the backend.
+
+Architecture: Page/Component → ApiService → Backend
+
+---
+
+Rules:
+- HttpClient is used ONLY inside ApiService — never in pages/components.
+- No feature services (AuthService, DoctorService, etc.).
+- No ApiEndpoints file — endpoint strings stay in the caller so the API being called is always visible.
+- Auth headers go in an HttpInterceptor, not in ApiService.
+- No NgRx or complex state management.
+- Use environment.apiUrl as the base URL; prevent double slashes when joining.
+
+---
+
+Methods to implement:
+
+// JSON
+get<T>(endpoint: string, params?: any): Observable<T>
+post<T>(endpoint: string, payload?: any): Observable<T>
+put<T>(endpoint: string, payload?: any): Observable<T>
+patch<T>(endpoint: string, payload?: any): Observable<T>
+delete<T>(endpoint: string): Observable<T>
+
+// Blob download (body only)
+getBlob(endpoint: string, params?: any): Observable<Blob>
+postBlob(endpoint: string, payload?: any): Observable<Blob>
+
+// Blob download with headers (e.g. Content-Disposition filename)
+getBlobResponse(endpoint: string, params?: any): Observable<HttpResponse<Blob>>
+postBlobResponse(endpoint: string, payload?: any): Observable<HttpResponse<Blob>>
+
+// File upload — do NOT set Content-Type; let browser set multipart boundary
+postFormData<T>(endpoint: string, formData: FormData): Observable<T>
+putFormData<T>(endpoint: string, formData: FormData): Observable<T>
+
+Additional requirements:
+- TypeScript generics for all JSON responses.
+- responseType: 'blob' for Blob methods.
+- observe: 'response' for *BlobResponse methods.
+- Basic catchError in each method; errors should still propagate so callers can show messages.
+
+---
+
+Expected usage in components:
+
+// Standard call
+this.loading = true;
+this.apiService.post<PatientDischargeResponse[]>("PatientDischarge/GetPatientDischarge", search)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: (res) => this.list = res,
+    error: (err) => this.errorMessage = "Failed to load data."
+  });
+
+// Blob download
+this.apiService.postBlob("Reports/ExportPatientDischarge", search)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: (blob) => {
+      const a = Object.assign(document.createElement("a"), {
+        href: URL.createObjectURL(blob), download: "report.xlsx"
+      });
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+    error: () => this.errorMessage = "Export failed."
+  });
+
+// Blob with filename from Content-Disposition
+this.apiService.postBlobResponse("Reports/ExportPatientDischarge", search)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: ({ body, headers }) => {
+      if (!body) return;
+      const fileName = this.parseFileName(headers.get("Content-Disposition")) ?? "report.xlsx";
+      const a = Object.assign(document.createElement("a"), {
+        href: URL.createObjectURL(body), download: fileName
+      });
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+    error: () => this.errorMessage = "Export failed."
+  });
+
+// FormData upload
+const fd = new FormData(); fd.append("file", file);
+this.apiService.postFormData("Upload/PatientDocument", fd)
+  .pipe(finalize(() => this.loading = false))
+  .subscribe({
+    next: () => console.log("Upload success"),
+    error: () => this.errorMessage = "Upload failed."
+  });
+
+---
+
+Implement this cleanly. Keep it simple and readable — no over-engineering.

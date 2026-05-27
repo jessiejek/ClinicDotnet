@@ -7,12 +7,7 @@ export const environment = {
   // Legacy alias
   apiBaseUrl: 'https://api.yourclinicdomain.com/api',
 
-  // Supabase backend.
-  // Use the publishable/anon key only. Never use service_role in Ionic/Angular.
-  supabaseUrl: 'https://czswgpjjanllkmmwhmdh.supabase.co',
-  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6c3dncGpqYW5sbGttbXdobWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjY3OTYsImV4cCI6MjA5NTEwMjc5Nn0.XKv-TPuASM6SZGjH9foqsRrF5GYCWyHagMdXIP4QduQ',
-
-  // Social login is deferred for the first Supabase FE pass.
+  // Social login via .NET backend /api/auth/google and /api/auth/facebook.
   googleClientId: '',
   facebookAppId: '',
   facebookSdkVersion: 'v25.0',
