@@ -390,9 +390,19 @@ export class BookingService {
 
   /** @deprecated API-first ? use booking status filtering on the local cache instead. */
   getPendingVerification(): Observable<Booking[]> {
-    return this.bookings$.pipe(
-      map((bookings) => [...bookings].filter((booking) => booking.status === 'ProofSubmitted'))
-    );
+    return defer(() => {
+      this.beginLoading();
+      return this.apiService.get<any[]>('bookings/pending-verification').pipe(
+        map((rows) => ((rows ?? []) as Record<string, unknown>[])
+          .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
+          .filter((b): b is Booking => Boolean(b))),
+        tap((bookings) => this.mergeBookings(bookings)),
+        catchError((error: unknown) =>
+          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load pending verifications.')))
+        ),
+        finalize(() => this.endLoading())
+      );
+    });
   }
 
   getPendingVerifications(): Observable<Booking[]> {
@@ -409,11 +419,20 @@ export class BookingService {
     );
   }
 
-  /** @deprecated API-first ? use getDoctorTodaySummary() or getBookingsByDoctorId(). */
   getDoctorUpcoming(): Observable<Booking[]> {
-    return this.getBookings({ doctorId: undefined }).pipe(
-      map((bookings) => [...bookings].sort((a, b) => bookingDateTime(a) - bookingDateTime(b)))
-    );
+    return defer(() => {
+      this.beginLoading();
+      return this.apiService.get<any[]>('bookings/doctor/upcoming').pipe(
+        map((rows) => ((rows ?? []) as Record<string, unknown>[])
+          .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
+          .filter((b): b is Booking => Boolean(b))),
+        tap((bookings) => this.mergeBookings(bookings)),
+        catchError((error: unknown) =>
+          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load upcoming bookings.')))
+        ),
+        finalize(() => this.endLoading())
+      );
+    });
   }
 
   getDoctorPatients(): Observable<DoctorPatientSummaryDto[]> {
@@ -575,10 +594,18 @@ export class BookingService {
   }
 
   /** @deprecated API-first ? proof submission is deferred. Use proof-payments storage bucket instead. */
-  submitProof(bookingId: string, _dto: SubmitProofRequest): Observable<Booking> {
-    console.warn('submitProof() is deprecated. Proof submission via API Storage is not yet implemented.');
-    const cached = this.getBookingById(bookingId);
-    return cached ? of(cached) : throwError(() => new Error('submitProof not available in API-first architecture.'));
+  submitProof(bookingId: string, dto: SubmitProofRequest): Observable<Booking> {
+    return defer(() => {
+      this.beginLoading();
+      return this.apiService.post<any>(`bookings/${bookingId}/proof`, dto).pipe(
+        map((row) => this.normalizeBooking(mapBookingViewRow(row as Record<string, unknown>)) as Booking),
+        tap((booking) => this.upsertBooking(booking)),
+        catchError((error: unknown) =>
+          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to submit proof.')))
+        ),
+        finalize(() => this.endLoading())
+      );
+    });
   }
 
   submitBookingProof(bookingId: string, proofType: ProofType, proofValue: string): void {
