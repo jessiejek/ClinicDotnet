@@ -2,9 +2,19 @@ import { NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, map, of } from 'rxjs';
 import { Allergy, PrescriptionItem } from '../../../../core/models';
-import { DrugInteractionService, DrugAllergyConflict, DrugInteractionWarning } from '../../../../core/services/drug-interaction.service';
+import { ApiService } from '../../../../core/services/api.service';
+import {
+  DrugAllergyConflict,
+  DrugInteractionResult,
+  DrugInteractionService,
+  DrugInteractionWarning,
+  UnknownAllergyCheckResponse,
+  UnknownInteractionCheckResponse,
+  normalizeAllergyResponse,
+  normalizeInteractionResponse
+} from '../../../../core/services/drug-interaction.service';
 import {
   MEDICATION_FREQUENCY_MASTERS,
   MEDICATION_ROUTE_MASTERS
@@ -261,6 +271,7 @@ export class PrescriptionFormComponent implements OnChanges {
   @Output() requestAttendingPhysician = new EventEmitter<void>();
 
   private readonly fb = inject(FormBuilder);
+  private readonly apiService = inject(ApiService);
   private readonly interactionService = inject(DrugInteractionService);
 
   readonly form = this.fb.group({ medicineName: [''], strength: [''], dosage: [''], route: ['Oral'], frequency: ['Once daily'], duration: [''], quantity: [1], instructions: [''] });
@@ -405,23 +416,90 @@ export class PrescriptionFormComponent implements OnChanges {
     this.overrideReason = '';
     this.awaitingOverrideReason = false;
 
-    const localConflict = await firstValueFrom(this.interactionService.checkAllergyConflict(name, this.allergies)).catch(() => null);
-    if (localConflict?.unavailable) {
-      this.interactionCheckUnavailable = true;
+    const allergyCacheKey = this.interactionService.buildAllergyCacheKey(name, this.allergies);
+    const cachedAllergyConflict = this.interactionService.getCachedAllergyConflict(allergyCacheKey);
+    if (cachedAllergyConflict) {
+      this.interactionCheckUnavailable = Boolean(cachedAllergyConflict.unavailable);
+      if (cachedAllergyConflict.conflict) {
+        this.activeAllergyConflict = cachedAllergyConflict;
+        return;
+      }
     }
 
+    const localConflict = this.interactionService.evaluateAllergyConflict(name, this.allergies);
     if (localConflict?.conflict) {
+      this.interactionService.setAllergyConflict(allergyCacheKey, localConflict);
       this.activeAllergyConflict = localConflict;
+      return;
+    }
+
+    const apiAllergyConflict = await firstValueFrom(
+      this.apiService.post<UnknownAllergyCheckResponse>('/drug-interactions/allergy-check', {
+        drugName: name,
+        allergies: this.allergies
+      }).pipe(
+        map((response) => normalizeAllergyResponse(response)),
+        catchError(() =>
+          of<DrugAllergyConflict>({
+            conflict: false,
+            unavailable: true,
+            source: 'api',
+            message: 'Drug-allergy check unavailable - verify manually before prescribing'
+          })
+        )
+      )
+    );
+    this.interactionService.setAllergyConflict(allergyCacheKey, apiAllergyConflict);
+    this.interactionCheckUnavailable = Boolean(apiAllergyConflict.unavailable);
+    if (apiAllergyConflict.conflict) {
+      this.activeAllergyConflict = apiAllergyConflict;
       return;
     }
 
     this.activeAllergyConflict = null;
 
     const nextItems = this.getNextItems(action.mode, current);
-    const warningState = await firstValueFrom(this.interactionService.checkDrugInteractions(nextItems)).catch(() => null);
-    if (warningState) {
-      this.interactionCheckUnavailable = warningState.unavailable;
-      this.applyInteractionWarnings(warningState.warnings);
+    const interactionCacheKey = this.interactionService.buildInteractionCacheKey(nextItems);
+    const cachedWarningState = this.interactionService.getCachedInteractionResult(interactionCacheKey);
+    if (cachedWarningState) {
+      this.interactionCheckUnavailable = cachedWarningState.unavailable;
+      this.applyInteractionWarnings(cachedWarningState.warnings);
+    } else {
+      const localWarnings = this.interactionService.evaluateDrugInteractions(nextItems);
+      if (localWarnings.length > 0) {
+        const localResult: DrugInteractionResult = {
+          unavailable: false,
+          warnings: localWarnings,
+          source: 'local'
+        };
+        this.interactionService.setInteractionResult(interactionCacheKey, localResult);
+        this.interactionCheckUnavailable = localResult.unavailable;
+        this.applyInteractionWarnings(localResult.warnings);
+      } else {
+        const apiResult = await firstValueFrom(
+          this.apiService.post<UnknownInteractionCheckResponse>('/drug-interactions/check', {
+            drugs: nextItems.map((item) => ({
+              medicineName: item.medicineName,
+              genericName: item.genericName ?? null,
+              strength: item.strength ?? null,
+              route: item.route ?? null,
+              frequency: item.frequency ?? null
+            }))
+          }).pipe(
+            map((response) => normalizeInteractionResponse(response, nextItems)),
+            catchError(() =>
+              of<DrugInteractionResult>({
+                unavailable: true,
+                warnings: [],
+                source: 'api'
+              })
+            )
+          )
+        );
+        this.interactionService.setInteractionResult(interactionCacheKey, apiResult);
+        this.interactionCheckUnavailable = apiResult.unavailable;
+        this.applyInteractionWarnings(apiResult.warnings);
+      }
     }
 
     if (action.mode === 'update' && this.editIdx >= 0) {
@@ -545,7 +623,46 @@ export class PrescriptionFormComponent implements OnChanges {
   }
 
   private refreshInteractionWarnings(): void {
-    this.interactionService.checkDrugInteractions(this.medicines).subscribe((result) => {
+    const cacheKey = this.interactionService.buildInteractionCacheKey(this.medicines);
+    const cachedWarningState = this.interactionService.getCachedInteractionResult(cacheKey);
+    if (cachedWarningState) {
+      this.interactionCheckUnavailable = cachedWarningState.unavailable;
+      this.applyInteractionWarnings(cachedWarningState.warnings);
+      return;
+    }
+
+    const localWarnings = this.interactionService.evaluateDrugInteractions(this.medicines);
+    if (localWarnings.length > 0) {
+      const localResult: DrugInteractionResult = {
+        unavailable: false,
+        warnings: localWarnings,
+        source: 'local'
+      };
+      this.interactionService.setInteractionResult(cacheKey, localResult);
+      this.interactionCheckUnavailable = localResult.unavailable;
+      this.applyInteractionWarnings(localResult.warnings);
+      return;
+    }
+
+    this.apiService.post<UnknownInteractionCheckResponse>('/drug-interactions/check', {
+      drugs: this.medicines.map((item) => ({
+        medicineName: item.medicineName,
+        genericName: item.genericName ?? null,
+        strength: item.strength ?? null,
+        route: item.route ?? null,
+        frequency: item.frequency ?? null
+      }))
+    }).pipe(
+      map((response) => normalizeInteractionResponse(response, this.medicines)),
+      catchError(() =>
+        of<DrugInteractionResult>({
+          unavailable: true,
+          warnings: [],
+          source: 'api'
+        })
+      )
+    ).subscribe((result) => {
+      this.interactionService.setInteractionResult(cacheKey, result);
       this.interactionCheckUnavailable = result.unavailable;
       this.applyInteractionWarnings(result.warnings);
     });

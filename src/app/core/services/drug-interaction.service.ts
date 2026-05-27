@@ -1,7 +1,5 @@
-import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, from, map, of } from 'rxjs';
+import { Injectable } from '@angular/core';
 import { Allergy, PrescriptionItem } from '../models';
-import { ApiService } from './api.service';
 
 export interface DrugAllergyConflict {
   conflict: boolean;
@@ -28,102 +26,58 @@ export interface DrugInteractionResult {
 
 @Injectable({ providedIn: 'root' })
 export class DrugInteractionService {
-  private readonly api = inject(ApiService);
   private readonly allergyCache = new Map<string, DrugAllergyConflict>();
   private readonly interactionCache = new Map<string, DrugInteractionResult>();
 
-  checkAllergyConflict(drugName: string, allergies: Allergy[]): Observable<DrugAllergyConflict> {
+  buildAllergyCacheKey(drugName: string, allergies: Allergy[]): string {
     const normalizedDrug = normalizeText(drugName);
-    const cacheKey = `${normalizedDrug}|${allergies.map((allergy) => `${allergy.allergen}|${allergy.allergenName ?? ''}|${allergy.allergenType ?? ''}`).join('~')}`;
-
-    const cached = this.allergyCache.get(cacheKey);
-    if (cached) {
-      return of({ ...cached, source: 'cache' });
-    }
-
-    const localConflict = findLocalAllergyConflict(drugName, allergies);
-    if (localConflict) {
-      const conflict: DrugAllergyConflict = {
-        conflict: true,
-        allergyName: localConflict.allergyName,
-        message: `Allergy Alert - ${drugName} matches a recorded allergy: ${localConflict.allergyName}. Review before adding.`,
-        source: 'local'
-      };
-      this.allergyCache.set(cacheKey, conflict);
-      return of(conflict);
-    }
-
-    return from(
-      this.api.post<UnknownAllergyCheckResponse>('/drug-interactions/allergy-check', {
-        drugName,
-        allergies
-      })
-    ).pipe(
-      map((response) => {
-        const normalized = normalizeAllergyResponse(response);
-        this.allergyCache.set(cacheKey, normalized);
-        return normalized;
-      }),
-      catchError(() =>
-        of<DrugAllergyConflict>({
-          conflict: false,
-          unavailable: true,
-          source: 'api',
-          message: 'Drug-allergy check unavailable - verify manually before prescribing'
-        })
-      )
-    );
+    return `${normalizedDrug}|${allergies.map((allergy) => `${allergy.allergen}|${allergy.allergenName ?? ''}|${allergy.allergenType ?? ''}`).join('~')}`;
   }
 
-  checkDrugInteractions(items: PrescriptionItem[]): Observable<DrugInteractionResult> {
-    const cacheKey = items
+  buildInteractionCacheKey(items: PrescriptionItem[]): string {
+    return items
       .map((item) => [item.id, item.medicineName, item.genericName ?? '', item.route ?? '', item.frequency ?? '', item.strength ?? ''].join('|'))
       .join('~');
+  }
 
+  getCachedAllergyConflict(cacheKey: string): DrugAllergyConflict | null {
+    const cached = this.allergyCache.get(cacheKey);
+    return cached ? { ...cached, source: 'cache' } : null;
+  }
+
+  setAllergyConflict(cacheKey: string, conflict: DrugAllergyConflict): void {
+    this.allergyCache.set(cacheKey, conflict);
+  }
+
+  getCachedInteractionResult(cacheKey: string): DrugInteractionResult | null {
     const cached = this.interactionCache.get(cacheKey);
-    if (cached) {
-      return of({ ...cached, source: 'cache' });
+    return cached ? { ...cached, source: 'cache' } : null;
+  }
+
+  setInteractionResult(cacheKey: string, result: DrugInteractionResult): void {
+    this.interactionCache.set(cacheKey, result);
+  }
+
+  evaluateAllergyConflict(drugName: string, allergies: Allergy[]): DrugAllergyConflict | null {
+    const localConflict = findLocalAllergyConflict(drugName, allergies);
+    if (!localConflict) {
+      return null;
     }
 
-    const localWarnings = findLocalInteractionWarnings(items);
-    if (localWarnings.length > 0) {
-      const result: DrugInteractionResult = {
-        unavailable: false,
-        warnings: localWarnings,
-        source: 'local'
-      };
-      this.interactionCache.set(cacheKey, result);
-      return of(result);
-    }
+    return {
+      conflict: true,
+      allergyName: localConflict.allergyName,
+      message: `Allergy Alert - ${drugName} matches a recorded allergy: ${localConflict.allergyName}. Review before adding.`,
+      source: 'local'
+    };
+  }
 
-    return from(
-      this.api.post<UnknownInteractionCheckResponse>('/drug-interactions/check', {
-        drugs: items.map((item) => ({
-          medicineName: item.medicineName,
-          genericName: item.genericName ?? null,
-          strength: item.strength ?? null,
-          route: item.route ?? null,
-          frequency: item.frequency ?? null
-        }))
-      })
-    ).pipe(
-      map((response) => {
-        const result = normalizeInteractionResponse(response, items);
-        this.interactionCache.set(cacheKey, result);
-        return result;
-      }),
-      catchError(() =>
-        of<DrugInteractionResult>({
-          unavailable: true,
-          warnings: [],
-          source: 'api'
-        })
-      )
-    );
+  evaluateDrugInteractions(items: PrescriptionItem[]): DrugInteractionWarning[] {
+    return findLocalInteractionWarnings(items);
   }
 }
 
-interface UnknownAllergyCheckResponse {
+export interface UnknownAllergyCheckResponse {
   conflict?: boolean;
   allergyName?: string;
   allergy?: string;
@@ -131,7 +85,7 @@ interface UnknownAllergyCheckResponse {
   unavailable?: boolean;
 }
 
-interface UnknownInteractionCheckResponse {
+export interface UnknownInteractionCheckResponse {
   unavailable?: boolean;
   warnings?: Array<{
     medicineName?: string;
@@ -144,7 +98,7 @@ interface UnknownInteractionCheckResponse {
   }>;
 }
 
-function normalizeAllergyResponse(response: UnknownAllergyCheckResponse): DrugAllergyConflict {
+export function normalizeAllergyResponse(response: UnknownAllergyCheckResponse): DrugAllergyConflict {
   const conflict = Boolean(response.conflict);
   return {
     conflict,
@@ -155,7 +109,7 @@ function normalizeAllergyResponse(response: UnknownAllergyCheckResponse): DrugAl
   };
 }
 
-function normalizeInteractionResponse(response: UnknownInteractionCheckResponse, items: PrescriptionItem[]): DrugInteractionResult {
+export function normalizeInteractionResponse(response: UnknownInteractionCheckResponse, items: PrescriptionItem[]): DrugInteractionResult {
   const warnings = (response.warnings ?? [])
     .map((warning, index): DrugInteractionWarning => ({
       medicineKey: warning.medicineKey ?? items[index]?.id ?? items[index]?.medicineName ?? `rx-${index}`,

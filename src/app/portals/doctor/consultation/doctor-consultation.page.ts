@@ -29,7 +29,6 @@ import { PatientStateService } from '../../../core/services/patient-state.servic
 import { PatientVaccinationsService } from '../../../core/services/patient-vaccinations.service';
 import { PatientClinicalHistoryService } from '../../../core/services/patient-clinical-history.service';
 import { OfflineConsultationQueueService } from '../../../core/services/offline-consultation-queue.service';
-import { DrugInteractionService } from '../../../core/services/drug-interaction.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { FollowUpDraftView } from '../components/follow-up-form/follow-up-form.component';
@@ -625,7 +624,6 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   private readonly modalCtrl = inject(ModalController);
   private readonly offlineQueue = inject(OfflineConsultationQueueService);
   private readonly patientClinicalHistoryService = inject(PatientClinicalHistoryService);
-  private readonly drugInteractionService = inject(DrugInteractionService);
   private readonly api = inject(ApiService);
   private readonly patientState = inject(PatientStateService);
   private readonly vaccinationService = inject(PatientVaccinationsService);
