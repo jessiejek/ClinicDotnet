@@ -9,7 +9,7 @@ import {
   DoctorSchedule,
   DoctorStatus
 } from '../models';
-import { SupabaseService } from './supabase.service';
+import { ApiService } from './api.service';
 
 const toLocalIsoDate = (): string => {
   const date = new Date();
@@ -19,7 +19,7 @@ const toLocalIsoDate = (): string => {
 
 @Injectable({ providedIn: 'root' })
 export class DoctorStateService {
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly doctorsSubject = new BehaviorSubject<Doctor[]>([]);
   private readonly schedulesSubject = new BehaviorSubject<DoctorSchedule[]>([]);
   private readonly blockedDatesSubject = new BehaviorSubject<DoctorBlockedDate[]>([]);
@@ -164,50 +164,30 @@ export class DoctorStateService {
   }
 
   private async fetchAllDoctors(): Promise<Doctor[]> {
-    const { data, error } = await this.supabase
-      .from('doctors')
-      .select('id, user_id, full_name, specialization, bio, profile_photo_url, consultation_fee, status, average_rating, review_count')
-      .order('full_name', { ascending: true });
-
-    if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(mapDoctorRow);
+    const data = await this.api.get<any[]>('doctors/admin').toPromise();
+    return (data ?? []).map(mapDoctorRow);
   }
 
   private async fetchDayStatus(doctorId: string): Promise<DoctorDayStatus | null> {
     const today = toLocalIsoDate();
-    const { data, error } = await this.supabase
-      .from('doctor_day_statuses')
-      .select('*')
-      .eq('doctor_id', doctorId)
-      .eq('target_date', today)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return null;
-    const row = data as Record<string, unknown>;
+    const statuses = await this.api.get<any[]>(`doctors/${doctorId}/day-status`).toPromise();
+    const row = (statuses ?? []).find((s: any) => s.date === today || s.targetDate === today || s.target_date === today);
+    if (!row) return null;
     return {
-      id: trimStr(row['id']) ?? '',
-      doctorId: trimStr(row['doctor_id']) ?? '',
-      date: trimStr(row['date']) ?? '',
-      status: (trimStr(row['status']) as AvailabilityStatus) ?? 'Available',
-      runningLateMinutes: normalizeNumOrUndefined(row['running_late_minutes']),
+      id: trimStr(row['id'] ?? row['Id']) ?? '',
+      doctorId: trimStr(row['doctorId'] ?? row['doctor_id'] ?? row['DoctorId']) ?? '',
+      date: trimStr(row['date'] ?? row['Date'] ?? row['targetDate'] ?? row['target_date']) ?? '',
+      status: (trimStr(row['status'] ?? row['Status']) as AvailabilityStatus) ?? 'Available',
+      runningLateMinutes: normalizeNumOrUndefined(row['runningLateMinutes'] ?? row['running_late_minutes'] ?? row['RunningLateMinutes']),
     };
   }
 
   private async upsertDayStatus(doctorId: string, status: AvailabilityStatus, runningLateMinutes?: number): Promise<void> {
-    const { error } = await this.supabase
-      .from('doctor_day_statuses')
-      .upsert(
-        {
-          doctor_id: doctorId,
-          target_date: toLocalIsoDate(),
-          status,
-          running_late_minutes: runningLateMinutes ?? null,
-        },
-        { onConflict: 'doctor_id,target_date' }
-      );
-
-    if (error) throw error;
+    await this.api.post(`doctors/${doctorId}/day-status`, {
+      date: toLocalIsoDate(),
+      status,
+      runningLateMinutes: runningLateMinutes ?? null,
+    }).toPromise();
   }
 }
 

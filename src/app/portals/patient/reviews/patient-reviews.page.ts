@@ -6,7 +6,7 @@ import { catchError, combineLatest, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Booking, Patient } from '../../../core/models';
 import { BookingService } from '../../../core/services/booking.service';
-import { SupabaseService } from '../../../core/services/supabase.service';
+import { ApiService } from '../../../core/services/api.service';
 import { ReviewFormComponent } from '../components/review-form/review-form.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PatientService } from '../services/patient.service';
@@ -58,7 +58,7 @@ export class PatientReviewsPage implements OnInit {
   private readonly bookingService = inject(BookingService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
   private readonly patientService = inject(PatientService);
   private readonly destroyRef = inject(DestroyRef);
@@ -89,17 +89,13 @@ export class PatientReviewsPage implements OnInit {
   }
 
   private async checkExistingReview(bookingId: string): Promise<void> {
-    const { data, error } = await this.supabase
-      .from('reviews')
-      .select('id', { count: 'exact', head: true })
-      .eq('booking_id', bookingId);
-
-    if (error) {
-      console.warn('[PatientReviewsPage] reviews table not available — assuming no existing review so submission is attempted.');
+    try {
+      const data = await this.api.get('reviews?bookingId=' + bookingId).toPromise();
+      this.hasExistingReview = Array.isArray(data) && data.length > 0;
+    } catch {
+      console.warn('[PatientReviewsPage] reviews endpoint not available — assuming no existing review.');
       this.hasExistingReview = false;
-      return;
     }
-    this.hasExistingReview = (data ?? []).length > 0;
   }
 
   get canReview(): boolean {
@@ -116,21 +112,19 @@ export class PatientReviewsPage implements OnInit {
 
     const patientName = `${this.currentPatient.firstName} ${this.currentPatient.lastName}`;
 
-    const { error } = await this.supabase
-      .from('reviews')
-      .insert({
-        booking_id: this.booking.id,
-        doctor_id: this.booking.doctorId,
-        patient_id: this.currentPatient.id,
+    try {
+      await this.api.post('reviews', {
+        bookingId: this.booking.id,
+        doctorId: this.booking.doctorId,
+        patientId: this.currentPatient.id,
         rating,
         comment: comment || null,
-        patient_name: patientName
-      });
-
-    if (error) {
+        patientName: patientName
+      }).toPromise();
+    } catch (err: any) {
       this.isSubmitting = false;
-      this.submitError = 'Could not submit your review. The reviews database table may not be ready yet. Please try again later.';
-      console.warn('[PatientReviewsPage] Could not save review:', error.message);
+      this.submitError = 'Could not submit your review. Please try again later.';
+      console.warn('[PatientReviewsPage] Could not save review:', err?.message ?? err);
       return;
     }
 

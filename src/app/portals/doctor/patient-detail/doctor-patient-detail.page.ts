@@ -1,4 +1,5 @@
 import { AsyncPipe, DatePipe, NgFor, NgIf } from '@angular/common';
+import { ApiService } from '../../../core/services/api.service';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, catchError, forkJoin, firstValueFrom, from, map, of, switchMap } from 'rxjs';
@@ -7,7 +8,6 @@ import { IonLabel, IonSegment, IonSegmentButton, ModalController } from '@ionic/
 import { MedicalRecordsService } from '../../../core/services/medical-records.service';
 import { BookingService, ConsultationRecordResponse } from '../../../core/services/booking.service';
 import { PatientClinicalHistoryDto, PatientClinicalHistoryPatientDto, PatientClinicalHistorySummaryDto } from '../../../core/models/patient-clinical-history.models';
-import { SupabaseService } from '../../../core/services/supabase.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 
@@ -218,7 +218,7 @@ type ClinicalTab = 'timeline' | 'consultations' | 'prescriptions' | 'labs' | 'do
   styleUrl: './doctor-patient-detail.page.scss'
 })
 export class DoctorPatientDetailPage {
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly medicalRecords = inject(MedicalRecordsService);
   private readonly bookingService = inject(BookingService);
   private readonly route = inject(ActivatedRoute);
@@ -318,13 +318,7 @@ export class DoctorPatientDetailPage {
 
   private async buildClinicalHistory(patientId: string): Promise<PatientClinicalHistoryDto> {
     // Load patient from Supabase
-    const { data: patientRow, error: patientError } = await this.supabase
-      .from('patients')
-      .select('id, patient_code, first_name, middle_name, last_name, date_of_birth, sex, contact_number, contact_email')
-      .eq('id', patientId)
-      .maybeSingle();
-
-    if (patientError) throw patientError;
+    const patientRow: any = await this.api.get('patients/' + patientId).toPromise();
 
     const patient: PatientClinicalHistoryPatientDto = {
       id: patientId,
@@ -337,12 +331,7 @@ export class DoctorPatientDetailPage {
     };
 
     const [bookingRowsResult, recordState] = await Promise.all([
-      this.supabase
-      .from('patient_bookings_view')
-      .select('*')
-      .eq('patient_id', patientId)
-      .order('appointment_date', { ascending: false })
-      .limit(50),
+      this.api.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50').toPromise(),
       firstValueFrom(
         forkJoin({
           consultations: this.medicalRecords.getConsultationsByPatientId(patientId),
@@ -354,8 +343,7 @@ export class DoctorPatientDetailPage {
       )
     ]);
 
-    const { data: bookingRows, error: bookingError } = bookingRowsResult;
-    if (bookingError) throw bookingError;
+    const bookingRows = bookingRowsResult ?? [];
 
     const bookings = (bookingRows ?? []) as Record<string, unknown>[];
     const consultations = recordState.consultations;

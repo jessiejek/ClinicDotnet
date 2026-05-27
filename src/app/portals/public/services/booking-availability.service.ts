@@ -1,7 +1,8 @@
+import { ApiService } from '../../../core/services/api.service';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, combineLatest, from, map, of, switchMap } from 'rxjs';
 import { DoctorSchedule, DayOfWeek } from '../../../core/models';
-import { SupabaseService } from '../../../core/services/supabase.service';
+
 import { PublicService, AvailableSlot } from './public.service';
 
 export interface WorkingDay {
@@ -26,7 +27,7 @@ const DAY_NAMES: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thu
  */
 @Injectable({ providedIn: 'root' })
 export class BookingAvailabilityService {
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly publicService = inject(PublicService);
 
   // ── Date Helpers ─────────────────────────────────
@@ -126,16 +127,7 @@ export class BookingAvailabilityService {
   // ── Private ──────────────────────────────────────
 
   private async fetchDoctorSchedules(doctorId: string): Promise<DoctorScheduleRow[]> {
-    const { data, error } = await this.supabase
-      .from('doctor_schedules')
-      .select('id, doctor_id, day_of_week, start_time, end_time')
-      .eq('doctor_id', doctorId)
-      .order('day_of_week', { ascending: true })
-      .order('start_time', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
+    const data = await this.api.get('doctors/' + doctorId + '/schedule').toPromise();
 
     return (data ?? []) as DoctorScheduleRow[];
   }

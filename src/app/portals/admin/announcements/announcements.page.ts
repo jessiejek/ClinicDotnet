@@ -1,8 +1,8 @@
 import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { ApiService } from '../../../core/services/api.service';
 import { FormsModule } from '@angular/forms';
 import { ToastController } from '@ionic/angular/standalone';
-import { SupabaseService } from '../../../core/services/supabase.service';
 import { Announcement } from '../../../core/models';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -81,7 +81,7 @@ import { IonModal } from '@ionic/angular/standalone';
   styleUrl: './announcements.page.scss'
 })
 export class AnnouncementsPage implements OnInit {
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
 
   announcements: Announcement[] = [];
@@ -103,24 +103,14 @@ export class AnnouncementsPage implements OnInit {
   private async loadAnnouncements(): Promise<void> {
     this.isLoading = true;
     this.loadError = false;
-
-    const { data, error } = await this.supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error && isTableMissing(error)) {
+    try {
+      const data: any[] = await this.api.get<any[]>('announcements').toPromise() ?? [];
+      this.announcements = data.map(mapApiRow);
+    } catch (err: any) {
       this.loadError = true;
-      this.loadErrorDescription = 'The announcements table has not been created yet. An administrator needs to apply the database migration.';
-      console.warn('[AnnouncementsPage] announcements table not available:', error.message);
+      this.loadErrorDescription = 'Failed to load announcements.';
+      console.error('[AnnouncementsPage] Error loading announcements:', err?.message ?? err);
       this.announcements = [];
-    } else if (error) {
-      this.loadError = true;
-      this.loadErrorDescription = 'Failed to load announcements. Please try again.';
-      console.error('[AnnouncementsPage] Error loading announcements:', error.message);
-      this.announcements = [];
-    } else {
-      this.announcements = ((data ?? []) as Record<string, unknown>[]).map(mapSupabaseRow);
     }
     this.isLoading = false;
   }
@@ -144,45 +134,17 @@ export class AnnouncementsPage implements OnInit {
     this.saveError = '';
 
     if (this.editingId) {
-      const { error } = await this.supabase
-        .from('announcements')
-        .update({ title: this.draft.title, body: this.draft.body, is_active: this.draft.isActive })
-        .eq('id', this.editingId);
-
-      if (error) {
-        this.isSaving = false;
-        this.saveError = 'Failed to save announcement. The database may not be ready yet.';
-        console.error('[AnnouncementsPage] Failed to update announcement:', error.message);
-        return;
-      }
+      await this.api.put('announcements/' + this.editingId, { title: this.draft.title, body: this.draft.body, isActive: this.draft.isActive }).toPromise();
 
       this.announcements = this.announcements.map((announcement) =>
         announcement.id === this.editingId ? { ...this.draft } : announcement
       );
       this.modalOpen = false;
     } else {
-      const { data, error } = await this.supabase
-        .from('announcements')
-        .insert({ title: this.draft.title, body: this.draft.body, is_active: this.draft.isActive })
-        .select()
-        .single();
+      await this.api.post('announcements', { title: this.draft.title, body: this.draft.body, isActive: this.draft.isActive }).toPromise();
 
-      if (error) {
-        this.isSaving = false;
-        this.saveError = 'Failed to create announcement. The database may not be ready yet.';
-        console.error('[AnnouncementsPage] Failed to insert announcement:', error.message);
-        return;
-      }
-
-      const inserted = data as Record<string, unknown>;
       this.announcements = [
-        {
-          id: String(inserted['id'] ?? ''),
-          title: this.draft.title,
-          body: this.draft.body,
-          isActive: this.draft.isActive,
-          createdAt: String(inserted['created_at'] ?? new Date().toISOString())
-        },
+        { ...this.draft, createdAt: new Date().toISOString() },
         ...this.announcements
       ];
       this.modalOpen = false;
@@ -195,16 +157,7 @@ export class AnnouncementsPage implements OnInit {
     if (!target) { return; }
 
     const newActive = !target.isActive;
-    const { error } = await this.supabase
-      .from('announcements')
-      .update({ is_active: newActive })
-      .eq('id', id);
-
-    if (error) {
-      console.error('[AnnouncementsPage] Failed to toggle announcement:', error.message);
-      await this.presentToast('Failed to update announcement status. The database may not be ready yet.', 'danger');
-      return;
-    }
+    await this.api.put('announcements/' + id, { isActive: newActive }).toPromise();
 
     this.announcements = this.announcements.map((announcement) =>
       announcement.id === id ? { ...announcement, isActive: newActive } : announcement
@@ -218,17 +171,7 @@ export class AnnouncementsPage implements OnInit {
 
   async deleteConfirmed(): Promise<void> {
     if (this.deletingId) {
-      const { error } = await this.supabase
-        .from('announcements')
-        .delete()
-        .eq('id', this.deletingId);
-
-      if (error) {
-        console.error('[AnnouncementsPage] Failed to delete announcement:', error.message);
-        this.deleteOpen = false;
-        await this.presentToast('Failed to delete announcement. The database may not be ready yet.', 'danger');
-        return;
-      }
+      await this.api.delete('announcements/' + this.deletingId).toPromise();
 
       this.announcements = this.announcements.filter((announcement) => announcement.id !== this.deletingId);
     }
@@ -256,18 +199,13 @@ export class AnnouncementsPage implements OnInit {
   }
 }
 
-function mapSupabaseRow(row: Record<string, unknown>): Announcement {
+function mapApiRow(row: Record<string, unknown>): Announcement {
   return {
     id: String(row['id'] ?? ''),
     title: String(row['title'] ?? ''),
     body: String(row['body'] ?? ''),
-    imageUrl: row['image_url'] ? String(row['image_url']) : undefined,
-    isActive: Boolean(row['is_active'] ?? true),
-    createdAt: String(row['created_at'] ?? new Date().toISOString())
+    imageUrl: row['imageUrl'] ? String(row['imageUrl']) : undefined,
+    isActive: Boolean(row['isActive'] ?? true),
+    createdAt: String(row['createdAt'] ?? row['created_at'] ?? new Date().toISOString())
   };
-}
-
-function isTableMissing(error: { code?: string; message?: string }): boolean {
-  const msg = (error?.message ?? '').toLowerCase();
-  return msg.includes('relation') || msg.includes('does not exist') || error?.code === '42P01';
 }

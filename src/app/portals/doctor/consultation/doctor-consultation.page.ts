@@ -29,7 +29,6 @@ import { PatientVaccinationsService } from '../../../core/services/patient-vacci
 import { PatientClinicalHistoryService } from '../../../core/services/patient-clinical-history.service';
 import { OfflineConsultationQueueService } from '../../../core/services/offline-consultation-queue.service';
 import { DrugInteractionService } from '../../../core/services/drug-interaction.service';
-import { SupabaseService } from '../../../core/services/supabase.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { FollowUpDraftView } from '../components/follow-up-form/follow-up-form.component';
@@ -629,7 +628,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   private readonly offlineQueue = inject(OfflineConsultationQueueService);
   private readonly patientClinicalHistoryService = inject(PatientClinicalHistoryService);
   private readonly drugInteractionService = inject(DrugInteractionService);
-  private readonly supabase = inject(SupabaseService);
+  private readonly api = inject(ApiService);
   private readonly patientState = inject(PatientStateService);
   private readonly vaccinationService = inject(PatientVaccinationsService);
   private readonly route = inject(ActivatedRoute);
@@ -1878,7 +1877,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     const details = `Fields changed: ${sections.map((section) => this.getSectionDisplayName(section)).join(', ')}`;
 
     try {
-      await this.supabase.client.from('audit_logs').insert(
+      await this.api.post('audit-logs', 
         sections.map((section) => ({
           entity_type: 'Consultation',
           entity_id: vm.consultation?.id || vm.booking.id,

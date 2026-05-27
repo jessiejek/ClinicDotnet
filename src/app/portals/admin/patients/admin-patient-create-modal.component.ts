@@ -440,7 +440,7 @@ export class AdminPatientCreateModalComponent {
       avatarUrl: this.optionalValue(values.accountAvatarUrl)
     };
 
-    const userId = await firstValueFrom(this.adminPatientsService.registerPatientAccount(accountPayload));
+    const userId = await firstValueFrom(this.adminPatientsService.createPortalAccount(accountPayload));
     this.pendingAccountUserId = userId;
     this.syncAccountState();
     return userId;

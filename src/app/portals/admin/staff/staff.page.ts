@@ -1,11 +1,11 @@
 import { NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { ApiService } from '../../../core/services/api.service';
 import { FormsModule } from '@angular/forms';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { ToastController } from '@ionic/angular/standalone';
-import { SupabaseService } from '../../../core/services/supabase.service';
 
 interface StaffRow {
   id: string;
@@ -99,7 +99,7 @@ interface UpdateStatusResponse {
   styleUrl: './staff.page.scss'
 })
 export class StaffPage implements OnInit {
-  private readonly supabase = inject(SupabaseService);
+  private readonly api = inject(ApiService);
   private readonly toastCtrl = inject(ToastController);
 
   staff: StaffRow[] = [];
@@ -124,89 +124,22 @@ export class StaffPage implements OnInit {
   private async loadStaff(): Promise<void> {
     try {
       // Step 1: fetch user_ids from user_roles where role = 'staff'
-      const { data: roles, error: rolesError } = await this.supabase.client
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'staff');
-
-      if (rolesError) throw new Error(rolesError.message);
-
       const staffRows: StaffRow[] = [];
-
-      if (roles && roles.length > 0) {
-        const userIds = roles.map(r => r.user_id);
-
-        // Step 2: fetch profiles for those user_ids
-        try {
-          const { data: profiles, error: profilesError } = await this.supabase.client
-            .from('profiles')
-            .select('id, full_name, email, status')
-            .in('id', userIds);
-
-          if (profilesError) throw profilesError;
-          if (profiles) {
-            for (const p of profiles) {
-              staffRows.push({
-                id: p.id,
-                fullName: p.full_name,
-                email: p.email || '',
-                role: 'Staff',
-                status: (p.status === 'Inactive' ? 'Inactive' : 'Active') as 'Active' | 'Inactive',
-                isInvite: false,
-              });
-            }
-          }
-        } catch (_profileQueryErr: any) {
-          // Column may not exist yet — retry without `status`
-          console.warn('profiles.status column not found, falling back without it.');
-          const { data: profiles, error: fallbackError } = await this.supabase.client
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('id', userIds);
-
-          if (fallbackError) throw new Error(fallbackError.message);
-          if (profiles) {
-            for (const p of profiles) {
-              staffRows.push({
-                id: p.id,
-                fullName: p.full_name,
-                email: p.email || '',
-                role: 'Staff',
-                status: 'Active',
-                isInvite: false,
-              });
-            }
-          }
-        }
+      const data: any[] = (await this.api.get<any[]>('admin/staff').toPromise()) ?? [];
+      for (const s of data) {
+        staffRows.push({
+          id: s.id,
+          fullName: s.fullName ?? s.full_name ?? '',
+          email: s.email ?? '',
+          role: s.role ?? 'Staff',
+          status: s.inactive || s.status === 'Inactive' ? 'Inactive' : 'Active',
+          isInvite: s.isInvite ?? false,
+        });
       }
 
-      // Step 3: also load pending staff invites
-      try {
-        const { data: invites, error: invitesError } = await this.supabase.client
-          .from('staff_invites')
-          .select('id, email, full_name, status, created_at')
-          .in('status', ['pending', 'accepted']);
 
-        if (!invitesError && invites) {
-          const activatedEmails = new Set(staffRows.map(s => s.email.toLowerCase()));
-          for (const inv of invites) {
-            // Only show pending invites (accepted ones are already in staffRows via profiles)
-            if (inv.status === 'pending') {
-              staffRows.push({
-                id: inv.id,
-                fullName: inv.full_name,
-                email: inv.email,
-                role: 'Staff',
-                status: 'Invited',
-                isInvite: true,
-              });
-            }
-          }
-        }
-      } catch (_inviteErr: any) {
-        // staff_invites table may not exist yet — that's fine, show only activated staff
-        console.warn('staff_invites table not available yet. Deploy SUPABASE_REQUIRED_STAFF_INVITES_SQL.md.');
-      }
+
+      // invites will be handled via the admin/staff endpoint
 
       this.staff = staffRows;
     } catch (err: any) {
@@ -237,8 +170,7 @@ export class StaffPage implements OnInit {
     this.addSubmitting = true;
 
     try {
-      const { data: sessionData } = await this.supabase.client.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      const accessToken = '';
 
       if (!accessToken) {
         const msg = 'Your admin session expired. Please log in again.';
@@ -263,29 +195,15 @@ export class StaffPage implements OnInit {
         status: 'pending',
       };
 
-      const { data, error } = await this.supabase.client
-        .from('staff_invites')
-        .insert(payload)
-        .select('id, email, full_name')
-        .single();
+      const data = await this.api.post('admin/staff/invite', payload).toPromise();
 
-      if (error) {
-        if (error.code === '42P01') {
-          throw new Error(
-            'The staff_invites table does not exist yet. ' +
-            'Deploy SUPABASE_REQUIRED_STAFF_INVITES_SQL.md first, then try again.'
-          );
-        }
-        // Handle duplicate email (unique index on pending emails)
-        if (error.message?.toLowerCase().includes('duplicate') || error.message?.toLowerCase().includes('already exists')) {
-          throw new Error(`An invite for '${normalizedEmail}' is already pending.`);
-        }
-        throw error;
+      if (!data) {
+        throw new Error('Failed to invite staff member.');
       }
 
-      const inviteResult = data as { id: string; email: string; full_name: string } | null;
+      const inviteResult = data as { id?: string; email?: string; fullName?: string; full_name?: string } | null;
 
-      // Success — hide inline form and reload
+      // Success - hide inline form and reload
       this.showAddStaffForm = false;
       await this.loadStaff();
 
@@ -315,12 +233,7 @@ export class StaffPage implements OnInit {
   async revokeInvite(inviteId: string): Promise<void> {
     this.busyRevoke = true;
     try {
-      const { error } = await this.supabase.client
-        .from('staff_invites')
-        .update({ status: 'revoked' })
-        .eq('id', inviteId);
-
-      if (error) throw error;
+      await this.api.put('admin/staff/invite/' + inviteId + '/revoke', {}).toPromise();
 
       await this.loadStaff();
 
@@ -349,42 +262,12 @@ export class StaffPage implements OnInit {
     this.toggleBusy.add(id);
 
     try {
-      const { data: sessionData } = await this.supabase.client.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-
-      if (!accessToken) {
-        const msg = 'Your admin session expired. Please log in again.';
-        const toast = await this.toastCtrl.create({
-          message: msg,
-          duration: 5000,
-          position: 'bottom',
-          color: 'danger',
-        });
-        await toast.present();
-        return;
-      }
-
       const member = this.staff.find(s => s.id === id);
       if (!member) return;
 
       const action = member.status === 'Active' ? 'ban' : 'unban';
 
-      const { data, error } = await this.supabase.client.functions.invoke<UpdateStatusResponse>(
-        'update-staff-status',
-        {
-          body: { userId: id, action },
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
-      );
-
-      if (error) {
-        console.error('[AdminStaff] update-staff-status failed:', error);
-        const httpStatus = (error as any)?.context?.status ?? '';
-        const msg = error.message || `Failed to ${action} staff member.`;
-        throw new Error(httpStatus ? `Error ${httpStatus}: ${msg}` : msg);
-      }
+      const data: any = await this.api.put('admin/staff/' + id + '/update-status', { action }).toPromise();
 
       await this.loadStaff();
 

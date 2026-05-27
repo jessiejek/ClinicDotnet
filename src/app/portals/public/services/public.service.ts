@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, from, map, of, shareReplay, throwError } from 'rxjs';
+import { Observable, catchError, from, of, shareReplay, throwError } from 'rxjs';
 import {
   Announcement,
   ClinicSettings,
@@ -11,62 +11,10 @@ import {
   Service,
   ServiceCategory
 } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
-import { SupabaseService } from '../../../core/services/supabase.service';
 
 type NullableString = string | null | undefined;
-
-interface PublicDoctorViewRow {
-  doctor_id: string;
-  full_name: NullableString;
-  specialization: NullableString;
-  bio: NullableString;
-  profile_photo_url: NullableString;
-  consultation_fee: number | null;
-  slot_duration_minutes: number | null;
-  slot_capacity: number | null;
-  daily_patient_limit: number | null;
-  average_rating: number | null;
-  review_count: number | null;
-  status: DoctorStatus | string | null;
-  services: unknown;
-}
-
-interface DoctorAvailableServiceViewRow {
-  doctor_id: string;
-  service_id: string;
-  service_name: NullableString;
-  service_description: NullableString;
-  category: ServiceCategory | string | null;
-  price: number | null;
-  estimated_duration_minutes: number | null;
-  is_active: boolean | null;
-}
-
-interface DoctorScheduleRow {
-  id: string;
-  doctor_id: string;
-  day_of_week: DayOfWeek | string | null;
-  start_time: NullableString;
-  end_time: NullableString;
-}
-
-interface AvailableSlotRpcRow {
-  slot_start_time: NullableString;
-  slot_end_time: NullableString;
-  is_available: boolean | null;
-  booked_count: number | null;
-  capacity: number | null;
-}
-
-interface PublicDoctorServiceJson {
-  service_id?: string | null;
-  name?: string | null;
-  description?: string | null;
-  category?: ServiceCategory | string | null;
-  price?: number | null;
-  estimated_duration_minutes?: number | null;
-}
 
 export interface DoctorSummary extends Doctor {}
 
@@ -85,33 +33,27 @@ export interface AvailableSlot {
 
 @Injectable({ providedIn: 'root' })
 export class PublicService {
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
 
   private doctorsCache$?: Observable<DoctorSummary[]>;
   private servicesCache$?: Observable<Service[]>;
 
   getDoctors(forceRefresh = false): Observable<DoctorSummary[]> {
-    if (forceRefresh) {
-      this.doctorsCache$ = undefined;
-    }
-
+    if (forceRefresh) this.doctorsCache$ = undefined;
     if (!this.doctorsCache$) {
       this.doctorsCache$ = from(this.fetchPublicDoctors()).pipe(
         catchError((error: unknown) => {
           this.doctorsCache$ = undefined;
-          return throwError(() => normalizeSupabaseError(error, 'Failed to load doctors from Supabase.'));
+          return throwError(() => normalizeError(error, 'Failed to load doctors.'));
         }),
         shareReplay({ bufferSize: 1, refCount: false })
       );
     }
-
     return this.doctorsCache$;
   }
 
-  refreshDoctors(): Observable<DoctorSummary[]> {
-    return this.getDoctors(true);
-  }
+  refreshDoctors(): Observable<DoctorSummary[]> { return this.getDoctors(true); }
 
   getDoctorById(id: string): Observable<DoctorDetail> {
     return this.refreshDoctorById(id).pipe(catchError(() => of(undefined)));
@@ -119,7 +61,7 @@ export class PublicService {
 
   refreshDoctorById(id: string): Observable<DoctorDetail> {
     return from(this.fetchPublicDoctorById(id)).pipe(
-      catchError((error: unknown) => throwError(() => normalizeSupabaseError(error, 'Failed to load doctor.')))
+      catchError((error: unknown) => throwError(() => normalizeError(error, 'Failed to load doctor.')))
     );
   }
 
@@ -128,20 +70,17 @@ export class PublicService {
       this.servicesCache$ = from(this.fetchPublicServices()).pipe(
         catchError((error: unknown) => {
           this.servicesCache$ = undefined;
-          return throwError(() => normalizeSupabaseError(error, 'Failed to load services from Supabase.'));
+          return throwError(() => normalizeError(error, 'Failed to load services.'));
         }),
         shareReplay({ bufferSize: 1, refCount: false })
       );
     }
-
     return this.servicesCache$;
   }
 
   getAvailableSlots(doctorId: string, date: string): Observable<AvailableSlot[]> {
     return from(this.fetchAvailableSlots(doctorId, date)).pipe(
-      catchError((error: unknown) =>
-        throwError(() => normalizeSupabaseError(error, 'Failed to load available slots from Supabase.'))
-      )
+      catchError((error: unknown) => throwError(() => normalizeError(error, 'Failed to load available slots.')))
     );
   }
 
@@ -166,397 +105,254 @@ export class PublicService {
   }
 
   private async fetchPublicDoctors(): Promise<DoctorSummary[]> {
-    const { data, error } = await this.supabase
-      .from('public_doctors_view')
-      .select(
-        'doctor_id, full_name, specialization, bio, profile_photo_url, consultation_fee, slot_duration_minutes, slot_capacity, daily_patient_limit, average_rating, review_count, status, services'
-      )
-      .order('full_name', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    return ((data ?? []) as PublicDoctorViewRow[]).map((row) => mapPublicDoctorRow(row));
+    const data = await this.api.get<any[]>('doctors').toPromise();
+    return (data ?? []).map(mapDoctorRow);
   }
 
   private async fetchPublicDoctorById(id: string): Promise<DoctorDetail> {
-    const { data, error } = await this.supabase
-      .from('public_doctors_view')
-      .select(
-        'doctor_id, full_name, specialization, bio, profile_photo_url, consultation_fee, slot_duration_minutes, slot_capacity, daily_patient_limit, average_rating, review_count, status, services'
-      )
-      .eq('doctor_id', id)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
-      return undefined;
-    }
-
-    const row = data as PublicDoctorViewRow;
+    const data = await this.api.get<any>(`doctors/${id}`).toPromise();
+    if (!data) return undefined;
     return {
-      ...mapPublicDoctorRow(row),
-      services: parsePublicDoctorServices(row.services, row.doctor_id)
+      ...mapDoctorRow(data),
+      services: parseDoctorServices(data['services'] ?? data['doctorServices'] ?? [], id)
     };
   }
 
   private async fetchPublicServices(): Promise<Service[]> {
-    const { data, error } = await this.supabase
-      .from('doctor_available_services_view')
-      .select(
-        'doctor_id, service_id, service_name, service_description, category, price, estimated_duration_minutes, is_active'
-      )
-      .eq('is_active', true)
-      .order('service_name', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    return mapAvailableServiceRows((data ?? []) as DoctorAvailableServiceViewRow[]);
+    const data = await this.api.get<any[]>('services').toPromise();
+    return mapServicesFromAllDoctors(data ?? []);
   }
 
   private async fetchDoctorServices(doctorId: string): Promise<Service[]> {
-    const { data, error } = await this.supabase
-      .from('doctor_available_services_view')
-      .select(
-        'doctor_id, service_id, service_name, service_description, category, price, estimated_duration_minutes, is_active'
-      )
-      .eq('doctor_id', doctorId)
-      .eq('is_active', true)
-      .order('service_name', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    return mapAvailableServiceRows((data ?? []) as DoctorAvailableServiceViewRow[]);
+    const data = await this.api.get<any[]>(`doctors/${doctorId}/services`).toPromise();
+    return (data ?? []).map((r: Record<string, unknown>) => mapServiceRow(r, doctorId)).filter(Boolean) as Service[];
   }
 
   private async fetchDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {
-    const { data, error } = await this.supabase
-      .from('doctor_schedules')
-      .select('id, doctor_id, day_of_week, start_time, end_time')
-      .eq('doctor_id', doctorId)
-      .order('day_of_week', { ascending: true })
-      .order('start_time', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    return ((data ?? []) as DoctorScheduleRow[]).map((row) => mapDoctorScheduleRow(row));
+    const data = await this.api.get<any[]>(`doctors/${doctorId}/schedule`).toPromise();
+    return (data ?? []).map(mapScheduleRow);
   }
 
   private async fetchAvailableSlots(doctorId: string, date: string): Promise<AvailableSlot[]> {
-    const [rpcResponse, doctor, schedules] = await Promise.all([
-      this.supabase.rpc('get_available_slots', {
-        p_doctor_id: doctorId,
-        p_appointment_date: date
-      }),
-      this.fetchPublicDoctorById(doctorId),
-      this.fetchDoctorSchedules(doctorId)
-    ]);
-
-    const { data, error } = rpcResponse;
-    if (error) {
-      throw error;
-    }
-
-    const rpcRows = (data ?? []) as AvailableSlotRpcRow[];
+    const data = await this.api.get<any[]>(`doctors/${doctorId}/available-slots?date=${encodeURIComponent(date)}`).toPromise();
+    const doctor = await this.fetchPublicDoctorById(doctorId);
+    const schedules = await this.fetchDoctorSchedules(doctorId);
     const slotTimes = buildScheduledSlotTimes(date, schedules, Math.max(5, doctor?.slotDurationMinutes ?? 30));
     const capacity = Math.max(1, doctor?.slotCapacity ?? 1);
-
     return slotTimes.map((slotTime, index) =>
-      mapAvailableSlotRow(rpcRows.find((row) => normalizeString(row.slot_start_time) === slotTime.startTime) ?? rpcRows[index] ?? {
-        slot_start_time: slotTime.startTime,
-        slot_end_time: slotTime.endTime,
-        is_available: true,
-        booked_count: 0,
-        capacity
-      }, slotTime)
+      mapAvailableSlotRow(
+        (data ?? []).find((row: any) => normalizeString(row.slotStartTime ?? row.slot_start_time) === slotTime.startTime)
+        ?? { slot_start_time: slotTime.startTime, slot_end_time: slotTime.endTime, is_available: true, booked_count: 0, capacity },
+        slotTime
+      )
     );
   }
 
   private async fetchActiveAnnouncements(): Promise<Announcement[]> {
-    const { data, error } = await this.supabase
-      .from('announcements')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.warn('[PublicService] announcements table not available yet:', error.message);
-      return [];
-    }
-
-    return ((data ?? []) as Record<string, unknown>[]).map(mapAnnouncementRow);
+    const data = await this.api.get<any[]>('announcements').toPromise();
+    return (data ?? []).map(mapAnnouncementRow);
   }
 
   private async fetchDoctorReviews(doctorId: string): Promise<Review[]> {
-    const { data, error } = await this.supabase
-      .from('reviews')
-      .select('*')
-      .eq('doctor_id', doctorId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.warn('[PublicService] reviews table not available yet:', error.message);
-      return [];
-    }
-
-    return ((data ?? []) as Record<string, unknown>[]).map(mapReviewRow);
+    const data = await this.api.get<any[]>(`reviews?doctorId=${doctorId}`).toPromise();
+    return (data ?? []).map(mapReviewRow);
   }
 }
 
-const DOCTOR_STATUSES: DoctorStatus[] = ['Active', 'Inactive', 'OnLeave'];
-
-function mapPublicDoctorRow(row: PublicDoctorViewRow): DoctorSummary {
-  const status = normalizeDoctorStatus(row.status) ?? 'Active';
-
+function mapDoctorRow(row: Record<string, unknown>): DoctorSummary {
+  const statusStr = resolveStr(row, 'status') || 'Active';
+  const status: DoctorStatus = ['Active', 'Inactive', 'OnLeave'].includes(statusStr) ? statusStr as DoctorStatus : 'Active';
   return {
-    id: row.doctor_id,
-    userId: row.doctor_id,
-    fullName: normalizeString(row.full_name) || 'Doctor',
-    specialization: normalizeString(row.specialization) || '',
-    bio: normalizeString(row.bio),
-    profilePhotoUrl: normalizeString(row.profile_photo_url),
-    consultationFee: row.consultation_fee ?? 0,
-    slotDurationMinutes: row.slot_duration_minutes ?? 30,
-    slotCapacity: row.slot_capacity ?? 1,
-    dailyPatientLimit: row.daily_patient_limit ?? null,
+    id: resolveStr(row, 'id') || '',
+    userId: resolveStr(row, 'userId') || resolveStr(row, 'id') || '',
+    fullName: resolveStr(row, 'fullName') || 'Doctor',
+    specialization: resolveStr(row, 'specialization') || '',
+    bio: resolveStr(row, 'bio'),
+    profilePhotoUrl: resolveStr(row, 'profilePhotoUrl'),
+    consultationFee: resolveNum(row, 'consultationFee') ?? 0,
+    slotDurationMinutes: resolveNum(row, 'slotDurationMinutes') ?? 30,
+    slotCapacity: resolveNum(row, 'slotCapacity') ?? 1,
+    dailyPatientLimit: resolveNum(row, 'dailyPatientLimit') ?? null,
     status,
     isActive: status === 'Active',
-    averageRating: row.average_rating ?? undefined,
-    reviewCount: row.review_count ?? undefined
+    averageRating: resolveNum(row, 'averageRating') ?? undefined,
+    reviewCount: resolveNum(row, 'reviewCount') ?? undefined,
   };
 }
 
-function parsePublicDoctorServices(value: unknown, doctorId: string): Service[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => mapPublicDoctorServiceJson(item as PublicDoctorServiceJson, doctorId))
-    .filter((service): service is Service => Boolean(service));
+function parseDoctorServices(value: unknown, doctorId: string): Service[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item: any) => mapServiceRow(item, doctorId)).filter(Boolean) as Service[];
 }
 
-function mapPublicDoctorServiceJson(item: PublicDoctorServiceJson, doctorId: string): Service | undefined {
-  const id = normalizeString(item.service_id);
-  const name = normalizeString(item.name);
-
-  if (!id || !name) {
-    return undefined;
-  }
-
+function mapServiceRow(row: Record<string, unknown>, doctorId: string): Service | undefined {
+  const id = resolveStr(row, 'id');
+  const name = resolveStr(row, 'name');
+  if (!id || !name) return undefined;
   return {
-    id,
-    name,
-    description: normalizeString(item.description),
-    estimatedDurationMinutes: item.estimated_duration_minutes ?? 0,
-    price: item.price ?? 0,
-    category: normalizeServiceCategory(item.category),
-    doctorIds: [doctorId]
+    id, name,
+    description: resolveStr(row, 'description'),
+    estimatedDurationMinutes: resolveNum(row, 'estimatedDurationMinutes') ?? 0,
+    price: resolveNum(row, 'price') ?? 0,
+    category: normalizeCategory(resolveStr(row, 'category')),
+    doctorIds: [doctorId],
   };
 }
 
-function mapAvailableServiceRows(rows: DoctorAvailableServiceViewRow[]): Service[] {
-  const servicesById = new Map<string, Service>();
-
+function mapServicesFromAllDoctors(rows: Record<string, unknown>[]): Service[] {
+  const map = new Map<string, Service>();
   for (const row of rows) {
-    const id = row.service_id;
-    const existing = servicesById.get(id);
-
+    const id = resolveStr(row, 'id');
+    const name = resolveStr(row, 'name');
+    if (!id || !name) continue;
+    const existing = map.get(id);
     if (existing) {
-      if (!existing.doctorIds.includes(row.doctor_id)) {
-        existing.doctorIds.push(row.doctor_id);
-      }
+      const docId = resolveStr(row, 'doctorId');
+      if (docId && !existing.doctorIds.includes(docId)) existing.doctorIds.push(docId);
       continue;
     }
-
-    servicesById.set(id, {
-      id,
-      name: normalizeString(row.service_name) || '',
-      description: normalizeString(row.service_description),
-      estimatedDurationMinutes: row.estimated_duration_minutes ?? 0,
-      price: row.price ?? 0,
-      category: normalizeServiceCategory(row.category),
-      doctorIds: [row.doctor_id]
+    const docId = resolveStr(row, 'doctorId');
+    map.set(id, {
+      id, name,
+      description: resolveStr(row, 'description'),
+      estimatedDurationMinutes: resolveNum(row, 'estimatedDurationMinutes') ?? 0,
+      price: resolveNum(row, 'price') ?? 0,
+      category: normalizeCategory(resolveStr(row, 'category')),
+      doctorIds: docId ? [docId] : [],
     });
   }
-
-  return [...servicesById.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function mapDoctorScheduleRow(row: DoctorScheduleRow): DoctorSchedule {
+function mapScheduleRow(row: Record<string, unknown>): DoctorSchedule {
   return {
-    id: row.id,
-    doctorId: row.doctor_id,
-    dayOfWeek: normalizeDayOfWeek(row.day_of_week),
-    startTime: normalizeTime(row.start_time),
-    endTime: normalizeTime(row.end_time)
+    id: resolveStr(row, 'id') || '',
+    doctorId: resolveStr(row, 'doctorId') || '',
+    dayOfWeek: normalizeDay(resolveStr(row, 'dayOfWeek')),
+    startTime: normalizeTimeStr(resolveStr(row, 'startTime')),
+    endTime: normalizeTimeStr(resolveStr(row, 'endTime')),
   };
 }
 
-function mapAvailableSlotRow(
-  row: AvailableSlotRpcRow,
-  fallbackTime?: { startTime: string; endTime: string }
-): AvailableSlot {
-  const slotStartTime = fallbackTime?.startTime || normalizeString(row.slot_start_time) || '';
-  const slotEndTime = fallbackTime?.endTime || normalizeString(row.slot_end_time) || '';
-  const isAvailable = row.is_available ?? true;
-
+function mapAvailableSlotRow(row: Record<string, unknown>, fallback?: { startTime: string; endTime: string }): AvailableSlot {
+  const sst = fallback?.startTime || resolveStr(row, 'slot_start_time') || resolveStr(row, 'slotStartTime') || '';
+  const set = fallback?.endTime || resolveStr(row, 'slot_end_time') || resolveStr(row, 'slotEndTime') || '';
+  const avail = row['is_available'] ?? row['isAvailable'] ?? true;
   return {
-    slotStartTime,
-    slotEndTime,
-    isAvailable,
-    bookedCount: row.booked_count ?? 0,
-    capacity: row.capacity ?? 0,
-    time: slotStartTime,
-    endTime: slotEndTime,
-    IsAvailable: isAvailable
+    slotStartTime: sst,
+    slotEndTime: set,
+    isAvailable: !!avail,
+    bookedCount: resolveNum(row, 'booked_count') ?? resolveNum(row, 'bookedCount') ?? 0,
+    capacity: resolveNum(row, 'capacity') ?? 0,
+    time: sst,
+    endTime: set,
+    IsAvailable: !!avail,
   };
-}
-
-function buildScheduledSlotTimes(
-  appointmentDate: string,
-  schedules: DoctorSchedule[],
-  slotDurationMinutes: number
-): Array<{ startTime: string; endTime: string }> {
-  const previewDate = new Date(`${appointmentDate}T00:00:00`);
-  if (Number.isNaN(previewDate.getTime())) {
-    return [];
-  }
-
-  const duration = Math.max(5, Math.round(slotDurationMinutes || 30));
-  const dayName = DAY_NAMES[previewDate.getDay()];
-  const schedule = schedules.find((item) => normalizeDayOfWeek(item.dayOfWeek) === dayName);
-
-  if (!schedule) {
-    return [];
-  }
-
-  const startMinutes = timeToMinutes(schedule.startTime);
-  const endMinutes = timeToMinutes(schedule.endTime);
-
-  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
-    return [];
-  }
-
-  const slots: Array<{ startTime: string; endTime: string }> = [];
-  for (let current = startMinutes; current + duration <= endMinutes; current += duration) {
-    slots.push({
-      startTime: minutesToTime(current),
-      endTime: minutesToTime(current + duration)
-    });
-  }
-
-  return slots;
-}
-
-function timeToMinutes(value: NullableString): number | null {
-  if (!value) {
-    return null;
-  }
-
-  const [hourText, minuteText = '0'] = value.trim().slice(0, 5).split(':');
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-    return null;
-  }
-
-  return hour * 60 + minute;
-}
-
-function minutesToTime(totalMinutes: number): string {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-const DAY_NAMES: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-function normalizeString(value: NullableString): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function normalizeDoctorStatus(value: unknown): DoctorStatus | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return DOCTOR_STATUSES.find((item) => item.toLowerCase() === normalized);
-}
-
-function normalizeServiceCategory(value: unknown): ServiceCategory {
-  const allowed: ServiceCategory[] = ['Consultation', 'Procedure', 'Laboratory', 'Diagnostic'];
-  if (typeof value !== 'string') {
-    return 'Consultation';
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return allowed.find((item) => item.toLowerCase() === normalized) ?? 'Consultation';
-}
-
-function normalizeDayOfWeek(value: unknown): DayOfWeek {
-  const allowed: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  if (typeof value !== 'string') {
-    return 'Monday';
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return allowed.find((item) => item.toLowerCase() === normalized) ?? 'Monday';
-}
-
-function normalizeTime(value: NullableString): string {
-  const trimmed = normalizeString(value) || '00:00';
-  return trimmed.length >= 5 ? trimmed.slice(0, 5) : trimmed;
 }
 
 function mapAnnouncementRow(row: Record<string, unknown>): Announcement {
   return {
-    id: String(row['id'] ?? ''),
-    title: String(row['title'] ?? ''),
-    body: String(row['body'] ?? ''),
-    imageUrl: row['image_url'] ? String(row['image_url']) : undefined,
-    isActive: Boolean(row['is_active'] ?? true),
-    createdAt: String(row['created_at'] ?? new Date().toISOString())
+    id: String(resolveStr(row, 'id') ?? ''),
+    title: String(resolveStr(row, 'title') ?? ''),
+    body: String(resolveStr(row, 'body') ?? ''),
+    imageUrl: resolveStr(row, 'imageUrl'),
+    isActive: row['isActive'] === true || row['is_active'] === true || true,
+    createdAt: resolveStr(row, 'createdAt') ?? resolveStr(row, 'created_at') ?? new Date().toISOString(),
   };
 }
 
 function mapReviewRow(row: Record<string, unknown>): Review {
   return {
-    id: String(row['id'] ?? ''),
-    bookingId: String(row['booking_id'] ?? ''),
-    doctorId: String(row['doctor_id'] ?? ''),
-    patientId: String(row['patient_id'] ?? ''),
-    rating: Number(row['rating']) || 0,
-    comment: row['comment'] ? String(row['comment']) : undefined,
-    patientName: String(row['patient_name'] ?? ''),
-    createdAt: String(row['created_at'] ?? new Date().toISOString())
+    id: String(resolveStr(row, 'id') ?? ''),
+    bookingId: String(resolveStr(row, 'bookingId') ?? ''),
+    doctorId: String(resolveStr(row, 'doctorId') ?? ''),
+    patientId: String(resolveStr(row, 'patientId') ?? ''),
+    rating: resolveNum(row, 'rating') || 0,
+    comment: resolveStr(row, 'comment'),
+    patientName: resolveStr(row, 'patientName') ?? '',
+    createdAt: resolveStr(row, 'createdAt') ?? resolveStr(row, 'created_at') ?? new Date().toISOString(),
   };
 }
 
-function normalizeSupabaseError(error: unknown, fallback: string): Error {
-  if (error instanceof Error) {
-    return error;
+function buildScheduledSlotTimes(
+  date: string,
+  schedules: DoctorSchedule[],
+  slotDurationMinutes: number
+): Array<{ startTime: string; endTime: string }> {
+  const previewDate = new Date(date + 'T00:00:00');
+  if (isNaN(previewDate.getTime())) return [];
+  const duration = Math.max(5, Math.round(slotDurationMinutes || 30));
+  const dayName = DAY_NAMES[previewDate.getDay()];
+  const schedule = schedules.find((s) => s.dayOfWeek === dayName);
+  if (!schedule) return [];
+  const start = timeToMins(schedule.startTime);
+  const end = timeToMins(schedule.endTime);
+  if (start === null || end === null || end <= start) return [];
+  const slots: Array<{ startTime: string; endTime: string }> = [];
+  for (let c = start; c + duration <= end; c += duration) {
+    slots.push({ startTime: minsToTime(c), endTime: minsToTime(c + duration) });
   }
+  return slots;
+}
 
+function timeToMins(v: NullableString): number | null {
+  if (!v) return null;
+  const parts = v.trim().slice(0, 5).split(':');
+  const h = Number(parts[0]), m = Number(parts[1] ?? '0');
+  return isFinite(h) && isFinite(m) ? h * 60 + m : null;
+}
+
+function minsToTime(t: number): string {
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
+const DAY_NAMES: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function resolveStr(row: Record<string, unknown>, key: string): string | undefined {
+  const val = row[key] ?? row[camelToSnake(key)];
+  return typeof val === 'string' && val.trim() ? val.trim() : undefined;
+}
+
+function resolveNum(row: Record<string, unknown>, key: string): number | undefined {
+  const val = row[key] ?? row[camelToSnake(key)];
+  if (typeof val === 'number' && isFinite(val)) return val;
+  if (typeof val === 'string') { const p = parseFloat(val); if (isFinite(p)) return p; }
+  return undefined;
+}
+
+function camelToSnake(s: string): string {
+  return s.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+}
+
+function normalizeCategory(v: string | undefined): ServiceCategory {
+  const allowed: ServiceCategory[] = ['Consultation', 'Procedure', 'Laboratory', 'Diagnostic'];
+  if (!v) return 'Consultation';
+  const n = v.trim().toLowerCase();
+  return allowed.find((a) => a.toLowerCase() === n) ?? 'Consultation';
+}
+
+function normalizeDay(v: string | undefined): DayOfWeek {
+  const allowed: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  if (!v) return 'Monday';
+  const n = v.trim().toLowerCase();
+  return allowed.find((a) => a.toLowerCase() === n) ?? 'Monday';
+}
+
+function normalizeTimeStr(v: NullableString): string {
+  const t = (v || '').trim();
+  return t.length >= 5 ? t.slice(0, 5) : t || '00:00';
+}
+
+function normalizeString(v: string | null | undefined): string | undefined {
+  const t = v?.trim();
+  return t || undefined;
+}
+
+function normalizeError(error: unknown, fallback: string): Error {
+  if (error instanceof Error) return error;
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) {
-      return new Error(message);
-    }
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg.trim()) return new Error(msg);
   }
-
   return new Error(fallback);
 }

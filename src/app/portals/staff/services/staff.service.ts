@@ -1,210 +1,102 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, from, map } from 'rxjs';
-import { SupabaseService } from '../../../core/services/supabase.service';
-import { BookingService } from '../../../core/services/booking.service';
-import { PagedResult, PatientDetail, PatientSummary } from '../../../core/models';
+import { Observable, from } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
+import { PagedResult } from '../../../core/models';
 
-type NullableString = string | null | undefined;
-
-interface PatientRow {
+export interface StaffDoctor {
   id: string;
-  patient_code?: NullableString;
-  first_name?: NullableString;
-  middle_name?: NullableString;
-  last_name?: NullableString;
-  full_name?: NullableString;
-  date_of_birth?: NullableString;
-  sex?: NullableString;
-  contact_number?: NullableString;
-  contact_email?: NullableString;
-  user_id?: NullableString;
-  is_guest?: boolean | null;
+  fullName: string;
+  specialization?: string;
+}
+
+export interface StaffPatient {
+  id: string;
+  patientCode: string;
+  fullName: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  dateOfBirth: string;
+  sex: string;
+  contactNumber: string;
+  email: string;
+  userId?: string;
+  isGuest: boolean;
+  hasAccount?: boolean;
+}
+
+function toStaffPatient(row: Record<string, unknown>): StaffPatient {
+  const firstName = (row['firstName'] ?? row['first_name'] ?? '') as string;
+  const middleName = (row['middleName'] ?? row['middle_name']) as string | undefined;
+  const lastName = (row['lastName'] ?? row['last_name'] ?? '') as string;
+  const id = (row['id'] ?? row['Id'] ?? '') as string;
+  return {
+    id,
+    patientCode: (row['patientCode'] ?? row['patient_code'] ?? '') as string,
+    fullName: (row['fullName'] ?? row['FullName'] ?? [firstName, middleName, lastName].filter(Boolean).join(' ')) as string,
+    firstName,
+    middleName,
+    lastName,
+    dateOfBirth: (row['dateOfBirth'] ?? row['date_of_birth'] ?? '') as string,
+    sex: (row['sex'] ?? row['Sex'] ?? '') as string,
+    contactNumber: (row['contactNumber'] ?? row['contact_number'] ?? '') as string,
+    email: (row['email'] ?? row['contact_email'] ?? '') as string,
+    userId: (row['userId'] ?? row['user_id']) as string | undefined,
+    isGuest: (row['isGuest'] ?? row['is_guest'] ?? false) as boolean,
+    hasAccount: !!(row['userId'] ?? row['user_id']),
+  };
 }
 
 @Injectable({ providedIn: 'root' })
 export class StaffService {
-  private readonly supabase = inject(SupabaseService).client;
-  private readonly bookingService = inject(BookingService);
+  private readonly api = inject(ApiService);
 
-  getDoctors = () =>
-    from(this.fetchDoctors()).pipe(
-      map((doctors) =>
-        doctors.map((d) => ({
-          id: d.id,
-          fullName: d.fullName,
-          specialization: d.specialization,
-        }))
-      )
-    );
+  getDoctors(): Observable<StaffDoctor[]> {
+    return from(this.fetchDoctors());
+  }
 
-  getPatients = (page = 1, pageSize = 20, search?: string) =>
-    from(this.fetchPatients(page, pageSize, search));
+  getPatients(page = 1, pageSize = 20, search?: string): Observable<PagedResult<StaffPatient>> {
+    return from(this.fetchPatients(page, pageSize, search));
+  }
 
-  getPatientById(id: string): Observable<PatientDetail> {
+  getPatientById(id: string): Observable<StaffPatient | undefined> {
     return from(this.fetchPatientById(id));
   }
 
-  createPatientPortalAccount(patientId: string, dto: { email: string; temporaryPassword: string }): Observable<PatientDetail> {
-    // Deferred: requires Supabase admin auth user creation via Edge Function.
-    // For now, just update the patient's contact email.
-    return from(this.updatePatientEmail(patientId, dto.email));
+  getPatientByPhone(phone: string): Observable<PagedResult<StaffPatient>> {
+    return from(this.fetchPatients(1, 20, phone));
   }
 
-  getBookings = () => this.bookingService.getBookings();
-  getTodaysBookings = () => this.bookingService.getTodaysBookings();
+  createPatientPortalAccount(patientId: string, request: any): Observable<any> {
+    return from(this.api.post('patients/' + patientId + '/portal-account', request).toPromise());
+  }
 
-  private async fetchDoctors(): Promise<Array<{ id: string; fullName: string; specialization: string }>> {
-    const { data, error } = await this.supabase
-      .from('doctors')
-      .select('id, full_name, specialization')
-      .eq('status', 'Active')
-      .order('full_name', { ascending: true });
-
-    if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
-      id: trimStr(row['id']) ?? '',
-      fullName: trimStr(row['full_name']) ?? 'Doctor',
-      specialization: trimStr(row['specialization']) ?? '',
+  private async fetchDoctors(): Promise<StaffDoctor[]> {
+    const data = await this.api.get<any[]>('doctors').toPromise();
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+      id: (r['id'] ?? r['Id'] ?? '') as string,
+      fullName: (r['fullName'] ?? r['full_name'] ?? r['FullName'] ?? '') as string,
+      specialization: (r['specialization'] ?? r['Specialization']) as string | undefined,
     }));
   }
 
-  private async fetchPatients(page: number, pageSize: number, search?: string): Promise<PagedResult<PatientSummary>> {
-    let query = this.supabase
-      .from('patients')
-      .select('id, patient_code, first_name, middle_name, last_name, date_of_birth, sex, contact_number, contact_email, user_id, is_guest', { count: 'exact' })
-      .order('last_name', { ascending: true })
-      .order('first_name', { ascending: true })
-      .range((page - 1) * pageSize, page * pageSize - 1);
-
-    if (search?.trim()) {
-      const term = search.trim();
-      query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,patient_code.ilike.%${term}%`);
-    }
-
-    const { data, error, count } = await query;
-
-    if (error) throw error;
-
-    const items = ((data ?? []) as PatientRow[]).map((row) => mapPatientSummaryFromRow(row));
-    const totalCount = count ?? items.length;
-
+  private async fetchPatients(page: number, pageSize: number, search?: string): Promise<PagedResult<StaffPatient>> {
+    let endpoint = `patients?page=${page}&pageSize=${pageSize}`;
+    if (search) endpoint += `&search=${encodeURIComponent(search)}`;
+    const data = await this.api.get<any>(endpoint).toPromise();
+    const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map(toStaffPatient);
     return {
       items,
-      totalCount,
-      total: totalCount,
-      page,
-      pageSize,
-      totalPages: Math.ceil(totalCount / pageSize) || 1,
+      total: data?.total ?? items.length,
+      totalCount: data?.totalCount ?? items.length,
+      page: data?.page ?? page,
+      pageSize: data?.pageSize ?? pageSize,
+      totalPages: data?.totalPages ?? 1,
     };
   }
 
-  private async fetchPatientById(id: string): Promise<PatientDetail> {
-    const { data, error } = await this.supabase
-      .from('patients')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) throw new Error('Patient not found.');
-
-    const row = data as Record<string, unknown>;
-    return {
-      id: trimStr(row['id']) ?? '',
-      patientCode: trimStr(row['patient_code']) ?? trimStr(row['id']) ?? '',
-      firstName: trimStr(row['first_name']) ?? '',
-      middleName: trimStr(row['middle_name']),
-      lastName: trimStr(row['last_name']) ?? '',
-      dateOfBirth: trimStr(row['date_of_birth']) ?? '',
-      sex: trimStr(row['sex']) ?? '',
-      civilStatus: trimStr(row['civil_status']),
-      address: trimStr(row['address']),
-      city: trimStr(row['city']),
-      zipCode: trimStr(row['zip_code']),
-      contactNumber: trimStr(row['contact_number']),
-      email: trimStr(row['contact_email']),
-      emergencyContactName: trimStr(row['emergency_contact_name']),
-      emergencyContactNumber: trimStr(row['emergency_contact_number']),
-      emergencyContactRelationship: trimStr(row['emergency_contact_relationship']),
-      bloodType: trimStr(row['blood_type']),
-      philHealthNumber: trimStr(row['phil_health_number']),
-      hmoProvider: trimStr(row['hmo_provider']),
-      hmoCardNumber: trimStr(row['hmo_card_number']),
-      userId: trimStr(row['user_id']),
-      hasAccount: Boolean(row['user_id']),
-      isEmailVerified: undefined,
-      isGuest: Boolean(row['is_guest']),
-      consentedAt: trimStr(row['consented_at']),
-      consentVersion: trimStr(row['consent_version']),
-    };
+  private async fetchPatientById(id: string): Promise<StaffPatient | undefined> {
+    const data = await this.api.get<any>(`patients/${id}`).toPromise();
+    return data ? toStaffPatient(data as Record<string, unknown>) : undefined;
   }
-
-  private async updatePatientEmail(patientId: string, email: string): Promise<PatientDetail> {
-    const { data, error } = await this.supabase
-      .from('patients')
-      .update({ contact_email: email.trim() })
-      .eq('id', patientId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    const row = data as Record<string, unknown>;
-    return {
-      id: trimStr(row['id']) ?? '',
-      patientCode: trimStr(row['patient_code']) ?? '',
-      firstName: trimStr(row['first_name']) ?? '',
-      middleName: trimStr(row['middle_name']),
-      lastName: trimStr(row['last_name']) ?? '',
-      dateOfBirth: trimStr(row['date_of_birth']) ?? '',
-      sex: trimStr(row['sex']) ?? '',
-      civilStatus: trimStr(row['civil_status']),
-      address: trimStr(row['address']),
-      city: trimStr(row['city']),
-      zipCode: trimStr(row['zip_code']),
-      contactNumber: trimStr(row['contact_number']),
-      email: trimStr(row['contact_email']),
-      emergencyContactName: trimStr(row['emergency_contact_name']),
-      emergencyContactNumber: trimStr(row['emergency_contact_number']),
-      emergencyContactRelationship: trimStr(row['emergency_contact_relationship']),
-      bloodType: trimStr(row['blood_type']),
-      philHealthNumber: trimStr(row['phil_health_number']),
-      hmoProvider: trimStr(row['hmo_provider']),
-      hmoCardNumber: trimStr(row['hmo_card_number']),
-      userId: trimStr(row['user_id']),
-      hasAccount: Boolean(row['user_id']),
-      isEmailVerified: undefined,
-      isGuest: Boolean(row['is_guest']),
-      consentedAt: trimStr(row['consented_at']),
-      consentVersion: trimStr(row['consent_version']),
-    };
-  }
-}
-
-function mapPatientSummaryFromRow(row: PatientRow): PatientSummary {
-  return {
-    id: row.id,
-    patientCode: trimStr(row.patient_code) || row.id,
-    firstName: trimStr(row.first_name) || '',
-    middleName: trimStr(row.middle_name),
-    lastName: trimStr(row.last_name) || '',
-    fullName: composeName(row.first_name, row.middle_name, row.last_name),
-    dateOfBirth: trimStr(row.date_of_birth) || '',
-    sex: trimStr(row.sex) || '',
-    contactNumber: trimStr(row.contact_number),
-    email: trimStr(row.contact_email),
-    userId: trimStr(row.user_id),
-    hasAccount: Boolean(row.user_id),
-    isGuest: Boolean(row.is_guest),
-  };
-}
-
-function trimStr(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const t = value.trim();
-  return t || undefined;
-}
-
-function composeName(first: unknown, middle: unknown, last: unknown): string {
-  const parts = [first, middle, last].map((v) => trimStr(v)).filter((v): v is string => Boolean(v));
-  return parts.length ? parts.join(' ') : 'Patient';
 }

@@ -516,7 +516,7 @@ export class AdminPatientEditModalComponent {
     }
 
     const createdPatient = await firstValueFrom(
-      this.adminPatientsService.createPatientPortalAccount(patient.id, {
+      this.adminPatientsService.createPortalAccount(patient.id, {
         email: this.requiredValue(values.email),
         temporaryPassword: values.accountPassword
       })

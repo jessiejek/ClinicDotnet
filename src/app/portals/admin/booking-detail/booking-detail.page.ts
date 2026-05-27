@@ -1,10 +1,10 @@
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { ApiService } from '../../../core/services/api.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ToastController } from '@ionic/angular/standalone';
 import { Booking, Doctor, Patient, Service, ReceiptData } from '../../../core/models';
 import { BookingService } from '../../../core/services/booking.service';
-import { SupabaseService } from '../../../core/services/supabase.service';
 import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
@@ -220,7 +220,7 @@ interface PatientDetails {
 })
 export class BookingDetailPage implements OnInit {
   private readonly bookingService = inject(BookingService);
-  private readonly supabase = inject(SupabaseService);
+  private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
@@ -269,13 +269,7 @@ export class BookingDetailPage implements OnInit {
 
   private async loadPatientDetails(patientId: string): Promise<void> {
     try {
-      const { data, error } = await this.supabase.client
-        .from('patients')
-        .select('first_name, middle_name, last_name, patient_code, date_of_birth, contact_number, email')
-        .eq('id', patientId)
-        .single();
-
-      if (error) throw error;
+      const data: any = await this.api.get('patients/' + patientId).toPromise();
 
       if (data) {
         this.patientDetails = {
@@ -414,13 +408,7 @@ export class BookingDetailPage implements OnInit {
     details?: string
   ): Promise<void> {
     try {
-      await this.supabase.client.from('audit_logs').insert({
-        entity_type: 'Booking',
-        entity_id: entityId,
-        action,
-        performed_by: performedBy || '00000000-0000-0000-0000-000000000000',
-        details: details || null
-      });
+      await this.api.post('audit-logs', { entityType: 'Booking', entityId, action, performedBy, details }).toPromise();
     } catch (err: any) {
       console.warn('Failed to record audit log:', err?.message);
     }
@@ -438,12 +426,7 @@ export class BookingDetailPage implements OnInit {
     this.waiveModalOpen = false;
     this.isLoading = true;
     try {
-      const { error } = await this.supabase.client
-        .from('bookings')
-        .update({ payment_status: 'Waived' })
-        .eq('id', bookingId);
-
-      if (error) throw error;
+      await this.api.put('bookings/' + bookingId + '/waive', { reason }).toPromise();
 
       await this.recordAuditLog(
         bookingId,
@@ -464,12 +447,7 @@ export class BookingDetailPage implements OnInit {
     this.refundModalOpen = false;
     this.isLoading = true;
     try {
-      const { error } = await this.supabase.client
-        .from('bookings')
-        .update({ payment_status: 'Refunded' })
-        .eq('id', bookingId);
-
-      if (error) throw error;
+      await this.api.put('bookings/' + bookingId + '/refund', { reason }).toPromise();
 
       await this.recordAuditLog(
         bookingId,

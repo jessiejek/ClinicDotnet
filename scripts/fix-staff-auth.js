@@ -1,0 +1,18 @@
+const fs = require('fs');
+const f = 'Z:/CLINIC/clinic_fe_dotnet/src/app/portals/admin/staff/staff.page.ts';
+let c = fs.readFileSync(f, 'utf8');
+
+// Remove the two auth.getSession() lines (they're no longer needed since HTTP interceptor handles tokens)
+c = c.replace(
+  "const { data: sessionData } = await this.api.auth.getSession();\n      const accessToken = sessionData?.session?.access_token;",
+  "const accessToken = '';"
+);
+
+// Replace functions.invoke with API call
+c = c.replace(
+  "const { data, error } = await this.api.functions.invoke<UpdateStatusResponse>(\n        'update-staff-status',\n        {\n          body: { userId: staffId, status, banned },\n          headers: {\n            Authorization: `Bearer ${accessToken}`,\n          },\n        }\n      );\n\n      if (error) {\n        throw new Error(error.message || 'Failed to update staff status via Edge Function.');\n      }",
+  "const data = await this.api.put('admin/staff/' + staffId + '/status', { status, banned }).toPromise();"
+);
+
+fs.writeFileSync(f, c);
+console.log('fixed staff auth/functions');

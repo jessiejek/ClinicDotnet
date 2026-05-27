@@ -1,8 +1,8 @@
 import { AsyncPipe, CurrencyPipe, DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ApiService } from '../../../core/services/api.service';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { SupabaseService } from '../../../core/services/supabase.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { TodayAppointmentsTableComponent } from '../components/today-appointments-table/today-appointments-table.component';
 import { StatCardComponent } from '../components/stat-card/stat-card.component';
@@ -85,7 +85,7 @@ import { StatCardComponent } from '../components/stat-card/stat-card.component';
   styleUrl: './dashboard.page.scss'
 })
 export class DashboardPage implements OnInit {
-  private readonly supabase = inject(SupabaseService);
+  private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
   private readonly destroyRef = inject(DestroyRef);
@@ -139,17 +139,17 @@ export class DashboardPage implements OnInit {
 
     try {
       const [
-        { data: staffToday },
-        { data: monthBookings },
-        { data: doctorsList },
-        { data: patientsList },
-        { data: servicesList },
+        staffToday,
+        monthBookings,
+        doctorsList,
+        patientsList,
+        servicesList,
       ] = await Promise.all([
-        this.supabase.client.from('staff_today_queue_view').select('*'),
-        this.supabase.client.from('patient_bookings_view').select('*').gte('appointment_date', monthStart).lte('appointment_date', today),
-        this.supabase.client.from('doctors').select('id, full_name').eq('status', 'Active'),
-        this.supabase.client.from('patients').select('id, first_name, last_name'),
-        this.supabase.client.from('services').select('id, name').eq('is_active', true),
+        this.api.get<any[]>('bookings?status=CheckedIn&pageSize=1').toPromise(),
+        this.api.get<any[]>('bookings?fromDate=' + encodeURIComponent(monthStart) + '&toDate=' + encodeURIComponent(today) + '&pageSize=1000').toPromise(),
+        this.api.get<any[]>('doctors').toPromise(),
+        this.api.get<any[]>('patients?pageSize=1000').toPromise(),
+        this.api.get<any[]>('services').toPromise(),
       ]);
 
       const todayRows = staffToday || [];
