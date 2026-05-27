@@ -55,11 +55,6 @@ export interface CreateBookingRequest {
 
 export interface CreateWalkInRequest extends CreateBookingRequest {}
 
-export interface SubmitProofRequest {
-  proofType: ProofType;
-  proofValue: string;
-}
-
 export interface RescheduleBookingRequest {
   appointmentDate: string;
   slotStartTime: string;
@@ -423,35 +418,6 @@ export class BookingService {
         finalize(() => this.endLoading())
       );
     });
-  }
-
-  addBooking(booking: Booking): void {
-    this.upsertBooking(booking);
-  }
-
-  updateBookingStatus(bookingId: string, status: BookingStatus): void {
-    if (this.getBookingById(bookingId)) {
-      this.patchBooking(bookingId, { status });
-    }
-  }
-
-  /** @deprecated API-first ? proof submission is deferred. Use proof-payments storage bucket instead. */
-  submitProof(bookingId: string, dto: SubmitProofRequest): Observable<Booking> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.post<any>(`bookings/${bookingId}/proof`, dto).pipe(
-        map((row) => this.normalizeBooking(mapBookingViewRow(row as Record<string, unknown>)) as Booking),
-        tap((booking) => this.upsertBooking(booking)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to submit proof.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  submitBookingProof(bookingId: string, proofType: ProofType, proofValue: string): void {
-    void this.submitProof(bookingId, { proofType, proofValue }).subscribe();
   }
 
   /** @deprecated API-first ? rescheduling is not yet implemented via RPC. */
