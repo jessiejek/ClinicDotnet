@@ -377,15 +377,15 @@ export class BookingDetailPage extends BaseComponent implements OnInit {
           await this.recordAuditLog(bookingId, 'Rejected booking', currentUserId, reason);
           break;
         case 'confirm-payment':
-          await this.bookingService.updateBookingStatus(bookingId, 'Confirmed');
+          await firstValueFrom(this.apiService.patch('bookings/' + bookingId + '/confirm', {}));
           await this.recordAuditLog(bookingId, 'Confirmed payment', currentUserId, reason);
           break;
         case 'mark-complete':
-          await this.bookingService.updateBookingStatus(bookingId, 'Completed');
+          await firstValueFrom(this.apiService.patch('bookings/' + bookingId + '/complete', {}));
           await this.recordAuditLog(bookingId, 'Marked completed', currentUserId, reason);
           break;
         case 'mark-no-show':
-          await this.bookingService.updateBookingStatus(bookingId, 'NoShow');
+          await firstValueFrom(this.apiService.patch('bookings/' + bookingId + '/no-show', {}));
           await this.recordAuditLog(bookingId, 'Marked no-show', currentUserId, reason);
           break;
         case 'cancel':

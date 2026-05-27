@@ -454,38 +454,6 @@ export class BookingService {
     void this.submitProof(bookingId, { proofType, proofValue }).subscribe();
   }
 
-  doctorCompleteBooking(id: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
-    return this.requestBookingUpdate(
-      id,
-      this.saveConsultationAndComplete$(id, dto),
-      'Failed to complete booking.'
-    );
-  }
-
-  refundPayment(bookingId: string, reason: string): void {
-    const previous = this.getBookingById(bookingId);
-    if (previous) {
-      this.patchBooking(bookingId, { paymentStatus: 'Refunded' });
-    }
-
-    this.beginLoading();
-    this.runBookingAction$(bookingId, 'refund_payment')
-      .pipe(
-        tap(() => {
-          void this.requestBookingById(bookingId, false).subscribe();
-        }),
-        catchError((error: unknown) => {
-          if (previous) {
-            this.upsertBooking(previous);
-          }
-          console.error('Failed to refund payment.', error);
-          return of(null);
-        }),
-        finalize(() => this.endLoading())
-      )
-      .subscribe();
-  }
-
   /** @deprecated API-first ? rescheduling is not yet implemented via RPC. */
   rescheduleBooking(
     bookingId: string,
@@ -494,19 +462,6 @@ export class BookingService {
     newSlotEnd?: string
   ): void {
     console.warn('rescheduleBooking() is deprecated (no API call yet).', bookingId, dtoOrDate);
-  }
-
-  getPayment(bookingId: string): Observable<Payment | undefined> {
-    if (!bookingId) {
-      return of(undefined);
-    }
-
-    const cached = this.getBookingById(bookingId)?.payment;
-    if (cached?.id) {
-      return of(cached);
-    }
-
-    return this.requestPaymentByBookingId(bookingId);
   }
 
   private normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffForPaymentItem | undefined {
@@ -593,50 +548,6 @@ export class BookingService {
     });
   }
 
-  private requestBookingUpdate(
-    bookingId: string,
-    request$: Observable<unknown>,
-    fallbackMessage: string
-  ): Observable<Booking> {
-    const fallbackBooking = this.getBookingById(bookingId) ?? ({ id: bookingId } as Partial<Booking>);
-
-    return defer(() => {
-      this.beginLoading();
-      return request$.pipe(
-        map((response) => {
-          const booking = this.normalizeBooking(response, fallbackBooking);
-          if (!booking) {
-            throw new Error('Booking response did not include a valid booking record.');
-          }
-          return booking;
-        }),
-        tap((booking) => {
-          this.upsertBooking(booking);
-        }),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, fallbackMessage)))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  private requestPaymentByBookingId(bookingId: string): Observable<Payment | undefined> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any>('payments/booking/' + bookingId).pipe(
-        map((data) => data ? this.normalizePayment(mapPaymentRow(data as Record<string, unknown>)) : undefined),
-        catchError((error: unknown) => {
-          console.error(`Failed to load payment for booking ${bookingId} from API.`, error);
-          return of(undefined);
-        }),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  // ── Observable-based private helpers (replacing async .toPromise() methods) ──
-
   private createBooking$(dto: CreateBookingRequest): Observable<Booking> {
     const serviceIds = normalizeStringArray(dto.serviceIds);
     const legacyServiceId = trimOptionalString(dto.serviceId);
@@ -686,37 +597,6 @@ export class BookingService {
             return fallback;
           })
         );
-      })
-    );
-  }
-
-  private runBookingAction$(bookingId: string, rpcName: string): Observable<Booking> {
-    const endpoint =
-      rpcName === 'check_in_booking' ? `bookings/${bookingId}/check-in` :
-      rpcName === 'undo_check_in' ? `bookings/${bookingId}/undo-check-in` :
-      rpcName === 'confirm_booking' ? `bookings/${bookingId}/confirm` :
-      rpcName === 'complete_booking_basic' ? `bookings/${bookingId}/complete` :
-      rpcName === 'no_show_booking' ? `bookings/${bookingId}/no-show` :
-      rpcName === 'waive_professional_fee' ? `payments/${bookingId}/waive` :
-      rpcName === 'refund_payment' ? `payments/${bookingId}/refund` : '';
-    if (!endpoint) return throwError(() => new Error(`Unknown booking RPC: ${rpcName}`));
-    return this.apiService.patch<Booking>(endpoint, {});
-  }
-
-  private saveConsultationAndComplete$(bookingId: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
-    const obs$ = dto.isProfessionalFeeWaived
-      ? this.apiService.patch('bookings/' + bookingId + '/doctor-complete', dto).pipe(
-          switchMap(() => this.apiService.patch('payments/' + bookingId + '/waive', {
-            reason: dto.professionalFeeWaivedReason ?? 'Professional fee waived.'
-          }))
-        )
-      : this.apiService.patch('bookings/' + bookingId + '/doctor-complete', dto);
-
-    return obs$.pipe(
-      switchMap(() => this.fetchBookingByIdObservable(bookingId)),
-      map((booking) => {
-        if (!booking) throw new Error('Consultation was saved, but the updated booking could not be loaded.');
-        return booking;
       })
     );
   }

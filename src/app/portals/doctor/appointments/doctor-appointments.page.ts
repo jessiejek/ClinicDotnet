@@ -476,7 +476,19 @@ export class DoctorAppointmentsPage implements OnInit {
     };
 
     this.isSubmittingComplete = true;
-    this.bookingService.doctorCompleteBooking(this.selectedBooking.id, payload).subscribe({
+    const bookingId = this.selectedBooking.id;
+    this.apiService.patch('bookings/' + bookingId + '/doctor-complete', payload).pipe(
+      switchMap(() =>
+        payload.isProfessionalFeeWaived
+          ? this.apiService.patch('payments/' + bookingId + '/waive', {
+              reason: payload.professionalFeeWaivedReason ?? 'Professional fee waived.'
+            })
+          : of(void 0)
+      ),
+      catchError((error: unknown) =>
+        throwError(() => new Error(extractApiErrorMessage(error, 'Failed to complete consultation.')))
+      )
+    ).subscribe({
       next: async () => {
         this.closeCompleteModal();
         this.loadSummary();
