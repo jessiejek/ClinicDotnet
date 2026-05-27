@@ -25,7 +25,6 @@ import { environment } from '../../../environments/environment';
 import { AuthLayoutComponent } from '../components/auth-layout/auth-layout.component';
 import { BannerComponent } from '../../shared/components/banner/banner.component';
 import { AuthStateService } from '../../core/services/auth-state.service';
-import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-login-page',
@@ -52,7 +51,6 @@ export class LoginPage {
 
   private readonly fb = inject(FormBuilder);
   private readonly authState = inject(AuthStateService);
-  private readonly authService = inject(AuthService);
   private readonly toastController = inject(ToastController);
 
   readonly isProduction = environment.production;
@@ -87,35 +85,16 @@ export class LoginPage {
 
   onGoogleLogin(): void {
     this.authState.clearError();
-    // Supabase OAuth will redirect the page to Google, then back to the app.
-    // The OAuth session is automatically handled by Supabase client (detectSessionInUrl: true).
-    this.authService.loginWithGoogle().subscribe({
-      error: () => { /* Redirect is happening */ }
+    this.authState.loginWithGoogle().subscribe({
+      error: () => undefined
     });
   }
 
   onFacebookLogin(): void {
     this.authState.clearError();
-    this.presentFacebookRedirectToast();
-    this.authService.loginWithFacebook().subscribe({
-      error: () => { /* Redirect is happening */ }
+    this.authState.loginWithFacebook().subscribe({
+      error: () => undefined
     });
-  }
-
-  private async presentFacebookRedirectToast(): Promise<void> {
-    const toast = await this.toastController.create({
-      message: 'Redirecting to Facebook...',
-      duration: 0, // stays until page navigates away
-      position: 'top',
-      cssClass: 'facebook-redirect-toast',
-      buttons: [
-        {
-          icon: closeOutline,
-          role: 'cancel'
-        }
-      ]
-    });
-    await toast.present();
   }
 
   async presentToast(message: string): Promise<void> {

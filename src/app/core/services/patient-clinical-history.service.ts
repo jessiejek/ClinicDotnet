@@ -115,7 +115,7 @@ export class PatientClinicalHistoryService {
         manufacturer: item.brandName,
         lotNumber: item.lotNumber,
         status: 'Recorded' as const,
-        source: 'supabase' as const,
+        source: 'dotnet' as const,
         nextDueDate: item.nextDoseDate,
         notes: item.remarks
       })),

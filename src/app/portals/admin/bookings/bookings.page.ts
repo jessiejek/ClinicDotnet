@@ -238,8 +238,7 @@ export class BookingsPage implements OnInit {
     // Kick off the fetch
     this.fetchBookings();
 
-    this.doctorState
-      .getDoctors()
+    this.doctorState.doctors$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((doctors) => (this.doctors = doctors));
 

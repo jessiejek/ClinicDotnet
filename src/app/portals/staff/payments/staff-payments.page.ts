@@ -262,7 +262,7 @@ export class StaffPaymentsPage implements OnInit {
 
     this.realtime.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
+      .subscribe((event: any) => {
         const name = event.eventName;
         if (
           name === 'PaymentCompleted' ||

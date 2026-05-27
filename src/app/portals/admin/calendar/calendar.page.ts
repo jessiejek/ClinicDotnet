@@ -64,7 +64,7 @@ export class CalendarPage implements OnInit {
   ngOnInit(): void {
     this.bookingService.getBookings().subscribe((bookings) => (this.bookings = bookings));
     this.bookingService.isLoading$.subscribe((loading) => (this.isLoading = loading));
-    this.doctorState.getDoctors().subscribe((doctors) => (this.doctors = doctors));
+    this.doctorState.doctors$.subscribe((doctors) => (this.doctors = doctors));
   }
 
   get weekDays(): Array<{ label: string; date: string }> {

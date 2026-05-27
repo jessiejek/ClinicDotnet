@@ -7,7 +7,7 @@ import {
 } from '../models/vaccination.models';
 
 /**
- * Vaccination feature — Supabase patient_vaccinations table is planned but not yet deployed.
+ * Vaccination feature — .NET patient_vaccinations table is planned but not yet deployed.
  * Until the table is available, this service returns empty arrays and throws safe errors
  * for mutations to prevent old .NET API calls.
  */

@@ -169,7 +169,7 @@ export class DoctorProfilePage implements OnInit {
       this.isLoading = false;
       return;
     }
-    this.doctorState.getDoctorDayStatus(id).subscribe((status) => (this.dayStatus = status));
+    this.doctorState.getDoctorDayStatus(id).subscribe((status: any) => (this.dayStatus = status));
     forkJoin({
       doctor: this.publicService.getDoctorById(id),
       reviews: this.publicService.getDoctorReviews(id),

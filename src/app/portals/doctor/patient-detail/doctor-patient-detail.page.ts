@@ -235,7 +235,7 @@ export class DoctorPatientDetailPage {
       return from(this.buildClinicalHistory(patientId)).pipe(
         catchError((err: any) => {
           console.error('Clinical history error:', err);
-          this.errorMessage = 'Failed to load clinical history. Verify Supabase backend.';
+          this.errorMessage = 'Failed to load clinical history.';
           return of(null);
         })
       );
@@ -310,14 +310,14 @@ export class DoctorPatientDetailPage {
   }
 
   viewFile(fileUrl: string, displayName: string): void {
-    // Use signed URL from Supabase storage
+    // Use document URL from API
     // If fileUrl looks like a storage path, create signed URL
     // Otherwise, open directly as a fallback
     window.open(fileUrl, '_blank');
   }
 
   private async buildClinicalHistory(patientId: string): Promise<PatientClinicalHistoryDto> {
-    // Load patient from Supabase
+    // Load patient from API
     const patientRow: any = await this.api.get('patients/' + patientId).toPromise();
 
     const patient: PatientClinicalHistoryPatientDto = {
@@ -455,7 +455,7 @@ export class DoctorPatientDetailPage {
         manufacturer: item.brandName,
         lotNumber: item.lotNumber,
         status: 'Recorded',
-        source: 'supabase',
+        source: 'dotnet',
         nextDueDate: item.nextDoseDate,
         notes: item.remarks
       })),

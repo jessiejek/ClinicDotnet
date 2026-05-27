@@ -345,7 +345,7 @@ export class DoctorAppointmentsPage implements OnInit {
     // Realtime: auto-refresh on booking changes
     this.realtime.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
+      .subscribe((event: any) => {
         if ([
           'BookingCreated',
           'BookingCancelled',

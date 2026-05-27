@@ -7,7 +7,7 @@ import { environment } from '../../../environments/environment';
 import { AuthStateService } from './auth-state.service';
 import { ApiService } from './api.service';
 
-/** Shape of a notification received from Supabase Realtime. */
+/** Shape of a notification received from SignalR. */
 export interface InAppNotification {
   id: string;
   userId: string;
@@ -18,7 +18,7 @@ export interface InAppNotification {
   navigateTo?: string;
 }
 
-/** Maps a Supabase notifications row to the app model. */
+/** Maps a API notifications row to the app model. */
 function rowToNotification(row: any): InAppNotification {
   return {
     id: row.id,
@@ -48,7 +48,7 @@ const FIREBASE_WEB_PLATFORM = 'firebase-web';
  *
  * Two responsibilities:
  *   1. **In-app delivery** â€” subscribes to the `notifications` table via
- *      Supabase Realtime so new notifications appear instantly.
+ *      SignalR so new notifications appear instantly.
  *   2. **Web push** â€” registers the browser with Firebase Messaging,
  *      obtains an FCM token, and persists it via `upsert_device_token`.
  *

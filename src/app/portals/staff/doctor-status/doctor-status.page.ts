@@ -85,19 +85,19 @@ export class DoctorStatusPage implements OnInit {
   loadDoctors(): void {
     this.error = false;
     this.isLoading = true;
-    this.doctorState.loadDoctorsFromSupabase();
+    this.doctorState.loadDoctorsFromApi();
     this.doctorState.doctors$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((doctors) => {
-        this.doctors = doctors.filter((d) => d.status === 'Active');
+      .subscribe((doctors: any) => {
+        this.doctors = doctors.filter((d: any) => d.status === 'Active');
         this.isLoading = false;
       });
     this.doctorState.isLoading$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((loading) => (this.isLoading = loading));
+      .subscribe((loading: any) => (this.isLoading = loading));
     this.doctorState.dayStatuses$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((statuses) => (this.dayStatuses = statuses));
+      .subscribe((statuses: any) => (this.dayStatuses = statuses));
   }
 
   get availableCount(): number {

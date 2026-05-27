@@ -2,14 +2,15 @@ export const environment = {
   production: false,
 
   // .NET backend API URL
-  apiUrl: 'https://localhost:5001/api',
+  apiUrl: 'https://localhost:44384/api',
 
   // Legacy alias — kept for backward compatibility
-  apiBaseUrl: 'https://localhost:5001/api',
+  apiBaseUrl: 'https://localhost:44384/api',
 
   // .NET backend handles auth. Social login via /api/auth/google and /api/auth/facebook.
-  googleClientId: '',
-  facebookAppId: '',
+  // Google OAuth client ID — matches the one validated by the .NET backend
+  googleClientId: '506648259313-uk5965cr6lkfhesivnvej5quu6g6hr1o.apps.googleusercontent.com',
+  facebookAppId: '904138729352506',
   facebookSdkVersion: 'v25.0',
 
   useMockData: false,

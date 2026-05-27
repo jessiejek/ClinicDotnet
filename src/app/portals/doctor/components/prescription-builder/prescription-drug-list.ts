@@ -1,6 +1,6 @@
 /** Static drug name suggestions for prescription auto-complete.
  *  This is a UI-only convenience list, not a live database query.
- *  Replace with `supabase.from('medication_master').select('*')` when the table exists. */
+ *  Replace with `api.get('medication_master').select('*')` when the table exists. */
 export const PRESCRIPTION_DRUG_LIST: Array<{ medicineName: string; genericName?: string }> = [
   { medicineName: 'Paracetamol', genericName: 'Paracetamol' },
   { medicineName: 'Amoxicillin', genericName: 'Amoxicillin' },

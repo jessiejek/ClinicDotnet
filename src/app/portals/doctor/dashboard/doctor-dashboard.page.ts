@@ -230,7 +230,7 @@ export class DoctorDashboardPage implements OnInit {
     // Realtime: auto-refresh dashboard on booking events
     this.realtime.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
+      .subscribe((event: any) => {
         if ([
           'BookingCreated',
           'BookingCancelled',

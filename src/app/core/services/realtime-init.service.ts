@@ -3,7 +3,7 @@ import { ClinicDashboardRealtimeService } from './clinic-dashboard-realtime.serv
 import { PushNotificationService } from './push-notification.service';
 
 /**
- * Bootstraps all Supabase Realtime features at the app-shell level.
+ * Bootstraps all realtime features (SignalR) at the app-shell level.
  *
  * Inject this once in each portal layout component. The side effect of
  * injecting the dependencies is that their constructors start the

@@ -92,7 +92,7 @@ export class PrivacyPolicyPage {
       title: 'Uploaded Documents and Lab Results',
       icon: 'document-outline',
       lines: [
-        'Documents and lab results you upload through the patient portal are stored using Supabase Storage, a secure cloud storage service.',
+        'Documents and lab results you upload through the patient portal are stored securely in our database.',
         'All uploaded files are accessed through private, time-limited signed URLs. These URLs expire after a set period and are not stored permanently in the database.',
         'Only you (the patient) and authorized clinic staff (your doctor, clinic administrators) can access your uploaded files. No third party has direct access.',
         'File access is logged for audit purposes. You can view which documents you have uploaded and when they were accessed through your patient portal.',
@@ -103,9 +103,9 @@ export class PrivacyPolicyPage {
       title: 'Data Storage and Security',
       icon: 'shield-checkmark-outline',
       lines: [
-        'Your data is stored in Supabase, a HIPAA-compliant cloud infrastructure provider using PostgreSQL databases and secure object storage.',
+        'Your data is stored in a HIPAA-compliant cloud infrastructure using secure SQL databases and object storage.',
         'All data transmitted between your browser and our servers is encrypted using TLS/SSL. Data at rest is encrypted.',
-        'Authentication is handled through Supabase Auth, which uses secure password hashing and supports multi-factor authentication.',
+        'Authentication uses secure password hashing and supports multi-factor authentication.',
         'Access to your data is controlled through Row-Level Security (RLS) policies, ensuring that you can only access your own patient data, and staff can only access data relevant to their role.',
         'We retain your personal information only as long as necessary to provide clinic services or as required by applicable law. You may request deletion of your account and associated data.',
       ],
@@ -116,7 +116,7 @@ export class PrivacyPolicyPage {
       icon: 'share-outline',
       lines: [
         'We do not sell your personal information to third parties.',
-        'Your information is shared only with: (a) your designated healthcare providers for treatment purposes; (b) clinic administrative staff for operational purposes; (c) Supabase as our infrastructure provider (data processor), under strict data processing agreements.',
+        'Your information is shared only with: (a) your designated healthcare providers for treatment purposes; (b) clinic administrative staff for operational purposes; (c) our secure cloud infrastructure provider (data processor), under strict data processing agreements.',
         'We may disclose information if required by law, such as in response to a valid court order or legal process.',
         'We do not share your information with advertisers or marketing platforms.',
       ],

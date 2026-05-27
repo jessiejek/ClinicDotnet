@@ -144,26 +144,26 @@ export class StaffDashboardPage implements OnInit {
   ngOnInit(): void {
     this.doctorState.doctors$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((doctors) => (this.doctors = doctors));
+      .subscribe((doctors: any) => (this.doctors = doctors));
 
     this.patientState.patients$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((patients) => (this.patients = patients));
+      .subscribe((patients: any) => (this.patients = patients));
 
-    this.bookingService.isLoading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((bookingsLoading) => {
+    this.bookingService.isLoading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((bookingsLoading: any) => {
       this.bookingsLoading = bookingsLoading;
     });
-    this.doctorState.isLoading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((doctorsLoading) => {
+    this.doctorState.isLoading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((doctorsLoading: any) => {
       this.doctorsLoading = doctorsLoading;
     });
-    this.patientState.isLoading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((patientsLoading) => {
+    this.patientState.isLoading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((patientsLoading: any) => {
       this.patientsLoading = patientsLoading;
     });
 
     // Realtime: auto-refresh dashboard on booking events
     this.realtime.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
+      .subscribe((event: any) => {
         if ([
           'BookingCreated',
           'BookingCancelled',

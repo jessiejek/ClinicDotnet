@@ -243,7 +243,7 @@ export class PatientDashboardPage implements OnInit {
     )
   );
 
-  readonly doctors$ = this.doctorState.getDoctors();
+  readonly doctors$ = this.doctorState.doctors$;
 
   vm$ = combineLatest([
     this.currentUser$,
@@ -252,7 +252,7 @@ export class PatientDashboardPage implements OnInit {
     this.pendingProofBookings$,
     this.doctors$
   ]).pipe(
-    switchMap(([user, patient, upcomingBookings, pendingProofBookings, doctors]) => {
+    switchMap(([user, patient, upcomingBookings, pendingProofBookings, doctors]: [any, any, any, any, any]) => {
       if (!patient) {
         return of({
           user,
@@ -261,7 +261,7 @@ export class PatientDashboardPage implements OnInit {
           pendingProofBookings,
           consultations: [],
           prescriptions: [],
-          doctors: doctors.slice(0, 3),
+          doctors: (doctors ?? []).slice(0, 3),
           latestBooking: undefined,
           latestBookingDoctor: undefined,
           recentConsultations: [],
@@ -280,14 +280,17 @@ export class PatientDashboardPage implements OnInit {
         this.medicalRecords.getPrescriptionsByPatientId(patient.id),
         this.clinicSettings.settings$
       ]).pipe(
-        map(([consultations, prescriptions, settings]) => {
+        map((result: [any, any, any]) => {
+          const consultations = result[0];
+          const prescriptions = result[1];
+          const settings = result[2];
           // Build doctor lookup map from the already-loaded doctors array
           const doctorMap = new Map<string, Doctor>();
-          for (const d of doctors) {
+          for (const d of (doctors ?? [])) {
             doctorMap.set(d.id, d);
           }
 
-          const latestBooking = upcomingBookings[0];
+          const latestBooking = (upcomingBookings ?? [])[0];
           const latestBookingDoctor = latestBooking
             ? doctorMap.get(latestBooking.doctorId)
             : undefined;
@@ -295,28 +298,28 @@ export class PatientDashboardPage implements OnInit {
           return {
             user,
             patient,
-            upcomingBookings,
-            pendingProofBookings,
-          consultations,
-          prescriptions,
-          doctors: doctors.slice(0, 3),
-          latestBooking,
-          latestBookingDoctor,
-            recentConsultations: consultations.slice(0, 2).map((consultation) => ({
+            upcomingBookings: upcomingBookings ?? [],
+            pendingProofBookings: pendingProofBookings ?? [],
+            consultations: consultations ?? [],
+            prescriptions: prescriptions ?? [],
+            doctors: (doctors ?? []).slice(0, 3),
+            latestBooking,
+            latestBookingDoctor,
+            recentConsultations: (consultations ?? []).slice(0, 2).map((consultation: any) => ({
               consultation,
               doctor: doctorMap.get(consultation.doctorId)
             })),
-            recentPrescriptions: prescriptions.slice(0, 2).map((prescription) => ({
+            recentPrescriptions: (prescriptions ?? []).slice(0, 2).map((prescription: any) => ({
               prescription,
               doctor: doctorMap.get(prescription.doctorId)
             })),
-            showEmailWarning: patient.isEmailVerified === false,
+            showEmailWarning: (patient as any).isEmailVerified === false,
             showConsentWarning:
-              patient.consentVersion !== settings.consentVersion,
-            upcomingCount: upcomingBookings.length,
-            pendingProofCount: pendingProofBookings.length,
-            completedVisitCount: consultations.length,
-            activePrescriptionCount: prescriptions.filter((item) => item.status === 'Active').length
+              (patient as any).consentVersion !== settings.consentVersion,
+            upcomingCount: (upcomingBookings ?? []).length,
+            pendingProofCount: (pendingProofBookings ?? []).length,
+            completedVisitCount: (consultations ?? []).length,
+            activePrescriptionCount: (prescriptions ?? []).filter((item: any) => item.status === 'Active').length
           } satisfies DashboardVm;
         })
       );
@@ -324,7 +327,7 @@ export class PatientDashboardPage implements OnInit {
   );
 
   ngOnInit(): void {
-    this.doctorState.refresh();
+    this.doctorState.loadDoctorsFromApi();
   }
 
   canSubmitProof(booking: Booking): boolean {
