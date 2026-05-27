@@ -696,7 +696,7 @@ export class BookingService {
     this.runVoidMutation(
       bookingId,
       { status: 'Cancelled', cancellationReason: reason },
-      this.apiService.put('bookings/' + bookingId + '/cancel', { reason })
+      this.apiService.patch('bookings/' + bookingId + '/cancel', { reason })
     );
   }
 
@@ -1113,12 +1113,12 @@ export class BookingService {
 
   private saveConsultationAndComplete$(bookingId: string, dto: DoctorCompleteBookingRequest): Observable<Booking> {
     const obs$ = dto.isProfessionalFeeWaived
-      ? this.apiService.post('bookings/' + bookingId + '/complete', dto).pipe(
-          switchMap(() => this.apiService.post('payments/' + bookingId + '/waive', {
+      ? this.apiService.patch('bookings/' + bookingId + '/doctor-complete', dto).pipe(
+          switchMap(() => this.apiService.patch('payments/' + bookingId + '/waive', {
             reason: dto.professionalFeeWaivedReason ?? 'Professional fee waived.'
           }))
         )
-      : this.apiService.post('bookings/' + bookingId + '/complete', dto);
+      : this.apiService.patch('bookings/' + bookingId + '/doctor-complete', dto);
 
     return obs$.pipe(
       switchMap(() => this.fetchBookingByIdObservable(bookingId)),

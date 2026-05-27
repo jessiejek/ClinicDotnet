@@ -84,6 +84,8 @@ export class AdminDoctorsService {
       slotDurationMinutes: dto.slotDurationMinutes,
       slotCapacity: dto.slotCapacity,
       dailyPatientLimit: dto.dailyPatientLimit ?? null,
+      doctorEmail: dto.doctorEmail,
+      tempPassword: dto.tempPassword,
     }).pipe(map((data) => mapDtoToDoctor((data ?? {}) as Record<string, unknown>)));
   }
 
