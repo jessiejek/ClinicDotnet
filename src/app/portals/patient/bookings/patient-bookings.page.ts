@@ -2,11 +2,9 @@ import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize } from 'rxjs';
-import { firstValueFrom } from 'rxjs';
+import { catchError, finalize, firstValueFrom, map, of, throwError } from 'rxjs';
 import { Booking } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
-import { BookingService, MyBookingsPageResult } from '../../../core/services/booking.service';
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
@@ -153,7 +151,6 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
 })
 export class PatientBookingsPage implements OnInit {
   private readonly apiService = inject(ApiService);
-  private readonly bookingService = inject(BookingService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly realtime = inject(ClinicDashboardRealtimeService);
@@ -393,9 +390,19 @@ export class PatientBookingsPage implements OnInit {
     this.isLoading = true;
     this.loadError = '';
 
-    this.bookingService
-      .getMyBookings(nextPage, this.pageSize)
+    this.apiService
+      .get<any>('bookings?page=' + nextPage + '&pageSize=' + this.pageSize)
       .pipe(
+        map((data: any) => {
+          const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+          const items = rows
+            .map((row) => normalizeBookingRow(row))
+            .filter((booking): booking is Booking => Boolean(booking));
+          return { items, totalCount: data?.totalCount ?? items.length, page: nextPage, pageSize: this.pageSize };
+        }),
+        catchError((error: unknown) =>
+          throwError(() => new Error(extractErrorMessage(error, 'Failed to load bookings from API.')))
+        ),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
           if (this.loadRequestVersion === requestVersion) {
@@ -404,7 +411,7 @@ export class PatientBookingsPage implements OnInit {
         })
       )
       .subscribe({
-        next: (result: MyBookingsPageResult) => {
+        next: (result: { items: Booking[]; totalCount: number; page: number; pageSize: number }) => {
           if (requestVersion !== this.loadRequestVersion) {
             return;
           }
@@ -457,6 +464,198 @@ export class PatientBookingsPage implements OnInit {
 
 function bookingDateTime(booking: Booking): number {
   return new Date(`${booking.appointmentDate}T${booking.slotStartTime}:00`).getTime();
+}
+
+function normalizeBookingRow(row: Record<string, unknown>): Booking | undefined {
+  const id = trimOptionalString(row['id'] ?? row['booking_id'] ?? row['bookingId']);
+  if (!id) {
+    return undefined;
+  }
+
+  const services = normalizeBookingServices(row['services']);
+  const serviceNamesFromSource = normalizeStringArray(row['serviceNames'] ?? row['service_names']);
+  const serviceIdsFromSource = normalizeStringArray(row['serviceIds'] ?? row['service_ids']);
+  const firstService = services[0];
+  const serviceId =
+    trimOptionalString(row['serviceId'] ?? row['primary_service_id']) ??
+    serviceIdsFromSource[0] ??
+    firstService?.id ??
+    '';
+  const serviceName =
+    trimOptionalString(row['serviceName'] ?? row['primary_service_name']) ??
+    serviceNamesFromSource[0] ??
+    firstService?.name;
+
+  const serviceNames =
+    serviceNamesFromSource.length > 0
+      ? serviceNamesFromSource
+      : [
+          ...services
+            .map((service) => service.name)
+            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
+          ...(serviceName ? [serviceName] : [])
+        ].filter((value, index, values) => values.indexOf(value) === index);
+
+  const createdAt = trimOptionalString(row['createdAt'] ?? row['created_at']) ?? new Date().toISOString();
+  const paymentStatus = (trimOptionalString(row['paymentStatus'] ?? row['payment_status']) as Booking['paymentStatus']) ?? 'Unpaid';
+  const status = (trimOptionalString(row['status'] ?? row['booking_status']) as Booking['status']) ?? 'Pending';
+  const paymentMode = (trimOptionalString(row['paymentMode'] ?? row['payment_mode']) as Booking['paymentMode']) ?? 'PayAtClinic';
+  const finalAmount = normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']);
+  const amountDue = normalizeNullableNumber(row['amountDue'] ?? row['amount_due']);
+
+  return {
+    id,
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
+    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
+    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+    serviceId,
+    serviceIds: serviceIdsFromSource.length > 0 ? serviceIdsFromSource : serviceId ? [serviceId] : [],
+    serviceName,
+    serviceNames,
+    services: services.length > 0 ? services : undefined,
+    appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+    slotStartTime: normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    slotEndTime: normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']) || normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    status,
+    paymentStatus,
+    paymentMode,
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount,
+    amountDue: amountDue ?? finalAmount ?? null,
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in']),
+    proofType: trimOptionalString(row['proofType'] ?? row['proof_type']) as Booking['proofType'],
+    proofValue: trimOptionalString(row['proofValue'] ?? row['proof_value']),
+    proofSubmittedAt: trimOptionalString(row['proofSubmittedAt'] ?? row['proof_submitted_at']),
+    cancellationReason: trimOptionalString(row['cancellationReason'] ?? row['cancellation_reason']),
+    notes: trimOptionalString(row['notes']),
+    rescheduledFromBookingId: trimOptionalString(row['rescheduledFromBookingId'] ?? row['rescheduled_from_booking_id']),
+    receiptUrl: trimOptionalString(row['receiptUrl'] ?? row['receipt_url']),
+    createdAt,
+    orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']),
+    checkedInAt: trimOptionalString(row['checkedInAt'] ?? row['checked_in_at']),
+    doctorCompletedAt: trimOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
+    isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
+    professionalFeeWaivedReason: trimOptionalString(
+      row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']
+    )
+  };
+}
+
+function normalizeBookingServices(value: unknown): Array<{ id: string; name: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const name = item.trim();
+        return name ? { id: '', name } : undefined;
+      }
+
+      if (!isRecord(item)) {
+        return undefined;
+      }
+
+      return {
+        id: trimOptionalString(item['id']) ?? trimOptionalString(item['serviceId']) ?? '',
+        name: trimOptionalString(item['serviceName']) ?? trimOptionalString(item['name']) ?? ''
+      };
+    })
+    .filter((item): item is { id: string; name: string } => Boolean(item && (item.id || item.name)));
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => trimOptionalString(item)).filter((item): item is string => Boolean(item));
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return '';
+  }
+
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+function normalizeTimeOnly(value: unknown): string {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return '';
+  }
+
+  return raw.length >= 5 ? raw.slice(0, 5) : raw;
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return fallback;
+  }
+
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return null;
+  }
+
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  const raw = trimOptionalString(value);
+  if (!raw) {
+    return false;
+  }
+
+  return raw.toLowerCase() === 'true' || raw === '1';
+}
+
+function normalizeBooleanOrUndefined(value: unknown): boolean | undefined {
+  if (value == null) {
+    return undefined;
+  }
+
+  return normalizeBoolean(value);
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (value == null) {
+    return undefined;
+  }
+
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function extractErrorMessage(error: unknown, fallback: string): string {
