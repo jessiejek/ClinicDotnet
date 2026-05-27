@@ -420,19 +420,9 @@ export class BookingService {
   }
 
   getDoctorUpcoming(): Observable<Booking[]> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any[]>('bookings/doctor/upcoming').pipe(
-        map((rows) => ((rows ?? []) as Record<string, unknown>[])
-          .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-          .filter((b): b is Booking => Boolean(b))),
-        tap((bookings) => this.mergeBookings(bookings)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load upcoming bookings.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
+    return this.getBookings({ doctorId: undefined }).pipe(
+      map((bookings) => [...bookings].sort((a, b) => bookingDateTime(a) - bookingDateTime(b)))
+    );
   }
 
   getDoctorPatients(): Observable<DoctorPatientSummaryDto[]> {
