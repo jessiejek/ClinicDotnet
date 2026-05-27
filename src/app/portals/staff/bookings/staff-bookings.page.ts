@@ -15,7 +15,6 @@ import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-da
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { PublicService } from '../../public/services/public.service';
 
 type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoShow' | 'Cancelled';
 

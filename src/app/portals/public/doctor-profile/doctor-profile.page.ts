@@ -12,7 +12,7 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { ReviewCardComponent } from '../components/review-card/review-card.component';
-import { DoctorDetail, PublicService } from '../services/public.service';
+import { DoctorDetail } from '../services/public.service';
 import { formatDoctorScheduleLines } from '../utils/time-format';
 import { DoctorStateService } from '../../../core/services/doctor-state.service';
 
@@ -146,7 +146,6 @@ export class DoctorProfilePage implements OnInit {
   private readonly apiService = inject(ApiService);
   private readonly doctorState = inject(DoctorStateService);
   private readonly route = inject(ActivatedRoute);
-  private readonly publicService = inject(PublicService);
 
   isLoading = true;
   doctor?: DoctorDetail;
@@ -177,9 +176,9 @@ export class DoctorProfilePage implements OnInit {
       this.doctorState.setTodayStatus(status);
     });
     forkJoin({
-      doctor: this.publicService.getDoctorById(id),
-      reviews: this.publicService.getDoctorReviews(id),
-      schedules: this.publicService.getDoctorSchedules(id)
+      doctor: this.apiService.get<DoctorDetail>('doctors/' + id),
+      reviews: this.apiService.get<Review[]>('reviews?doctorId=' + id),
+      schedules: this.apiService.get<any[]>('doctors/' + id + '/schedule')
     }).subscribe(({ doctor, reviews, schedules }) => {
       this.doctor = doctor;
       this.reviews = reviews;

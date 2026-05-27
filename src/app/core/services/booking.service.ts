@@ -389,36 +389,6 @@ export class BookingService {
   }
 
   /** @deprecated API-first ? use booking status filtering on the local cache instead. */
-  getPendingVerification(): Observable<Booking[]> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any[]>('bookings/pending-verification').pipe(
-        map((rows) => ((rows ?? []) as Record<string, unknown>[])
-          .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-          .filter((b): b is Booking => Boolean(b))),
-        tap((bookings) => this.mergeBookings(bookings)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load pending verifications.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  getPendingVerifications(): Observable<Booking[]> {
-    return this.getPendingVerification();
-  }
-
-  getDoctorTodayQueue(): Observable<Booking[]> {
-    return this.getDoctorTodaySummary().pipe(
-      map((summary) =>
-        [...summary.items].sort(
-          (a, b) => (a.queueNumber ?? Number.MAX_SAFE_INTEGER) - (b.queueNumber ?? Number.MAX_SAFE_INTEGER)
-        )
-      )
-    );
-  }
-
   getDoctorUpcoming(): Observable<Booking[]> {
     return this.getBookings({ doctorId: undefined }).pipe(
       map((bookings) => [...bookings].sort((a, b) => bookingDateTime(a) - bookingDateTime(b)))
@@ -474,38 +444,6 @@ export class BookingService {
         tap((result) => this.mergeBookings(result.items)),
         catchError((error: unknown) =>
           throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load bookings from API.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  getDoctorTodaySummary(): Observable<DoctorTodaySummary> {
-    return defer(() => {
-      this.beginLoading();
-      return this.apiService.get<any[]>('bookings/doctor/today').pipe(
-        switchMap((todayData) => {
-          const queue = ((todayData ?? []) as Record<string, unknown>[])
-            .map((row) => this.normalizeBooking(mapBookingViewRow(row)))
-            .filter((booking): booking is Booking => Boolean(booking));
-          return this.apiService.get<any>('bookings/doctor/today-summary').pipe(
-            map((summaryResponse) => {
-              const row = (summaryResponse ?? {}) as Record<string, unknown>;
-              return {
-                bookedToday: normalizeNumber(row['today_total'], queue.length),
-                checkedIn: normalizeNumber(row['checked_in_count']),
-                waiting: normalizeNumber(row['checked_in_count']) + normalizeNumber(row['in_progress_count']),
-                completed: normalizeNumber(row['completed_count']),
-                noShow: normalizeNumber(row['no_show_count']),
-                cancelled: 0,
-                items: queue
-              } as DoctorTodaySummary;
-            })
-          );
-        }),
-        tap((summary) => this.mergeBookings(summary.items)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load today summary from API.')))
         ),
         finalize(() => this.endLoading())
       );
@@ -604,32 +542,6 @@ export class BookingService {
 
   submitBookingProof(bookingId: string, proofType: ProofType, proofValue: string): void {
     void this.submitProof(bookingId, { proofType, proofValue }).subscribe();
-  }
-
-  createBooking(dto: CreateBookingRequest): Observable<Booking> {
-    return defer(() => {
-      this.beginLoading();
-      return this.createBooking$(dto).pipe(
-        tap((booking) => this.upsertBooking(booking)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to create booking in API.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
-  }
-
-  createWalkIn(dto: CreateWalkInRequest): Observable<Booking> {
-    return defer(() => {
-      this.beginLoading();
-      return this.createWalkInBooking$(dto).pipe(
-        tap((booking) => this.upsertBooking(booking)),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to create walk-in booking in API.')))
-        ),
-        finalize(() => this.endLoading())
-      );
-    });
   }
 
   checkInBooking(id: string, dto: CheckInBookingRequest = {}): Observable<Booking> {
@@ -1081,16 +993,6 @@ export class BookingService {
           })
         );
       })
-    );
-  }
-
-  private createWalkInBooking$(dto: CreateWalkInRequest): Observable<Booking> {
-    return this.createBooking$(dto).pipe(
-      switchMap((booking) =>
-        this.apiService.get<any>('bookings/' + booking.id).pipe(
-          map((refreshed) => (refreshed as Booking) ?? { ...booking, isWalkIn: true, paymentMode: dto.paymentMode ?? 'PayAtClinic' })
-        )
-      )
     );
   }
 

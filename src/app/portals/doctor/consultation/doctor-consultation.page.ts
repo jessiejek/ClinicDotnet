@@ -6,6 +6,7 @@ import { BehaviorSubject, Observable, combineLatest, firstValueFrom, of, throwEr
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 import {
   Booking,
+  AuditLog,
   Consultation,
   Diagnosis,
   LabRequest,
@@ -20,7 +21,6 @@ import { CreatePatientVaccinationRequest } from '../../../core/models/vaccinatio
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { DoctorCompleteBookingRequest } from '../../../core/services/booking.service';
-import { AuditLogService } from '../../admin/services/audit-log.service';
 import {
   MedicalRecordsService,
   MedicalRecordsState
@@ -619,12 +619,10 @@ type ProgressSectionId =
 export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestroy {
   private readonly apiService = inject(ApiService);
   private readonly authState = inject(AuthStateService);
-  private readonly auditLogService = inject(AuditLogService);
   private readonly medicalRecords = inject(MedicalRecordsService);
   private readonly modalCtrl = inject(ModalController);
   private readonly offlineQueue = inject(OfflineConsultationQueueService);
   private readonly patientClinicalHistoryService = inject(PatientClinicalHistoryService);
-  private readonly api = inject(ApiService);
   private readonly patientState = inject(PatientStateService);
   private readonly vaccinationService = inject(PatientVaccinationsService);
   private readonly route = inject(ActivatedRoute);
@@ -750,7 +748,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
                     switchMap((consultationRecord) =>
                       this.loadVaccinations$(patient.id).pipe(
                         switchMap((apiVaccinations) =>
-                          this.auditLogService.getAuditLogs().pipe(
+                          this.apiService.get<AuditLog[]>('audit-logs').pipe(
                             catchError(() => of([])),
                             map((auditLogs) =>
                               this.buildVm({
@@ -1879,7 +1877,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     const details = `Fields changed: ${sections.map((section) => this.getSectionDisplayName(section)).join(', ')}`;
 
     try {
-      await this.api.post('audit-logs', 
+      await this.apiService.post('audit-logs', 
         sections.map((section) => ({
           entity_type: 'Consultation',
           entity_id: vm.consultation?.id || vm.booking.id,

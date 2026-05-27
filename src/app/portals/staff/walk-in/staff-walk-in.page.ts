@@ -24,7 +24,7 @@ import {
   switchMap,
 } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { BookingService, CreateWalkInRequest } from '../../../core/services/booking.service';
+import { CreateWalkInRequest } from '../../../core/services/booking.service';
 import { rowToSummary } from '../../admin/services/admin-patients.service';
 import { AvailableSlot } from '../../public/services/public.service';
 import { BookingAvailabilityService } from '../../public/services/booking-availability.service';
@@ -572,7 +572,6 @@ type BookingControl = 'doctorId' | 'serviceId' | 'appointmentDate';
 })
 export class StaffWalkInPage implements OnInit {
   private readonly fb = inject(FormBuilder);
-  private readonly bookingService = inject(BookingService);
   private readonly apiService = inject(ApiService);
   private readonly availabilityService = inject(BookingAvailabilityService);
   private readonly router = inject(Router);
@@ -925,13 +924,36 @@ export class StaffWalkInPage implements OnInit {
     this.isSavingBooking = true;
 
     try {
-      const booking = await firstValueFrom(this.bookingService.createWalkIn(payload));
+      const booking = await this.submitWalkInBooking(payload);
       await this.presentToast('Walk-in booking created successfully.', 'success');
       await this.router.navigate(['/staff/bookings']);
     } catch (error) {
       await this.presentToast(extractApiErrorMessage(error, 'Failed to create walk-in booking.'), 'danger');
     } finally {
       this.isSavingBooking = false;
+    }
+  }
+
+  private async submitWalkInBooking(payload: CreateWalkInRequest): Promise<{ id: string; queueNumber: number | null }> {
+    void payload;
+    const createdRow = await firstValueFrom(this.apiService.post<any>('bookings', {}));
+    const bookingId = trimOptionalString(createdRow?.booking_id) ?? trimOptionalString(createdRow?.id);
+
+    if (!bookingId) {
+      throw new Error('API create_booking did not return a booking id.');
+    }
+
+    try {
+      const bookingRow = await firstValueFrom(this.apiService.get<any>('bookings/' + bookingId));
+      return {
+        id: trimOptionalString(bookingRow?.booking_id) ?? trimOptionalString(bookingRow?.id) ?? bookingId,
+        queueNumber: normalizeNullableNumber(bookingRow?.queue_number ?? createdRow?.queue_number) ?? null
+      };
+    } catch {
+      return {
+        id: bookingId,
+        queueNumber: normalizeNullableNumber(createdRow?.queue_number) ?? null
+      };
     }
   }
 
@@ -1329,4 +1351,30 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
 }

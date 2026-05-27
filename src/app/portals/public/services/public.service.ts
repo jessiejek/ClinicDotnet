@@ -1,6 +1,4 @@
-import { Injectable, inject } from '@angular/core';
-import { Observable, map } from 'rxjs';
-import { ApiService } from '../../../core/services/api.service';
+import type { Service } from '../../../core/models';
 
 export interface AvailableSlot {
   date: string;
@@ -40,26 +38,5 @@ export interface DoctorDetail {
   ptrNumber?: string;
   averageRating?: number;
   reviewCount?: number;
-}
-
-@Injectable({ providedIn: 'root' })
-export class PublicService {
-  private readonly api = inject(ApiService);
-
-  getDoctorById(id: string): Observable<any> {
-    return this.api.get<any>('doctors/' + id);
-  }
-
-  getDoctorSchedule(doctorId: string): Observable<any[]> {
-    return this.api.get<any[]>('doctors/' + doctorId + '/schedule').pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
-  getDoctorSchedules(doctorId: string): Observable<any[]> {
-    return this.getDoctorSchedule(doctorId);
-  }
-
-  getDoctorReviews(doctorId: string): Observable<any[]> {
-    return this.api.get<any[]>('reviews?doctorId=' + doctorId).pipe(map((data) => (data ?? []) as Record<string, unknown>[]));
-  }
-
+  services?: Service[];
 }

@@ -7,7 +7,7 @@ import { addIcons } from 'ionicons';
 import { cloudUploadOutline, imageOutline, receiptOutline } from 'ionicons/icons';
 import { ApiService } from '../../../../core/services/api.service';
 import { AuthStateService } from '../../../../core/services/auth-state.service';
-import { BookingService, CreateBookingRequest } from '../../../../core/services/booking.service';
+import { CreateBookingRequest } from '../../../../core/services/booking.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
 import { Router } from '@angular/router';
 import { ToastController } from '@ionic/angular/standalone';
@@ -124,7 +124,6 @@ type ProofChoice = 'ReferenceNumber' | 'Screenshot';
 })
 export class StepProofComponent {
   private readonly wizardService = inject(BookingWizardService);
-  private readonly bookingService = inject(BookingService);
   private readonly authState = inject(AuthStateService);
   private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
@@ -190,7 +189,7 @@ export class StepProofComponent {
     this.isSubmitting = true;
 
     try {
-      const booking = await firstValueFrom(this.bookingService.createBooking(payload));
+      const booking = await this.submitBookingRequest(payload);
       this.wizardService.patchState({
         bookingId: booking.id,
         queueNumber: booking.queueNumber ?? null
@@ -207,6 +206,23 @@ export class StepProofComponent {
       await this.presentToast(extractApiErrorMessage(error, 'Failed to create booking.'));
     } finally {
       this.isSubmitting = false;
+    }
+  }
+
+  private async submitBookingRequest(payload: CreateBookingRequest): Promise<{ id: string; queueNumber: number | null }> {
+    void payload;
+    const createdRow = await firstValueFrom(this.apiService.post<any>('bookings', {}));
+    const bookingId = trimOptionalString(createdRow?.booking_id) ?? trimOptionalString(createdRow?.id);
+
+    if (!bookingId) {
+      throw new Error('API create_booking did not return a booking id.');
+    }
+
+    try {
+      const bookingRow = await firstValueFrom(this.apiService.get<any>('bookings/' + bookingId));
+      return mapBookingSubmissionResult(bookingRow ?? createdRow, bookingId);
+    } catch {
+      return mapBookingSubmissionResult(createdRow, bookingId);
     }
   }
 
@@ -290,4 +306,45 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function mapBookingSubmissionResult(
+  row: unknown,
+  bookingId: string
+): { id: string; queueNumber: number | null } {
+  const record = isRecord(row) ? row : {};
+  return {
+    id: trimOptionalString(record['booking_id']) ?? trimOptionalString(record['id']) ?? bookingId,
+    queueNumber: normalizeNullableNumber(record['queue_number']) ?? null
+  };
+}
+
+function trimOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

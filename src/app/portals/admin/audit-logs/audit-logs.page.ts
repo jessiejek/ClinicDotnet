@@ -2,9 +2,9 @@ import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuditLog } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
-import { AuditLogService } from '../services/audit-log.service';
 
 type EntityFilter = 'All' | AuditLog['entityType'];
 
@@ -91,7 +91,7 @@ type EntityFilter = 'All' | AuditLog['entityType'];
   styleUrl: './audit-logs.page.scss'
 })
 export class AuditLogsPage implements OnInit {
-  private readonly auditLogService = inject(AuditLogService);
+  private readonly apiService = inject(ApiService);
 
   isLoading = true;
   logs: AuditLog[] = [];
@@ -103,7 +103,7 @@ export class AuditLogsPage implements OnInit {
   dateTo = this.todayIso();
 
   ngOnInit(): void {
-    this.auditLogService.getAuditLogs().subscribe((logs) => {
+    this.apiService.get<AuditLog[]>('audit-logs').subscribe((logs) => {
       this.logs = logs;
       this.applyFilters();
       this.isLoading = false;
