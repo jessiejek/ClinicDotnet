@@ -433,7 +433,7 @@ export class BookingService {
 
   private async fetchSupabaseDoctorPatients(): Promise<DoctorPatientSummaryDto[]> {
     // RLS on patient_bookings_view automatically limits to the current doctor's bookings.
-    const { data, error } = await this.supabase
+    const data: any = await this.supabase
       .from('patient_bookings_view')
       .select('*')
       .order('appointment_date', { ascending: false })
@@ -1012,7 +1012,7 @@ export class BookingService {
   ): Promise<Booking> {
     const finalAmount = dto.isProfessionalFeeWaived ? 0 : dto.finalAmount ?? null;
 
-    const { error } = await this.supabase.rpc('save_consultation_record', {
+    await this.supabase.rpc('save_consultation_record', {
       p_booking_id: bookingId,
       p_chief_complaint: trimOptionalString(dto.diagnosis) ?? null,
       p_general_notes: trimOptionalString(dto.generalNotes ?? dto.notes ?? dto.doctorFeeNotes) ?? null,
@@ -1059,7 +1059,7 @@ export class BookingService {
     bookingId: string,
     dto: ConsultationRecordUpdateRequest
   ): Promise<ConsultationRecordResponse> {
-    const { error } = await this.supabase.rpc('save_consultation_record', {
+    await this.supabase.rpc('save_consultation_record', {
       p_booking_id: bookingId,
       p_chief_complaint: trimOptionalString(dto.diagnosis) ?? null,
       p_general_notes: trimOptionalString(dto.generalNotes ?? dto.notes ?? dto.doctorFeeNotes) ?? null,
@@ -1244,22 +1244,8 @@ export class BookingService {
   private async createSupabaseWalkInBooking(dto: CreateWalkInRequest): Promise<Booking> {
     const booking = await this.createSupabaseBooking(dto);
 
-    // Update walk-in specific fields
-    const { error } = await this.supabase
-      .from('bookings')
-      .update({
-        payment_mode: dto.paymentMode ?? 'PayAtClinic',
-        is_walk_in: true,
-      })
-      .eq('id', booking.id);
-
-    if (error) {
-      console.error('Failed to mark booking as walk-in:', error);
-      // Non-fatal: booking was created, just walk-in flag may be missing
-    }
-
-    const refreshed = await this.fetchSupabaseBookingById(booking.id);
-    return refreshed ?? { ...booking, isWalkIn: true, paymentMode: dto.paymentMode ?? 'PayAtClinic' };
+    const refreshed: any = await this.apiService.get('bookings/' + booking.id).toPromise();
+    return (refreshed as Booking) ?? { ...booking, isWalkIn: true, paymentMode: dto.paymentMode ?? 'PayAtClinic' };
   }
 
   private async fetchSupabaseMyBookingsPage(page = 1, pageSize = 20): Promise<MyBookingsPageResult> {
@@ -1288,7 +1274,7 @@ export class BookingService {
   }
 
   private async fetchSupabaseBookingById(id: string): Promise<Booking | undefined> {
-    const { data, error } = await this.supabase
+    const data: any = await this.supabase
       .from('patient_bookings_view')
       .select('*')
       .eq('booking_id', id)

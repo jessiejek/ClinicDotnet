@@ -1,8 +1,12 @@
+Now that we have the audit checklist, let's do the full migration.
+
+---
+
+STEP 1 — Create ApiService
+
 Create `src/app/core/services/api.service.ts` — a single centralized Angular service that handles all HTTP communication with the backend.
 
 Architecture: Page/Component → ApiService → Backend
-
----
 
 Rules:
 - HttpClient is used ONLY inside ApiService — never in pages/components.
@@ -11,8 +15,6 @@ Rules:
 - Auth headers go in an HttpInterceptor, not in ApiService.
 - No NgRx or complex state management.
 - Use environment.apiUrl as the base URL; prevent double slashes when joining.
-
----
 
 Methods to implement:
 
@@ -43,54 +45,45 @@ Additional requirements:
 
 ---
 
-Expected usage in components:
+STEP 2 — Refactor existing code
 
-// Standard call
-this.loading = true;
-this.apiService.post<PatientDischargeResponse[]>("PatientDischarge/GetPatientDischarge", search)
-  .pipe(finalize(() => this.loading = false))
-  .subscribe({
-    next: (res) => this.list = res,
-    error: (err) => this.errorMessage = "Failed to load data."
-  });
+Using the audit checklist we just produced, refactor every component and page that currently calls HttpClient directly or goes through a middle service.
 
-// Blob download
-this.apiService.postBlob("Reports/ExportPatientDischarge", search)
-  .pipe(finalize(() => this.loading = false))
-  .subscribe({
-    next: (blob) => {
-      const a = Object.assign(document.createElement("a"), {
-        href: URL.createObjectURL(blob), download: "report.xlsx"
-      });
-      a.click(); URL.revokeObjectURL(a.href);
-    },
-    error: () => this.errorMessage = "Export failed."
-  });
+For each file:
+- Remove the old service injection (DoctorService, AuthService, etc.)
+- Inject ApiService instead
+- Replace every old API call with the matching ApiService method
+- Keep the endpoint string inline and visible in the component
+- Preserve all existing logic, variables, loading states, and error handling
+- Use finalize() to stop loading state on both success and error
 
-// Blob with filename from Content-Disposition
-this.apiService.postBlobResponse("Reports/ExportPatientDischarge", search)
-  .pipe(finalize(() => this.loading = false))
-  .subscribe({
-    next: ({ body, headers }) => {
-      if (!body) return;
-      const fileName = this.parseFileName(headers.get("Content-Disposition")) ?? "report.xlsx";
-      const a = Object.assign(document.createElement("a"), {
-        href: URL.createObjectURL(body), download: fileName
-      });
-      a.click(); URL.revokeObjectURL(a.href);
-    },
-    error: () => this.errorMessage = "Export failed."
-  });
+Replace this old pattern:
+  constructor(private doctorService: DoctorService) {}
 
-// FormData upload
-const fd = new FormData(); fd.append("file", file);
-this.apiService.postFormData("Upload/PatientDocument", fd)
-  .pipe(finalize(() => this.loading = false))
-  .subscribe({
-    next: () => console.log("Upload success"),
-    error: () => this.errorMessage = "Upload failed."
-  });
+  this.doctorService.getDoctors().subscribe(...)
+
+With this new pattern:
+  constructor(private apiService: ApiService) {}
+
+  this.loading = true;
+  this.apiService.get<Doctor[]>("Doctors/GetDoctors")
+    .pipe(finalize(() => this.loading = false))
+    .subscribe({
+      next: (res) => this.doctors = res,
+      error: () => this.errorMessage = "Failed to load doctors."
+    });
 
 ---
 
-Implement this cleanly. Keep it simple and readable — no over-engineering.
+STEP 3 — Cleanup
+
+After all components are migrated:
+- Delete every middle service that is now unused (the ones identified in the audit as HttpClient wrappers)
+- Remove their imports from app.module.ts or any standalone component
+- Update all affected imports across the project
+
+---
+
+Show me each updated file in full.
+Do one phase at a time if the project is large.
+After each phase, tell me which checklist items are done.

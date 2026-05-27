@@ -17,3 +17,39 @@ Phase 2 - [Feature Name]
 
 Group by feature or module, not by file.
 Do not refactor anything yet. Just audit and list.
+
+
+
+-----------------------------------------------------------
+
+
+
+
+I uploaded my Angular project as a ZIP.
+Please scan all files inside src/ and find every HTTP/API call.
+
+For each one, list:
+- File path
+- Component or service name
+- HTTP method (GET, POST, PUT, PATCH, DELETE)
+- The full endpoint string
+- How it currently calls the API (raw HttpClient, a service, etc.)
+- The full call chain — e.g. Component → DoctorService → HttpClient
+  (so we know every middle service that needs to be removed)
+
+Then group them into phases by feature/module and build a checklist like:
+
+Phase 1 - [Feature Name]
+  [ ] ComponentName — METHOD "endpoint"
+        Chain: ComponentName → SomeService → HttpClient
+  [ ] ComponentName — METHOD "endpoint"
+        Chain: ComponentName → HttpClient (direct)
+
+Phase 2 - [Feature Name]
+  [ ] ...
+
+After the checklist, give me a separate list of all services 
+that are ONLY wrappers around HttpClient and can be deleted 
+once we migrate to ApiService.
+
+Do not refactor anything yet. Audit and list only.
