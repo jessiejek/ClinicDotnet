@@ -5,12 +5,12 @@ import { firstValueFrom } from 'rxjs';
 import { IonIcon, IonInput, IonItem, IonLabel } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { cloudUploadOutline, imageOutline, receiptOutline } from 'ionicons/icons';
+import { ApiService } from '../../../../core/services/api.service';
 import { AuthStateService } from '../../../../core/services/auth-state.service';
 import { BookingService, CreateBookingRequest } from '../../../../core/services/booking.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
 import { Router } from '@angular/router';
 import { ToastController } from '@ionic/angular/standalone';
-import { PatientService } from '../../../patient/services/patient.service';
 
 type ProofChoice = 'ReferenceNumber' | 'Screenshot';
 
@@ -126,7 +126,7 @@ export class StepProofComponent {
   private readonly wizardService = inject(BookingWizardService);
   private readonly bookingService = inject(BookingService);
   private readonly authState = inject(AuthStateService);
-  private readonly patientService = inject(PatientService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
 
@@ -252,7 +252,7 @@ export class StepProofComponent {
     }
 
     try {
-      const patient = await firstValueFrom(this.patientService.getMyProfile());
+      const patient = await firstValueFrom(this.apiService.get<any>('patients/me'));
       return patient.userId && patient.userId !== userId ? undefined : patient.id;
     } catch (error) {
       console.warn('Unable to resolve the signed-in patient profile for booking submission.', error);

@@ -3,16 +3,16 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { finalize, firstValueFrom } from 'rxjs';
+import { finalize, firstValueFrom, map } from 'rxjs';
 import { IonLabel, ToastController, IonSegment, IonSegmentButton } from '@ionic/angular/standalone';
 import { Booking, PatientDetail } from '../../../core/models';
+import { ApiService } from '../../../core/services/api.service';
 import { BookingService } from '../../../core/services/booking.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { PatientMediaPanelComponent } from '../../../shared/components/patient-media-panel/patient-media-panel.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { StaffService } from '../services/staff.service';
 import { passwordStrengthValidator } from '../../../shared/validators/password-strength.validator';
 
 @Component({
@@ -36,7 +36,7 @@ import { passwordStrengthValidator } from '../../../shared/validators/password-s
 })
 export class StaffPatientDetailPage implements OnInit {
   private readonly bookingService = inject(BookingService);
-  private readonly staffService = inject(StaffService);
+  private readonly apiService = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -131,9 +131,10 @@ export class StaffPatientDetailPage implements OnInit {
     this.bookings = [];
     this.selectedTab = 'overview';
 
-    this.staffService
-      .getPatientById(this.patientId)
+    this.apiService
+      .get<any>('patients/' + this.patientId)
       .pipe(
+        map((data) => (data ? mapStaffPatientDetail(data as Record<string, unknown>) : undefined)),
         finalize(() => {
           if (version === this.requestVersion) {
             this.isLoading = false;
@@ -185,15 +186,13 @@ export class StaffPatientDetailPage implements OnInit {
     }
 
     const values = this.portalAccountForm.getRawValue();
-    this.isCreatingPortalAccount = true;
+      this.isCreatingPortalAccount = true;
 
     try {
-      await firstValueFrom(
-        this.staffService.createPatientPortalAccount(this.patient.id, {
-          email: values.email,
-          temporaryPassword: values.temporaryPassword
-        })
-      );
+      await firstValueFrom(this.apiService.post('patients/' + this.patient.id + '/portal-account', {
+        email: values.email,
+        temporaryPassword: values.temporaryPassword
+      }));
 
       await this.presentToast('Portal account created successfully.');
       this.loadPatient();
@@ -277,4 +276,38 @@ function portalAccountPasswordsMatchValidator(control: AbstractControl): Validat
   }
 
   return temporaryPassword === confirmTemporaryPassword ? null : { passwordMismatch: true };
+}
+
+function mapStaffPatientDetail(row: Record<string, unknown>): PatientDetail {
+  const firstName = (row['firstName'] ?? row['first_name'] ?? '') as string;
+  const middleName = (row['middleName'] ?? row['middle_name']) as string | undefined;
+  const lastName = (row['lastName'] ?? row['last_name'] ?? '') as string;
+  return {
+    id: (row['id'] ?? row['Id'] ?? '') as string,
+    patientCode: (row['patientCode'] ?? row['patient_code'] ?? '') as string,
+    firstName,
+    middleName,
+    lastName,
+    dateOfBirth: (row['dateOfBirth'] ?? row['date_of_birth'] ?? '') as string,
+    sex: (row['sex'] ?? row['Sex'] ?? '') as string,
+    civilStatus: (row['civilStatus'] ?? row['civil_status']) as string | undefined,
+    address: (row['address'] ?? row['Address']) as string | undefined,
+    city: (row['city'] ?? row['City']) as string | undefined,
+    zipCode: (row['zipCode'] ?? row['zip_code']) as string | undefined,
+    contactNumber: (row['contactNumber'] ?? row['contact_number']) as string | undefined,
+    email: (row['email'] ?? row['contact_email']) as string | undefined,
+    emergencyContactName: (row['emergencyContactName'] ?? row['emergency_contact_name']) as string | undefined,
+    emergencyContactNumber: (row['emergencyContactNumber'] ?? row['emergency_contact_number']) as string | undefined,
+    emergencyContactRelationship: (row['emergencyContactRelationship'] ?? row['emergency_contact_relationship']) as string | undefined,
+    bloodType: (row['bloodType'] ?? row['blood_type']) as string | undefined,
+    philHealthNumber: (row['philHealthNumber'] ?? row['phil_health_number']) as string | undefined,
+    hmoProvider: (row['hmoProvider'] ?? row['hmo_provider']) as string | undefined,
+    hmoCardNumber: (row['hmoCardNumber'] ?? row['hmo_card_number']) as string | undefined,
+    userId: (row['userId'] ?? row['user_id']) as string | undefined,
+    hasAccount: Boolean(row['hasAccount'] ?? row['has_account'] ?? row['userId'] ?? row['user_id']),
+    isEmailVerified: (row['isEmailVerified'] ?? row['is_email_verified']) as boolean | undefined,
+    isGuest: Boolean(row['isGuest'] ?? row['is_guest'] ?? false),
+    consentedAt: (row['consentedAt'] ?? row['consented_at']) as string | undefined,
+    consentVersion: (row['consentVersion'] ?? row['consent_version']) as string | undefined
+  };
 }

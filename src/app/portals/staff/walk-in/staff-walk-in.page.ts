@@ -28,7 +28,6 @@ import { BookingService, CreateWalkInRequest } from '../../../core/services/book
 import { rowToSummary } from '../../admin/services/admin-patients.service';
 import { AvailableSlot } from '../../public/services/public.service';
 import { BookingAvailabilityService } from '../../public/services/booking-availability.service';
-import { StaffService } from '../services/staff.service';
 import { CreatePatientRequest, Doctor, PatientDetail, PatientSummary, Service, TimeSlot } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { SlotGridComponent } from '../../../shared/components/slot-grid/slot-grid.component';
@@ -574,7 +573,6 @@ type BookingControl = 'doctorId' | 'serviceId' | 'appointmentDate';
 export class StaffWalkInPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly bookingService = inject(BookingService);
-  private readonly staffService = inject(StaffService);
   private readonly apiService = inject(ApiService);
   private readonly availabilityService = inject(BookingAvailabilityService);
   private readonly router = inject(Router);

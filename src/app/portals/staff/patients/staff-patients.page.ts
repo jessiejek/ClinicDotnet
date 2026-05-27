@@ -3,12 +3,13 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, finalize } from 'rxjs';
+import { debounceTime, distinctUntilChanged, finalize, map } from 'rxjs';
+import { ApiService } from '../../../core/services/api.service';
 import { PatientSummary } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
-import { StaffService } from '../services/staff.service';
+import { toStaffPatient } from '../services/staff.service';
 
 @Component({
   selector: 'app-staff-patients-page',
@@ -92,7 +93,7 @@ import { StaffService } from '../services/staff.service';
   styleUrl: './staff-patients.page.scss'
 })
 export class StaffPatientsPage implements OnInit {
-  private readonly staffService = inject(StaffService);
+  private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -177,10 +178,25 @@ export class StaffPatientsPage implements OnInit {
     const nextPage = Math.max(1, page);
     const token = ++this.loadToken;
     this.isLoading = true;
+    let endpoint = 'patients?page=' + nextPage + '&pageSize=' + this.pageSize;
+    if (this.searchTerm) {
+      endpoint += '&search=' + encodeURIComponent(this.searchTerm);
+    }
 
-    this.staffService
-      .getPatients(nextPage, this.pageSize, this.searchTerm)
+    this.apiService
+      .get<any>(endpoint)
       .pipe(
+        map((data) => {
+          const items = ((data?.items ?? data ?? []) as Record<string, unknown>[]).map((row) => toStaffPatient(row) as PatientSummary);
+          return {
+            items,
+            total: data?.total ?? items.length,
+            totalCount: data?.totalCount ?? items.length,
+            page: data?.page ?? nextPage,
+            pageSize: data?.pageSize ?? this.pageSize,
+            totalPages: data?.totalPages ?? Math.max(1, Math.ceil((data?.totalCount ?? items.length) / this.pageSize))
+          };
+        }),
         finalize(() => {
           if (token === this.loadToken) {
             this.isLoading = false;
