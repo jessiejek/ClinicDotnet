@@ -49,10 +49,9 @@ const DAY_NAMES: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
               <app-avatar [name]="form.value.fullName || 'Doctor'" size="xl"></app-avatar>
               <div>
                 <label class="file-input">
-                  <input type="file" accept="image/*" />
+                  <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
                   <span>Choose profile photo</span>
                 </label>
-                <p class="page-subtitle">Photo upload is mock only for this phase.</p>
               </div>
             </div>
 
@@ -389,6 +388,43 @@ export class DoctorFormPage implements OnInit {
     } else {
       this.selectedServiceIds.add(serviceId);
     }
+  }
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !this.doctorId) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      void this.presentToast('Only image files (jpg, png, gif, webp) are allowed.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      void this.presentToast('File size must not exceed 5 MB.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+
+    this.apiService.postFormData<{ profilePhotoUrl: string }>(`doctors/${this.doctorId}/photo`, formData)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          void this.presentToast('Photo uploaded successfully.', 'success');
+          if (this.currentDoctor) {
+            this.currentDoctor.profilePhotoUrl = result.profilePhotoUrl;
+          }
+        },
+        error: (error: unknown) => {
+          void this.presentToast(extractApiErrorMessage(error, 'Failed to upload photo.'));
+        }
+      });
+
+    // Reset input so the same file can be re-selected
+    input.value = '';
   }
 
   cancel(): void {
