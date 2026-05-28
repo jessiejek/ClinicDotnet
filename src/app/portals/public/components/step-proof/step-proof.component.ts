@@ -210,20 +210,29 @@ export class StepProofComponent {
   }
 
   private async submitBookingRequest(payload: CreateBookingRequest): Promise<{ id: string; queueNumber: number | null }> {
-    void payload;
-    const createdRow = await firstValueFrom(this.apiService.post<any>('bookings', {}));
-    const bookingId = trimOptionalString(createdRow?.booking_id) ?? trimOptionalString(createdRow?.id);
+    const body: Record<string, unknown> = {
+      doctorId: payload.doctorId,
+      serviceIds: payload.serviceIds ?? (payload.serviceId ? [payload.serviceId] : []),
+      appointmentDate: payload.appointmentDate,
+      slotStartTime: payload.slotStartTime,
+      slotEndTime: payload.slotEndTime
+    };
+
+    if (payload.notes) {
+      body['notes'] = payload.notes;
+    }
+
+    const booking = await firstValueFrom(this.apiService.post<any>('bookings', body));
+    const bookingId = booking?.id;
 
     if (!bookingId) {
-      throw new Error('API create_booking did not return a booking id.');
+      throw new Error('Booking was created but no booking ID was returned.');
     }
 
-    try {
-      const bookingRow = await firstValueFrom(this.apiService.get<any>('bookings/' + bookingId));
-      return mapBookingSubmissionResult(bookingRow ?? createdRow, bookingId);
-    } catch {
-      return mapBookingSubmissionResult(createdRow, bookingId);
-    }
+    return {
+      id: bookingId,
+      queueNumber: normalizeNullableNumber(booking?.queueNumber ?? booking?.queue_number)
+    };
   }
 
   private buildBookingRequest(patientId: string | undefined, paymentMode: 'Online' | 'PayAtClinic'): CreateBookingRequest {

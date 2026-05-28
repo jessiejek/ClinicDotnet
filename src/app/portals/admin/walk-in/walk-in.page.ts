@@ -875,26 +875,23 @@ export class WalkInPage implements OnInit {
   }
 
   private async submitWalkInBooking(payload: CreateWalkInRequest): Promise<{ id: string; queueNumber: number | null }> {
-    void payload;
-    const createdRow = await firstValueFrom(this.apiService.post<any>('bookings', {}));
-    const bookingId = trimOptionalString(createdRow?.booking_id) ?? trimOptionalString(createdRow?.id);
+    const booking = await firstValueFrom(this.apiService.post<any>('bookings/walk-in', {
+      patientId: payload.patientId,
+      doctorId: payload.doctorId,
+      serviceId: payload.serviceId,
+      notes: payload.notes
+    }));
+
+    const bookingId = booking?.id;
 
     if (!bookingId) {
-      throw new Error('API create_booking did not return a booking id.');
+      throw new Error('Walk-in booking was created but no booking ID was returned.');
     }
 
-    try {
-      const bookingRow = await firstValueFrom(this.apiService.get<any>('bookings/' + bookingId));
-      return {
-        id: trimOptionalString(bookingRow?.booking_id) ?? trimOptionalString(bookingRow?.id) ?? bookingId,
-        queueNumber: normalizeNullableNumber(bookingRow?.queue_number ?? createdRow?.queue_number) ?? null
-      };
-    } catch {
-      return {
-        id: bookingId,
-        queueNumber: normalizeNullableNumber(createdRow?.queue_number) ?? null
-      };
-    }
+    return {
+      id: bookingId,
+      queueNumber: normalizeNullableNumber(booking?.queueNumber ?? booking?.queue_number)
+    };
   }
 
   private loadDoctors(): void {
