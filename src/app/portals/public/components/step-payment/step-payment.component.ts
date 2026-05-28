@@ -157,7 +157,7 @@ export class StepPaymentComponent {
         queueNumber: booking.queueNumber ?? null
       });
       await this.presentToast('Booking confirmed.', 'success');
-      await this.router.navigate(['/patient/bookings', booking.id]);
+      await this.router.navigate(['/public/booking-confirmation', booking.id]);
       this.wizardService.reset();
     } catch (error) {
       await this.presentToast(extractApiErrorMessage(error, 'Failed to create booking.'));
@@ -167,20 +167,29 @@ export class StepPaymentComponent {
   }
 
   private async submitBookingRequest(payload: CreateBookingRequest): Promise<{ id: string; queueNumber: number | null }> {
-    void payload;
-    const createdRow = await firstValueFrom(this.apiService.post<any>('bookings', {}));
-    const bookingId = trimOptionalString(createdRow?.booking_id) ?? trimOptionalString(createdRow?.id);
+    const body: Record<string, unknown> = {
+      doctorId: payload.doctorId,
+      serviceIds: payload.serviceIds ?? (payload.serviceId ? [payload.serviceId] : []),
+      appointmentDate: payload.appointmentDate,
+      slotStartTime: payload.slotStartTime,
+      slotEndTime: payload.slotEndTime
+    };
+
+    if (payload.notes) {
+      body['notes'] = payload.notes;
+    }
+
+    const booking = await firstValueFrom(this.apiService.post<any>('bookings', body));
+    const bookingId = booking?.id;
 
     if (!bookingId) {
-      throw new Error('API create_booking did not return a booking id.');
+      throw new Error('Booking was created but no booking ID was returned.');
     }
 
-    try {
-      const bookingRow = await firstValueFrom(this.apiService.get<any>('bookings/' + bookingId));
-      return mapBookingSubmissionResult(bookingRow ?? createdRow, bookingId);
-    } catch {
-      return mapBookingSubmissionResult(createdRow, bookingId);
-    }
+    return {
+      id: bookingId,
+      queueNumber: booking?.queueNumber ?? null
+    };
   }
 
   goBack(): void {
@@ -220,17 +229,6 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
-}
-
-function mapBookingSubmissionResult(
-  row: unknown,
-  bookingId: string
-): { id: string; queueNumber: number | null } {
-  const record = isRecord(row) ? row : {};
-  return {
-    id: trimOptionalString(record['booking_id']) ?? trimOptionalString(record['id']) ?? bookingId,
-    queueNumber: normalizeNullableNumber(record['queue_number']) ?? null
-  };
 }
 
 function trimOptionalString(value: unknown): string | undefined {

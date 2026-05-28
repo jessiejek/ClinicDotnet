@@ -1,0 +1,1596 @@
+# PROMPT 1 — PUBLIC / GUEST ROLE QA
+
+You are a senior full-stack QA tester.
+
+Task: Perform REAL DATA FLOW QA for PUBLIC / GUEST only.
+
+Do NOT fix code.
+Do NOT refactor.
+Do NOT edit source code.
+Do NOT change database schema.
+Do NOT run migrations.
+Do NOT fake results.
+Do NOT skip steps.
+Document each and every step.
+
+Read these files first:
+
+* `docs/MASTER_PROJECT_OVERVIEW.md`
+* `docs/ROUTE_FEATURE_INVENTORY.md`
+* `docs/FE_BE_DB_FINAL_QA_RESULT.txt`
+
+Use the actual running frontend, backend, and database.
+
+Create/update only:
+
+`docs/ROLE_QA_PUBLIC_RESULT.txt`
+
+## STOP-ON-BLOCKER RULE
+
+If any blocker happens, stop immediately.
+
+A blocker includes:
+
+* Route cannot load
+* API returns 4xx/5xx and page cannot continue
+* Required public data does not appear
+* Booking cannot continue
+* UI says success but backend does not confirm
+* Mock/fake/timer success is used
+* Public route exposes private/sensitive data
+* Public user can access protected role pages
+
+When blocker happens:
+
+1. Stop.
+2. Do not fix.
+3. Do not continue testing.
+4. Write a blocker report.
+5. End with `STOPPED_ON_BLOCKER`.
+
+## Routes to test
+
+Test every route:
+
+* `/public`
+* `/public/doctors`
+* `/public/doctors/:id`
+* `/public/services`
+* `/public/announcements`
+* `/public/booking`
+* `/public/booking-confirmation/:bookingId`
+* `/public/privacy-policy`
+* `/auth/login`
+* `/auth/register`
+* `/auth/forgot-password`
+* `/auth/reset-password`
+
+## Required step-by-step actions
+
+### Public home
+
+1. Open `/public`.
+2. Confirm page loads.
+3. Confirm doctors load from backend.
+4. Confirm services load from backend.
+5. Confirm announcements load from backend.
+6. Confirm clinic settings/operating info loads.
+7. Click doctors CTA/link if available.
+8. Record route, UI result, and API calls.
+
+### Public doctors
+
+1. Open `/public/doctors`.
+2. Confirm doctors list loads.
+3. Test specialization/filter buttons if present.
+4. Click/open one real doctor.
+5. Confirm navigation to `/public/doctors/:id`.
+6. Record selected doctor ID/name.
+
+### Doctor profile
+
+1. Confirm doctor profile loads.
+2. Confirm doctor name/specialization/profile data.
+3. Confirm schedule loads.
+4. Confirm reviews load if available.
+5. Confirm booking CTA exists.
+6. Click booking CTA.
+7. Confirm navigation to booking page with selected doctor if supported.
+
+### Public services
+
+1. Open `/public/services`.
+2. Confirm services list loads.
+3. Test category/filter buttons.
+4. Confirm filtered services update correctly.
+5. Record API call and visible result.
+
+### Announcements
+
+1. Open `/public/announcements`.
+2. Confirm announcements load.
+3. Confirm empty state if no announcements.
+4. Confirm no protected/admin-only action is visible.
+
+### Public booking
+
+1. Open `/public/booking`.
+2. Select real doctor.
+3. Select real service.
+4. Select valid date.
+5. Select valid slot.
+6. Continue through all booking steps.
+7. If guest booking is allowed, create booking with realistic patient details.
+8. If login/register is required, document exact behavior.
+9. Confirm backend API call for booking creation.
+10. Confirm booking ID returned if booking succeeds.
+
+### Booking confirmation
+
+1. Open `/public/booking-confirmation/:bookingId` using created booking if available.
+2. Refresh the page.
+3. Confirm confirmation still loads.
+4. Confirm it uses safe public endpoint.
+5. Confirm it does not expose full patient profile, medical records, private notes, or sensitive payment details.
+6. Confirm back/home/account buttons work.
+
+### Privacy policy
+
+1. Open `/public/privacy-policy`.
+2. Confirm page loads.
+3. Confirm back/home links work.
+
+### Login/Register/Forgot/Reset
+
+1. Open `/auth/login`.
+2. Confirm login form appears.
+3. Confirm forgot password link works.
+4. Open `/auth/forgot-password`.
+5. Submit a test email.
+6. Confirm real backend API is called.
+7. Confirm safe success message does not reveal if email exists.
+8. Open `/auth/reset-password`.
+9. If no valid token exists, confirm validation/error behavior is correct.
+10. Confirm it does not fake success.
+11. Open `/auth/register`.
+12. Confirm register form loads.
+13. Do not create duplicate patient unless safe test data is used.
+
+### Unauthorized access checks
+
+As Public/Guest, attempt:
+
+* `/admin/dashboard`
+* `/staff/dashboard`
+* `/doctor/dashboard`
+* `/patient/dashboard`
+
+Expected: redirect to `/auth/login` or blocked.
+
+## Required documentation format
+
+Use this exact format:
+
+# ROLE QA RESULT — PUBLIC / GUEST
+
+## 1. Executive Summary
+
+* Role: Public / Guest
+* Final verdict: PASS / PARTIAL PASS / FAIL / STOPPED_ON_BLOCKER
+* Stopped on blocker: YES/NO
+* Blocker route:
+* Blocker step:
+* Routes checked:
+* Actions tested:
+* API calls verified:
+* Unauthorized access checked: PASS/FAIL/UNCLEAR
+* Mock/fake behavior found: YES/NO
+* Safe for demo: YES/NO
+
+## 2. Test Data Used
+
+Doctor selected:
+Service selected:
+Booking created:
+Booking ID:
+Email used for forgot password:
+Other test data:
+
+## 3. Route Coverage
+
+For every route:
+
+Route:
+Expected access:
+Actual access:
+Expected page/component:
+Actual result:
+Guard/redirect behavior:
+Status: PASS/FAIL/UNCLEAR
+Notes:
+
+## 4. Step-by-Step Action Log
+
+Document each and every action.
+
+For every step:
+
+Step #:
+Route:
+Action performed:
+Input data:
+Button/control clicked:
+Expected result:
+Actual result:
+API call:
+HTTP method:
+HTTP status:
+Request payload:
+Response summary:
+UI result:
+Database/state effect:
+Status: PASS/FAIL/UNCLEAR/NOT REACHED
+Notes:
+
+## 5. Blocker Report
+
+If blocker happened:
+
+Blocker found: YES
+Step:
+Route:
+Action attempted:
+Expected result:
+Actual result:
+API call:
+HTTP status:
+Request payload:
+Response/error:
+Console error if any:
+Network error if any:
+Likely failing layer:
+Evidence:
+Why the flow cannot continue:
+Recommended next investigation:
+What GPT-5.5 should analyze:
+
+If no blocker:
+
+`No blocker encountered.`
+
+## 6. API Evidence
+
+For every API call:
+
+Endpoint:
+Method:
+Triggered by:
+Auth used:
+Request payload:
+HTTP status:
+Response summary:
+Status:
+
+## 7. Unauthorized Access Checks
+
+Attempt:
+Expected:
+Actual:
+Status:
+Notes:
+
+## 8. Issues Found
+
+### CRITICAL
+
+### HIGH
+
+### MEDIUM
+
+### LOW
+
+If none, write `None`.
+
+## 9. Final Verdict
+
+Choose only one:
+
+* PASS
+* PARTIAL PASS
+* FAIL
+* STOPPED_ON_BLOCKER
+
+Explain briefly.
+
+## 10. Recommendation for GPT-5.5 Audit
+
+Summarize what worked, what failed, and what GPT-5.5 should analyze next.
+
+---
+
+# PROMPT 2 — PATIENT ROLE QA
+
+You are a senior full-stack QA tester.
+
+Task: Perform REAL DATA FLOW QA for PATIENT only.
+
+Do NOT fix code.
+Do NOT refactor.
+Do NOT edit source code.
+Do NOT change database schema.
+Do NOT run migrations.
+Do NOT fake results.
+Do NOT skip steps.
+Document each and every step.
+
+Read these files first:
+
+* `docs/MASTER_PROJECT_OVERVIEW.md`
+* `docs/ROUTE_FEATURE_INVENTORY.md`
+* `docs/FE_BE_DB_FINAL_QA_RESULT.txt`
+
+Use the actual running frontend, backend, and database.
+
+Create/update only:
+
+`docs/ROLE_QA_PATIENT_RESULT.txt`
+
+## STOP-ON-BLOCKER RULE
+
+If any blocker happens, stop immediately.
+
+A blocker includes:
+
+* Patient cannot login
+* Redirect goes to wrong portal
+* Patient route is blocked incorrectly
+* Dashboard does not load
+* Patient sees another patient’s data
+* Patient cannot view own data
+* API returns 4xx/5xx and page cannot continue
+* Page silently succeeds without backend confirmation
+* Mock/fake/timer success is used
+* Document cannot open/download when expected
+
+When blocker happens:
+
+1. Stop.
+2. Do not fix.
+3. Do not continue testing.
+4. Write a blocker report.
+5. End with `STOPPED_ON_BLOCKER`.
+
+## Routes to test
+
+* `/patient/dashboard`
+* `/patient/doctors`
+* `/patient/bookings`
+* `/patient/bookings/:id`
+* `/patient/documents`
+* `/patient/lab-results`
+* `/patient/labs`
+* `/patient/medical-records`
+* `/patient/prescriptions`
+* `/patient/vaccinations`
+* `/patient/profile`
+* `/patient/reviews/:bookingId`
+* `/patient/privacy-consent`
+
+## Required step-by-step actions
+
+### Login
+
+1. Open `/auth/login`.
+2. Login using Patient account.
+3. Record email used.
+4. Confirm login API call.
+5. Confirm redirected to `/patient/dashboard`.
+6. Confirm patient layout/sidebar appears.
+
+### Dashboard
+
+1. Open `/patient/dashboard`.
+2. Confirm dashboard loads.
+3. Confirm upcoming bookings if any.
+4. Confirm notifications if any.
+5. Confirm no admin/staff/doctor controls are visible.
+6. Refresh page and confirm session persists.
+
+### Doctors
+
+1. Open `/patient/doctors`.
+2. Confirm doctors load.
+3. Open doctor profile if available.
+4. Confirm patient can browse doctors.
+
+### Bookings
+
+1. Open `/patient/bookings`.
+2. Confirm only current patient’s bookings appear.
+3. Open one booking detail if available.
+4. Confirm `/patient/bookings/:id` loads.
+5. Verify booking timeline/status.
+6. If booking is cancellable, test cancel only with safe test booking.
+7. If proof submission is allowed, test only with safe test booking and document result.
+8. Confirm patient cannot see another patient’s booking.
+
+### Documents
+
+1. Open `/patient/documents`.
+2. Confirm documents load.
+3. Open/download available document if present.
+4. Confirm document belongs to logged-in patient.
+
+### Lab results
+
+1. Open `/patient/lab-results`.
+2. Confirm lab results load.
+3. Open any available lab result.
+4. Confirm result belongs to logged-in patient.
+
+### Labs redirect
+
+1. Open `/patient/labs`.
+2. Confirm expected redirect behavior.
+3. Record actual route after redirect.
+
+### Medical records
+
+1. Open `/patient/medical-records`.
+2. Confirm records load.
+3. Confirm records belong to logged-in patient.
+4. Confirm no edit controls appear unless intended.
+
+### Prescriptions
+
+1. Open `/patient/prescriptions`.
+2. Confirm prescriptions load.
+3. Open/download prescription if available.
+4. Confirm prescription belongs to logged-in patient.
+
+### Vaccinations
+
+1. Open `/patient/vaccinations`.
+2. Confirm vaccinations load.
+3. Confirm data belongs to logged-in patient.
+
+### Profile
+
+1. Open `/patient/profile`.
+2. Confirm profile data loads.
+3. Perform a safe minor update only if normal workflow allows it.
+4. Save.
+5. Refresh page.
+6. Confirm update persisted.
+7. If update is not safe, document read-only behavior.
+
+### Reviews
+
+1. If completed eligible booking exists, open `/patient/reviews/:bookingId`.
+2. Submit review only for safe test booking.
+3. Confirm backend API call.
+4. Confirm review appears where expected.
+5. If no eligible booking exists, mark NOT REACHED with reason.
+
+### Privacy consent
+
+1. Open `/patient/privacy-consent`.
+2. Confirm page loads.
+3. Test consent action only if safe.
+4. Confirm backend or storage behavior.
+
+### Unauthorized access checks
+
+As Patient, attempt:
+
+* `/admin/dashboard`
+* `/staff/dashboard`
+* `/doctor/dashboard`
+
+Expected: blocked or redirected.
+
+## Required documentation format
+
+Use this exact format:
+
+# ROLE QA RESULT — PATIENT
+
+## 1. Executive Summary
+
+* Role: Patient
+* Final verdict: PASS / PARTIAL PASS / FAIL / STOPPED_ON_BLOCKER
+* Stopped on blocker: YES/NO
+* Blocker route:
+* Blocker step:
+* Login/access: PASS/FAIL
+* Routes checked:
+* Actions tested:
+* API calls verified:
+* Unauthorized access checked: PASS/FAIL/UNCLEAR
+* Mock/fake behavior found: YES/NO
+* Safe for demo: YES/NO
+
+## 2. Account / Test Data Used
+
+Patient account:
+Patient ID:
+Booking used:
+Document used:
+Prescription used:
+Lab result used:
+Review booking used:
+Other test data:
+
+## 3. Route Coverage
+
+For every route:
+
+Route:
+Expected access:
+Actual access:
+Expected page/component:
+Actual result:
+Guard/redirect behavior:
+Status: PASS/FAIL/UNCLEAR
+Notes:
+
+## 4. Step-by-Step Action Log
+
+Document each and every action.
+
+For every step:
+
+Step #:
+Route:
+Action performed:
+Input data:
+Button/control clicked:
+Expected result:
+Actual result:
+API call:
+HTTP method:
+HTTP status:
+Request payload:
+Response summary:
+UI result:
+Database/state effect:
+Status: PASS/FAIL/UNCLEAR/NOT REACHED
+Notes:
+
+## 5. Blocker Report
+
+If blocker happened:
+
+Blocker found: YES
+Step:
+Route:
+Action attempted:
+Expected result:
+Actual result:
+API call:
+HTTP status:
+Request payload:
+Response/error:
+Console error if any:
+Network error if any:
+Likely failing layer:
+Evidence:
+Why the flow cannot continue:
+Recommended next investigation:
+What GPT-5.5 should analyze:
+
+If no blocker:
+
+`No blocker encountered.`
+
+## 6. API Evidence
+
+Endpoint:
+Method:
+Triggered by:
+Auth used:
+Request payload:
+HTTP status:
+Response summary:
+Status:
+
+## 7. Unauthorized Access Checks
+
+Attempt:
+Expected:
+Actual:
+Status:
+Notes:
+
+## 8. Issues Found
+
+### CRITICAL
+
+### HIGH
+
+### MEDIUM
+
+### LOW
+
+If none, write `None`.
+
+## 9. Final Verdict
+
+Choose only one:
+
+* PASS
+* PARTIAL PASS
+* FAIL
+* STOPPED_ON_BLOCKER
+
+Explain briefly.
+
+## 10. Recommendation for GPT-5.5 Audit
+
+Summarize what worked, what failed, and what GPT-5.5 should analyze next.
+
+---
+
+# PROMPT 3 — STAFF ROLE QA
+
+You are a senior full-stack QA tester.
+
+Task: Perform REAL DATA FLOW QA for STAFF only.
+
+Do NOT fix code.
+Do NOT refactor.
+Do NOT edit source code.
+Do NOT change database schema.
+Do NOT run migrations.
+Do NOT fake results.
+Do NOT skip steps.
+Document each and every step.
+
+Read these files first:
+
+* `docs/MASTER_PROJECT_OVERVIEW.md`
+* `docs/ROUTE_FEATURE_INVENTORY.md`
+* `docs/FE_BE_DB_FINAL_QA_RESULT.txt`
+
+Use the actual running frontend, backend, and database.
+
+Create/update only:
+
+`docs/ROLE_QA_STAFF_RESULT.txt`
+
+## STOP-ON-BLOCKER RULE
+
+If any blocker happens, stop immediately.
+
+A blocker includes:
+
+* Staff cannot login
+* Redirect goes to wrong portal
+* Staff route is blocked incorrectly
+* Staff walk-in flow cannot continue
+* Patient cannot be created or selected
+* Walk-in booking cannot be created
+* Patient cannot be checked in
+* Staff cannot see booking/payment/patient data required for role
+* API returns 4xx/5xx and page cannot continue
+* Page silently succeeds without backend confirmation
+* Mock/fake/timer success is used
+
+When blocker happens:
+
+1. Stop.
+2. Do not fix.
+3. Do not continue testing.
+4. Write a blocker report.
+5. End with `STOPPED_ON_BLOCKER`.
+
+## Routes to test
+
+* `/staff/dashboard`
+* `/staff/bookings`
+* `/staff/payments`
+* `/staff/bookings/:id`
+* `/staff/walk-in`
+* `/staff/patients`
+* `/staff/patients/:id`
+* `/staff/doctor-status`
+* `/staff/profile`
+
+## Required step-by-step actions
+
+### Login
+
+1. Open `/auth/login`.
+2. Login using Staff account.
+3. Record email used.
+4. Confirm login API call.
+5. Confirm redirected to `/staff/dashboard`.
+6. Confirm staff layout/sidebar appears.
+
+### Dashboard
+
+1. Open `/staff/dashboard`.
+2. Confirm dashboard loads real backend data.
+3. Confirm today queue/summary if available.
+4. Refresh page and confirm session persists.
+
+### Staff bookings
+
+1. Open `/staff/bookings`.
+2. Confirm bookings list loads.
+3. Test filters/search if available.
+4. Open one booking detail.
+5. Confirm `/staff/bookings/:id` loads.
+6. Confirm allowed booking actions appear based on status.
+
+### Staff walk-in
+
+1. Open `/staff/walk-in`.
+2. Register a new realistic patient:
+
+   * full name
+   * birthdate
+   * sex
+   * contact number
+   * email if required
+   * address if required
+3. Confirm patient creation API call.
+4. Select created patient or confirm selected patient.
+5. Select real doctor from backend data.
+6. Select real service from backend data.
+7. Select valid date/slot or current walk-in slot if supported.
+8. Submit walk-in booking.
+9. Confirm booking creation API call.
+10. Record booking ID.
+11. Confirm booking appears in staff bookings/dashboard.
+12. Open booking detail.
+13. Click/check-in patient.
+14. Confirm check-in API call.
+15. Confirm status changes to checked-in.
+16. Refresh page and confirm checked-in status persists.
+
+### Payments
+
+1. Open `/staff/payments`.
+2. Confirm payment queue loads.
+3. If payment exists, open payment/booking detail.
+4. Confirm amount/status are visible.
+5. Do not collect real payment unless using test booking.
+6. If using test booking from walk-in flow and it is ready for payment, collect payment and document result.
+7. Confirm receipt visibility only if payment is completed.
+
+### Patients
+
+1. Open `/staff/patients`.
+2. Search for patient created in walk-in.
+3. Confirm patient appears.
+4. Open `/staff/patients/:id`.
+5. Confirm patient detail loads.
+6. Confirm staff can view allowed medical records read-only.
+7. Confirm staff cannot write restricted records unless intended.
+
+### Doctor status
+
+1. Open `/staff/doctor-status`.
+2. Confirm doctor status list loads.
+3. Update doctor status only if normal safe workflow allows.
+4. Confirm backend API call.
+5. Confirm UI reflects updated status.
+
+### Profile
+
+1. Open `/staff/profile`.
+2. Confirm profile loads.
+3. Perform safe minor update only if allowed.
+4. Save and refresh.
+5. Confirm persistence.
+
+### Unauthorized access checks
+
+As Staff, attempt:
+
+* `/admin/dashboard`
+* `/doctor/dashboard`
+* `/patient/dashboard`
+
+Expected: blocked or redirected.
+
+## Required documentation format
+
+Use this exact format:
+
+# ROLE QA RESULT — STAFF
+
+## 1. Executive Summary
+
+* Role: Staff
+* Final verdict: PASS / PARTIAL PASS / FAIL / STOPPED_ON_BLOCKER
+* Stopped on blocker: YES/NO
+* Blocker route:
+* Blocker step:
+* Login/access: PASS/FAIL
+* Routes checked:
+* Actions tested:
+* API calls verified:
+* Unauthorized access checked: PASS/FAIL/UNCLEAR
+* Mock/fake behavior found: YES/NO
+* Safe for demo: YES/NO
+
+## 2. Account / Test Data Used
+
+Staff account:
+Patient created:
+Patient ID:
+Doctor selected:
+Service selected:
+Booking created:
+Booking ID:
+Payment used:
+Other test data:
+
+## 3. Route Coverage
+
+For every route:
+
+Route:
+Expected access:
+Actual access:
+Expected page/component:
+Actual result:
+Guard/redirect behavior:
+Status: PASS/FAIL/UNCLEAR
+Notes:
+
+## 4. Step-by-Step Action Log
+
+Document each and every action.
+
+For every step:
+
+Step #:
+Route:
+Action performed:
+Input data:
+Button/control clicked:
+Expected result:
+Actual result:
+API call:
+HTTP method:
+HTTP status:
+Request payload:
+Response summary:
+UI result:
+Database/state effect:
+Status: PASS/FAIL/UNCLEAR/NOT REACHED
+Notes:
+
+## 5. Blocker Report
+
+If blocker happened:
+
+Blocker found: YES
+Step:
+Route:
+Action attempted:
+Expected result:
+Actual result:
+API call:
+HTTP status:
+Request payload:
+Response/error:
+Console error if any:
+Network error if any:
+Likely failing layer:
+Evidence:
+Why the flow cannot continue:
+Recommended next investigation:
+What GPT-5.5 should analyze:
+
+If no blocker:
+
+`No blocker encountered.`
+
+## 6. API Evidence
+
+Endpoint:
+Method:
+Triggered by:
+Auth used:
+Request payload:
+HTTP status:
+Response summary:
+Status:
+
+## 7. Unauthorized Access Checks
+
+Attempt:
+Expected:
+Actual:
+Status:
+Notes:
+
+## 8. Issues Found
+
+### CRITICAL
+
+### HIGH
+
+### MEDIUM
+
+### LOW
+
+If none, write `None`.
+
+## 9. Final Verdict
+
+Choose only one:
+
+* PASS
+* PARTIAL PASS
+* FAIL
+* STOPPED_ON_BLOCKER
+
+Explain briefly.
+
+## 10. Recommendation for GPT-5.5 Audit
+
+Summarize what worked, what failed, and what GPT-5.5 should analyze next.
+
+---
+
+# PROMPT 4 — DOCTOR ROLE QA
+
+You are a senior full-stack QA tester.
+
+Task: Perform REAL DATA FLOW QA for DOCTOR only.
+
+Do NOT fix code.
+Do NOT refactor.
+Do NOT edit source code.
+Do NOT change database schema.
+Do NOT run migrations.
+Do NOT fake results.
+Do NOT skip steps.
+Document each and every step.
+
+Read these files first:
+
+* `docs/MASTER_PROJECT_OVERVIEW.md`
+* `docs/ROUTE_FEATURE_INVENTORY.md`
+* `docs/FE_BE_DB_FINAL_QA_RESULT.txt`
+
+Use the actual running frontend, backend, and database.
+
+Create/update only:
+
+`docs/ROLE_QA_DOCTOR_RESULT.txt`
+
+## STOP-ON-BLOCKER RULE
+
+If any blocker happens, stop immediately.
+
+A blocker includes:
+
+* Doctor cannot login
+* Redirect goes to wrong portal
+* Doctor route is blocked incorrectly
+* Doctor queue cannot load
+* Checked-in patient cannot be found
+* Consultation cannot open
+* Consultation data cannot save
+* Prescriptions cannot be added
+* More than 10 medications cannot be added when UI should support it
+* Lab requests cannot be added
+* Consultation cannot be completed
+* PF cannot be charged when workflow requires it
+* API returns 4xx/5xx and page cannot continue
+* Page silently succeeds without backend confirmation
+* Mock/fake/timer success is used
+
+When blocker happens:
+
+1. Stop.
+2. Do not fix.
+3. Do not continue testing.
+4. Write a blocker report.
+5. End with `STOPPED_ON_BLOCKER`.
+
+## Routes to test
+
+* `/doctor/dashboard`
+* `/doctor/appointments`
+* `/doctor/appointments/:id`
+* `/doctor/patients`
+* `/doctor/patients/:id`
+* `/doctor/schedule`
+* `/doctor/consultation/:bookingId`
+* `/doctor/profile`
+* `/doctor/my-profile`
+
+## Required step-by-step actions
+
+### Login
+
+1. Open `/auth/login`.
+2. Login using Doctor account.
+3. Record email used.
+4. Confirm login API call.
+5. Confirm redirected to `/doctor/dashboard`.
+6. Confirm doctor layout/sidebar appears.
+
+### Dashboard
+
+1. Open `/doctor/dashboard`.
+2. Confirm doctor summary loads.
+3. Confirm today queue loads.
+4. Confirm upcoming appointments load.
+5. Refresh page and confirm session persists.
+
+### Appointments
+
+1. Open `/doctor/appointments`.
+2. Confirm appointments load.
+3. Find a checked-in/consultation-ready booking.
+4. If none exists, document test data missing and mark consultation steps NOT REACHED unless a safe booking can be created by setup.
+5. Open appointment detail.
+6. Confirm `/doctor/appointments/:id` loads.
+7. Confirm patient/booking details are visible.
+8. Confirm start/open consultation action exists.
+
+### Consultation
+
+1. Open `/doctor/consultation/:bookingId`.
+2. Confirm consultation record loads or is created.
+3. Add realistic clinical data:
+
+   * chief complaint
+   * history of present illness
+   * vitals
+   * diagnosis
+   * SOAP subjective
+   * SOAP objective
+   * assessment
+   * plan
+4. Save/update consultation.
+5. Confirm backend API call succeeds.
+6. Refresh and confirm saved data persists.
+7. Add more than 10 medication/prescription items:
+
+   * use realistic names, dosage, frequency, duration, quantity, instructions
+8. Confirm each medication is saved or the batch save succeeds.
+9. Confirm no UI limit wrongly blocks more than 10 items.
+10. Add multiple lab requests:
+
+* CBC
+* Urinalysis
+* Chest X-ray
+* Fasting blood sugar or other realistic tests
+
+11. Confirm lab requests save.
+12. Add follow-up if supported.
+13. Complete consultation.
+14. Add/charge PF if supported by doctor workflow.
+15. Confirm booking status changes.
+16. Confirm completed consultation persists after refresh.
+
+### Patients
+
+1. Open `/doctor/patients`.
+2. Confirm patient list loads.
+3. Open one patient.
+4. Confirm `/doctor/patients/:id` loads.
+5. Confirm medical records are visible.
+6. Confirm doctor sees only allowed patient data.
+
+### Schedule
+
+1. Open `/doctor/schedule`.
+2. Confirm schedule loads.
+3. Edit schedule only if safe and normal workflow allows.
+4. Confirm backend API call.
+5. Refresh and confirm persistence.
+6. If editing schedule is unsafe, document read-only check.
+
+### Profile
+
+1. Open `/doctor/profile`.
+2. Open `/doctor/my-profile`.
+3. Confirm both routes behave correctly.
+4. Confirm profile loads.
+5. Perform safe minor update only if allowed.
+6. Save and refresh.
+7. Confirm persistence.
+
+### Unauthorized access checks
+
+As Doctor, attempt:
+
+* `/admin/dashboard`
+* `/staff/dashboard`
+* `/patient/dashboard`
+
+Expected: blocked or redirected.
+
+## Required documentation format
+
+Use this exact format:
+
+# ROLE QA RESULT — DOCTOR
+
+## 1. Executive Summary
+
+* Role: Doctor
+* Final verdict: PASS / PARTIAL PASS / FAIL / STOPPED_ON_BLOCKER
+* Stopped on blocker: YES/NO
+* Blocker route:
+* Blocker step:
+* Login/access: PASS/FAIL
+* Routes checked:
+* Actions tested:
+* API calls verified:
+* Unauthorized access checked: PASS/FAIL/UNCLEAR
+* Mock/fake behavior found: YES/NO
+* Safe for demo: YES/NO
+
+## 2. Account / Test Data Used
+
+Doctor account:
+Doctor ID:
+Patient used:
+Booking used:
+Consultation ID:
+Prescription ID:
+Medication count:
+Lab requests:
+Other test data:
+
+## 3. Route Coverage
+
+For every route:
+
+Route:
+Expected access:
+Actual access:
+Expected page/component:
+Actual result:
+Guard/redirect behavior:
+Status: PASS/FAIL/UNCLEAR
+Notes:
+
+## 4. Step-by-Step Action Log
+
+Document each and every action.
+
+For every step:
+
+Step #:
+Route:
+Action performed:
+Input data:
+Button/control clicked:
+Expected result:
+Actual result:
+API call:
+HTTP method:
+HTTP status:
+Request payload:
+Response summary:
+UI result:
+Database/state effect:
+Status: PASS/FAIL/UNCLEAR/NOT REACHED
+Notes:
+
+## 5. Blocker Report
+
+If blocker happened:
+
+Blocker found: YES
+Step:
+Route:
+Action attempted:
+Expected result:
+Actual result:
+API call:
+HTTP status:
+Request payload:
+Response/error:
+Console error if any:
+Network error if any:
+Likely failing layer:
+Evidence:
+Why the flow cannot continue:
+Recommended next investigation:
+What GPT-5.5 should analyze:
+
+If no blocker:
+
+`No blocker encountered.`
+
+## 6. API Evidence
+
+Endpoint:
+Method:
+Triggered by:
+Auth used:
+Request payload:
+HTTP status:
+Response summary:
+Status:
+
+## 7. Unauthorized Access Checks
+
+Attempt:
+Expected:
+Actual:
+Status:
+Notes:
+
+## 8. Issues Found
+
+### CRITICAL
+
+### HIGH
+
+### MEDIUM
+
+### LOW
+
+If none, write `None`.
+
+## 9. Final Verdict
+
+Choose only one:
+
+* PASS
+* PARTIAL PASS
+* FAIL
+* STOPPED_ON_BLOCKER
+
+Explain briefly.
+
+## 10. Recommendation for GPT-5.5 Audit
+
+Summarize what worked, what failed, and what GPT-5.5 should analyze next.
+
+---
+
+# PROMPT 5 — ADMIN ROLE QA
+
+You are a senior full-stack QA tester.
+
+Task: Perform REAL DATA FLOW QA for ADMIN only.
+
+Do NOT fix code.
+Do NOT refactor.
+Do NOT edit source code.
+Do NOT change database schema.
+Do NOT run migrations.
+Do NOT fake results.
+Do NOT skip steps.
+Document each and every step.
+
+Read these files first:
+
+* `docs/MASTER_PROJECT_OVERVIEW.md`
+* `docs/ROUTE_FEATURE_INVENTORY.md`
+* `docs/FE_BE_DB_FINAL_QA_RESULT.txt`
+
+Use the actual running frontend, backend, and database.
+
+Create/update only:
+
+`docs/ROLE_QA_ADMIN_RESULT.txt`
+
+## STOP-ON-BLOCKER RULE
+
+If any blocker happens, stop immediately.
+
+A blocker includes:
+
+* Admin cannot login
+* Redirect goes to wrong portal
+* Admin route is blocked incorrectly
+* Admin dashboard cannot load
+* Admin CRUD action fails
+* Page silently succeeds without backend confirmation
+* Admin sees fake/mock saved data
+* API returns 4xx/5xx and page cannot continue
+* Admin action affects wrong data
+* Unsafe destructive action is required to continue
+
+When blocker happens:
+
+1. Stop.
+2. Do not fix.
+3. Do not continue testing.
+4. Write a blocker report.
+5. End with `STOPPED_ON_BLOCKER`.
+
+## Routes to test
+
+* `/admin/dashboard`
+* `/admin/bookings`
+* `/admin/bookings/:id`
+* `/admin/walk-in`
+* `/admin/calendar`
+* `/admin/doctors`
+* `/admin/doctors/new`
+* `/admin/doctors/:id/edit`
+* `/admin/services`
+* `/admin/patients`
+* `/admin/patients/:id`
+* `/admin/staff`
+* `/admin/announcements`
+* `/admin/settings`
+* `/admin/audit-logs`
+* `/admin/reports`
+
+## Required step-by-step actions
+
+### Login
+
+1. Open `/auth/login`.
+2. Login using Admin account.
+3. Record email used.
+4. Confirm login API call.
+5. Confirm redirected to `/admin/dashboard`.
+6. Confirm admin layout/sidebar appears.
+
+### Dashboard
+
+1. Open `/admin/dashboard`.
+2. Confirm dashboard summary loads.
+3. Confirm charts/cards/tables load.
+4. Confirm no loading state remains stuck.
+5. Refresh and confirm session persists.
+
+### Bookings
+
+1. Open `/admin/bookings`.
+2. Confirm booking list loads.
+3. Test filters/search/date/status controls.
+4. Open one booking detail.
+5. Confirm `/admin/bookings/:id` loads.
+6. Confirm allowed actions are shown based on booking state.
+7. Do not perform destructive status changes unless using safe test booking.
+
+### Admin walk-in
+
+1. Open `/admin/walk-in`.
+2. Confirm page loads.
+3. Create test walk-in only if safe and not duplicating staff test.
+4. If not testing creation, verify all required dropdowns/data load.
+
+### Calendar
+
+1. Open `/admin/calendar`.
+2. Confirm calendar loads.
+3. Confirm bookings appear.
+4. Change month/date/doctor filter if available.
+5. Confirm API call and UI update.
+
+### Doctors
+
+1. Open `/admin/doctors`.
+2. Confirm doctors list loads.
+3. Open edit for existing doctor.
+4. Make safe minor update only if allowed.
+5. Save.
+6. Refresh and confirm persistence.
+7. Open `/admin/doctors/new`.
+8. Validate required fields behavior.
+9. Create new doctor only if safe test data and cleanup plan exists.
+10. Test doctor photo upload only if safe test image exists.
+
+### Services
+
+1. Open `/admin/services`.
+2. Confirm services load.
+3. Create safe test service if allowed.
+4. Edit test service.
+5. Delete/deactivate test service.
+6. Confirm backend API calls for create/edit/delete.
+7. Confirm service list updates.
+
+### Patients
+
+1. Open `/admin/patients`.
+2. Confirm patients list loads.
+3. Search patient.
+4. Open patient detail.
+5. Confirm `/admin/patients/:id` loads.
+6. Confirm profile, booking history, and medical records sections load.
+7. Test admin medical records tab only with safe test patient.
+8. Confirm save uses real backend, not mock local array.
+9. Refresh and confirm persistence.
+
+### Staff accounts
+
+1. Open `/admin/staff`.
+2. Confirm staff list loads.
+3. Invite/revoke/status-change only if safe test data exists.
+4. Confirm backend API calls.
+5. Do not affect real staff accounts.
+
+### Announcements
+
+1. Open `/admin/announcements`.
+2. Create a test announcement.
+3. Confirm POST API call.
+4. Confirm announcement appears.
+5. Edit the test announcement.
+6. Confirm PUT API call.
+7. Delete the test announcement.
+8. Confirm DELETE API call.
+9. Confirm public announcements page reflects expected state if applicable.
+
+### Settings
+
+1. Open `/admin/settings`.
+2. Confirm settings load.
+3. Do not make destructive clinic setting changes.
+4. If testing save, use harmless temporary text and revert it.
+5. Confirm PUT API call and persistence.
+
+### Audit logs
+
+1. Open `/admin/audit-logs`.
+2. Confirm audit logs load.
+3. Test search/filter if available.
+
+### Reports
+
+1. Open `/admin/reports`.
+2. Confirm reports load.
+3. Confirm unpaid visits, follow-ups, daily summary if available.
+4. Test date/filter controls if available.
+
+### Unauthorized access checks
+
+As Admin, attempt:
+
+* `/staff/dashboard`
+* `/doctor/dashboard`
+* `/patient/dashboard`
+
+Expected: blocked or redirected unless app intentionally allows Admin impersonation/access. Document actual behavior.
+
+## Required documentation format
+
+Use this exact format:
+
+# ROLE QA RESULT — ADMIN
+
+## 1. Executive Summary
+
+* Role: Admin
+* Final verdict: PASS / PARTIAL PASS / FAIL / STOPPED_ON_BLOCKER
+* Stopped on blocker: YES/NO
+* Blocker route:
+* Blocker step:
+* Login/access: PASS/FAIL
+* Routes checked:
+* Actions tested:
+* API calls verified:
+* Unauthorized access checked: PASS/FAIL/UNCLEAR
+* Mock/fake behavior found: YES/NO
+* Safe for demo: YES/NO
+
+## 2. Account / Test Data Used
+
+Admin account:
+Doctor used/created:
+Service used/created:
+Patient used:
+Staff invite used:
+Announcement used:
+Booking used:
+Other test data:
+
+## 3. Route Coverage
+
+For every route:
+
+Route:
+Expected access:
+Actual access:
+Expected page/component:
+Actual result:
+Guard/redirect behavior:
+Status: PASS/FAIL/UNCLEAR
+Notes:
+
+## 4. Step-by-Step Action Log
+
+Document each and every action.
+
+For every step:
+
+Step #:
+Route:
+Action performed:
+Input data:
+Button/control clicked:
+Expected result:
+Actual result:
+API call:
+HTTP method:
+HTTP status:
+Request payload:
+Response summary:
+UI result:
+Database/state effect:
+Status: PASS/FAIL/UNCLEAR/NOT REACHED
+Notes:
+
+## 5. Blocker Report
+
+If blocker happened:
+
+Blocker found: YES
+Step:
+Route:
+Action attempted:
+Expected result:
+Actual result:
+API call:
+HTTP status:
+Request payload:
+Response/error:
+Console error if any:
+Network error if any:
+Likely failing layer:
+Evidence:
+Why the flow cannot continue:
+Recommended next investigation:
+What GPT-5.5 should analyze:
+
+If no blocker:
+
+`No blocker encountered.`
+
+## 6. API Evidence
+
+Endpoint:
+Method:
+Triggered by:
+Auth used:
+Request payload:
+HTTP status:
+Response summary:
+Status:
+
+## 7. Unauthorized Access Checks
+
+Attempt:
+Expected:
+Actual:
+Status:
+Notes:
+
+## 8. Issues Found
+
+### CRITICAL
+
+### HIGH
+
+### MEDIUM
+
+### LOW
+
+If none, write `None`.
+
+## 9. Final Verdict
+
+Choose only one:
+
+* PASS
+* PARTIAL PASS
+* FAIL
+* STOPPED_ON_BLOCKER
+
+Explain briefly.
+
+## 10. Recommendation for GPT-5.5 Audit
+
+Summarize what worked, what failed, and what GPT-5.5 should analyze next.

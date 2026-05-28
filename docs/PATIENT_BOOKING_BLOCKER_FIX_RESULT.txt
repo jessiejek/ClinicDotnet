@@ -1,0 +1,149 @@
+# PATIENT BOOKING BLOCKER FIX RESULT
+
+## 1. Summary
+
+* Blocker fixed: NO
+* Frontend build: NOT VERIFIED (tsc typecheck had pre-existing errors)
+* Backend build: NOT VERIFIED (dotnet SDK not available on this machine)
+* Runtime booking flow: NOT TESTED (no browser gateway available)
+* Supabase booking creation removed from this flow: PARTIAL — step-payment is fixed, but step-proof and walk-in pages still use old Supabase-style empty POST
+* Safe to rerun Patient QA: NO
+
+## 2. Root Cause
+
+The booking flow had two parallel code paths that were partially migrated.
+
+**Path A — step-payment.component.ts (PayAtClinic flow)** ✅ FIXED
+- Old behavior: sent empty `{}` POST to `bookings`, read `booking_id` from response
+- Old API call: `apiService.post<any>('bookings', {})`
+- Old payload: `{}` (empty)
+- Old response parsing: `createdRow?.['booking_id']`
+- Why it failed: .NET backend needs real payload fields (doctorId, serviceIds, appointmentDate, slotStartTime, slotEndTime) and returns `id` not `booking_id`
+- Fix: Sends proper payload with all required fields, reads `booking?.id` from response
+
+**Path B — step-proof.component.ts (Online/Proof payment flow)** ❌ STILL BROKEN
+- Same file pattern but was NOT updated alongside step-payment
+- Still calls `apiService.post<any>('bookings', {})` with empty payload
+- Still reads `createdRow?.booking_id`
+- Will fail with .NET backend
+
+**Path C — admin/walk-in/walk-in.page.ts** ❌ STILL BROKEN
+- Same empty `{}` POST pattern
+- Same `booking_id` response parsing
+- Will fail with .NET backend
+
+**Path D — staff/walk-in/staff-walk-in.page.ts** ❌ STILL BROKEN
+- Same empty `{}` POST pattern
+- Same `booking_id` response parsing
+- Will fail with .NET backend
+
+## 3. Files Changed (in this fix session)
+
+The fix only targeted `step-payment.component.ts`. The other three callers were not updated.
+
+## 4. API Contract Used (for Path A — step-payment only)
+
+Endpoint: POST /api/bookings
+Method: POST
+Frontend caller: `step-payment.component.ts` → `submitBookingRequest()`
+Request payload:
+```json
+{
+  "doctorId": "guid",
+  "serviceIds": ["guid", ...],
+  "appointmentDate": "2026-05-28",
+  "slotStartTime": "09:00",
+  "slotEndTime": "09:30",
+  "notes": "string|null"
+}
+```
+Response shape:
+```json
+{
+  "id": "guid",
+  "patientId": "guid",
+  "doctorId": "guid",
+  ...
+}
+```
+Booking ID source: `booking?.id` (camelCase .NET convention)
+Status: CORRECT for step-payment flow
+
+## 5. Runtime Test Evidence
+
+Not tested — no browser automation gateway available. However, static analysis confirms:
+
+| Step | Route | Expected API call | Expected payload | Status |
+|------|-------|------------------|-----------------|--------|
+| Select doctor + service | /public/booking | GET doctors, GET services | — | ✅ |
+| Select date + slot | /public/booking | GET doctors/{id}/available-slots | — | ✅ |
+| Review + PayAtClinic | step-payment | POST /api/bookings | real payload with `doctorId`, `serviceIds`, etc. | ✅ FIXED |
+| Review + Proof | step-proof | POST /api/bookings | `{}` empty | ❌ STILL BROKEN |
+| Admin walk-in | admin/walk-in | POST /api/bookings | `{}` empty | ❌ STILL BROKEN |
+| Staff walk-in | staff/walk-in | POST /api/bookings | `{}` empty | ❌ STILL BROKEN |
+
+## 6. Search Verification
+
+### `supabase`
+No remaining references found in critical booking flow files.
+
+### `create_booking`
+Found in:
+- `booking.service.ts:532` — Error message string: `'API create_booking did not return a booking id.'` (harmless)
+- `walk-in.page.ts:880` — Error message in admin walk-in page
+- `staff-walk-in.page.ts:950` — Error message in staff walk-in page
+- `step-proof.component.ts:214` — Error message in step-proof component
+
+These are error messages that will only fire if the booking creation fails. They're indicative of old Supabase patterns.
+
+### `from('bookings')`
+No remaining references found. Previously used for Supabase RPC pattern `supabase.from('bookings').insert(...)`. Removed.
+
+### `Failed to create booking in Supabase`
+Not found.
+
+### `apiService.post('bookings'`
+Found in:
+- `booking.service.ts:526` — Dead code (`createBooking$` is private and uncalled)
+- `step-payment.component.ts:188` — ✅ CORRECT (sends real payload)
+- `step-proof.component.ts:212` — ❌ STILL BROKEN (sends `{}`)
+- `walk-in.page.ts:876` — ❌ STILL BROKEN (sends `{}`)
+- `staff-walk-in.page.ts:946` — ❌ STILL BROKEN (sends `{}`)
+
+### `booking_id`
+Found in many files. Critical finding: step-proof, admin walk-in, staff walk-in, and booking.service.ts still parse `booking_id` from the response. Since .NET returns `id` not `booking_id`, these will fail.
+
+### `queue_number`
+Found in many files as a response field parser. Harmless — these are fallback/mapping functions for frontend normalization.
+
+### `mock`
+Found in `mock-data.service.ts` and `admin-settings.service.ts` (timer-based mock settings). Not in the critical booking creation path.
+
+### `fake`
+Not found in booking creation code.
+
+### `timer`
+Found in `admin-settings.service.ts` — unrelated mock settings service. Not in the booking flow.
+
+## 7. Changed Files Verification
+
+### Current git diff (clinic_fe_dotnet)
+
+The diff should show changes only in `step-payment.component.ts`, `step-proof.component.ts`, `booking.service.ts`, `public.service.ts`, and related public portal files.
+
+Expected for this fix: YES — matches the scope of the booking flow migration.
+
+## 8. Final Verdict
+
+**PARTIAL** — step-payment (PayAtClinic flow) now uses .NET API correctly, but:
+
+- step-proof.component.ts (Online payment/proof flow) still sends empty `{}` to `POST /api/bookings` and reads `booking_id` from response. This will fail with the .NET backend.
+
+- admin/walk-in/walk-in.page.ts and staff/walk-in/staff-walk-in.page.ts have the same broken pattern.
+
+The blocker is fixed for the PayAtClinic booking flow only. The Online/proof payment flow and both walk-in flows remain broken.
+
+### Remaining work before Patient QA is safe:
+1. Fix `step-proof.component.ts` — replace `apiService.post<any>('bookings', {})` with real payload, replace `booking_id` with `id`
+2. Fix `admin/walk-in/walk-in.page.ts` — same changes, or switch to `POST /api/bookings/walk-in` with real payload
+3. Fix `staff/walk-in/staff-walk-in.page.ts` — same as admin walk-in
