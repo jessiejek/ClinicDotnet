@@ -12,6 +12,7 @@ import {
 import { ConsultationTimelineComponent } from '../consultation-timeline/consultation-timeline.component';
 import { VitalsTrendChartComponent } from '../../../doctor/components/vitals-trend-chart/vitals-trend-chart.component';
 import { IonBadge, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonTextarea } from '@ionic/angular/standalone';
+import { ApiService } from '../../../../core/services/api.service';
 
 @Component({
   selector: 'app-medical-records-tab',
@@ -51,7 +52,7 @@ import { IonBadge, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonT
       <section class="clinic-card section-card">
         <div class="section-card__head">
           <h3>Allergies</h3>
-          <p>Current allergy list. New entries are saved to the mock store.</p>
+          <p>Current allergy list. New entries are saved via the API.</p>
         </div>
 
         <article class="record-item" *ngFor="let allergy of allergies">
@@ -81,14 +82,14 @@ import { IonBadge, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonT
             <ion-label position="stacked">Notes</ion-label>
             <ion-textarea formControlName="notes"></ion-textarea>
           </ion-item>
-          <button type="button" class="btn-outline" (click)="addAllergyEntry()">Add Allergy</button>
+          <button type="button" class="btn-outline" (click)="addAllergyEntry()" [disabled]="saving">Add Allergy</button>
         </form>
       </section>
 
       <section class="clinic-card section-card">
         <div class="section-card__head">
           <h3>Lab Results</h3>
-          <p>Latest attachments stored as mock file names only.</p>
+          <p>Latest attachments stored via the API.</p>
         </div>
 
         <article class="record-item" *ngFor="let labResult of labResults">
@@ -110,7 +111,7 @@ import { IonBadge, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonT
             <ion-label position="stacked">Notes</ion-label>
             <ion-textarea formControlName="notes"></ion-textarea>
           </ion-item>
-          <button type="button" class="btn-outline" (click)="addLabResultEntry()">Add Lab Result</button>
+          <button type="button" class="btn-outline" (click)="addLabResultEntry()" [disabled]="saving">Add Lab Result</button>
         </form>
       </section>
 
@@ -139,7 +140,7 @@ import { IonBadge, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonT
             <ion-label position="stacked">Remarks</ion-label>
             <ion-textarea formControlName="remarks"></ion-textarea>
           </ion-item>
-          <button type="button" class="btn-outline" (click)="addVaccinationEntry()">Add Vaccination</button>
+          <button type="button" class="btn-outline" (click)="addVaccinationEntry()" [disabled]="saving">Add Vaccination</button>
         </form>
       </section>
 
@@ -170,6 +171,9 @@ export class MedicalRecordsTabComponent implements OnChanges {
   @Input() followUps: FollowUp[] = [];
 
   private readonly fb = inject(FormBuilder);
+  private readonly api = inject(ApiService);
+
+  saving = false;
 
   readonly allergyForm = this.fb.group({
     allergen: ['', Validators.required],
@@ -199,58 +203,74 @@ export class MedicalRecordsTabComponent implements OnChanges {
   }
 
   addAllergyEntry(): void {
-    if (!this.patientId || this.allergyForm.invalid) {
+    if (!this.patientId || this.allergyForm.invalid || this.saving) {
       return;
     }
+    this.saving = true;
     const value = this.allergyForm.getRawValue();
-    this.allergies = [
-      ...this.allergies,
-      {
-        id: `allergy-${Date.now()}`,
-        patientId: this.patientId,
-        allergen: value.allergen ?? '',
-        reaction: value.reaction ?? '',
-        severity: (value.severity as Allergy['severity']) ?? 'Moderate',
-        notes: value.notes ?? ''
+    this.api.post<any>('medical-records/allergies', {
+      patientId: this.patientId,
+      allergen: value.allergen,
+      reaction: value.reaction,
+      severity: value.severity,
+      notes: value.notes
+    }).subscribe({
+      next: () => {
+        this.allergyForm.reset({ severity: 'Moderate' });
+        this.saving = false;
+        // Reload allergies via parent page on next tab switch
+      },
+      error: () => {
+        this.saving = false;
       }
-    ];
-    this.allergyForm.reset({ severity: 'Moderate' });
+    });
   }
 
   addLabResultEntry(): void {
-    if (!this.patientId || this.labResultForm.invalid) {
+    if (!this.patientId || this.labResultForm.invalid || this.saving) {
       return;
     }
+    this.saving = true;
     const value = this.labResultForm.getRawValue();
-    this.labResults = [
-      ...this.labResults,
-      {
-        id: `labres-${Date.now()}`,
-        labRequestId: value.labRequestId || `manual-${Date.now()}`,
-        patientId: this.patientId,
-        fileName: value.fileName ?? '',
-        resultDate: new Date().toISOString(),
-        notes: value.notes ?? ''
+    this.api.post<any>('medical-records/lab-results', {
+      patientId: this.patientId,
+      resultTitle: value.fileName,
+      resultText: value.notes,
+      fileName: value.fileName,
+      fileContentType: 'application/octet-stream',
+      status: 'Uploaded'
+    }).subscribe({
+      next: () => {
+        this.labResultForm.reset();
+        this.saving = false;
+      },
+      error: () => {
+        this.saving = false;
       }
-    ];
-    this.labResultForm.reset();
+    });
   }
 
   addVaccinationEntry(): void {
-    if (!this.patientId || this.vaccinationForm.invalid) {
+    if (!this.patientId || this.vaccinationForm.invalid || this.saving) {
       return;
     }
+    this.saving = true;
     const value = this.vaccinationForm.getRawValue();
-    this.vaccinations = [
-      ...this.vaccinations,
-      {
-        id: `vac-${Date.now()}`,
-        patientId: this.patientId,
-        vaccineName: value.vaccineName ?? '',
-        dateGiven: value.dateGiven ?? '',
-        remarks: value.remarks ?? ''
+    this.api.post<any>('medical-records/vaccinations', {
+      patientId: this.patientId,
+      vaccineName: value.vaccineName,
+      administeredDate: value.dateGiven,
+      notes: value.remarks,
+      status: 'Completed',
+      source: 'AdministeredInClinic'
+    }).subscribe({
+      next: () => {
+        this.vaccinationForm.reset();
+        this.saving = false;
+      },
+      error: () => {
+        this.saving = false;
       }
-    ];
-    this.vaccinationForm.reset();
+    });
   }
 }
