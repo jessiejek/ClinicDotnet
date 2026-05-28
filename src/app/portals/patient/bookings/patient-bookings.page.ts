@@ -391,7 +391,7 @@ export class PatientBookingsPage implements OnInit {
     this.loadError = '';
 
     this.apiService
-      .get<any>('bookings?page=' + nextPage + '&pageSize=' + this.pageSize)
+      .get<any>('bookings/me?page=' + nextPage + '&pageSize=' + this.pageSize)
       .pipe(
         map((data: any) => {
           const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
