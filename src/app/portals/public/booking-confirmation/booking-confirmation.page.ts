@@ -2,13 +2,28 @@ import { Component, inject } from '@angular/core';
 import { AsyncPipe, DatePipe, NgIf } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { IonContent } from '@ionic/angular/standalone';
-import { combineLatest, map, of, switchMap } from 'rxjs';
+import { BehaviorSubject, combineLatest, map, of, switchMap } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { BookingWizardService } from '../../../core/services/booking-wizard.service';
 import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { TimeSlotPipe } from '../../../shared/pipes/time-slot.pipe';
+
+interface BookingConfirmationVm {
+  bookingId: string;
+  queueNumber: number | null;
+  doctorName: string;
+  selectedDate: string | null;
+  selectedSlot: string | null;
+  selectedSlotEnd: string | null;
+  serviceName: string;
+  totalFee: number;
+  paymentMode: string;
+  isAuthenticated: boolean;
+  loading: boolean;
+  error: string | null;
+}
 
 @Component({
   selector: 'app-booking-confirmation-page',
@@ -17,71 +32,87 @@ import { TimeSlotPipe } from '../../../shared/pipes/time-slot.pipe';
   template: `
     <ion-content>
       <div class="confirmation-container" *ngIf="vm$ | async as vm">
-        <div class="confirmation-hero">
-          <div class="confirmation-checkmark">&#10003;</div>
-          <h1 class="confirmation-title">Booking Confirmed!</h1>
-          <p class="confirmation-sub">
-            {{ vm.paymentMode === 'PayAtClinic' ? 'Your appointment has been reserved. Please pay at the clinic on your visit day.' : 'Your appointment has been submitted and is awaiting payment verification.' }}
+        <div class="page-loading" *ngIf="vm.loading">
+          <p>Loading booking details...</p>
+        </div>
+
+        <ng-container *ngIf="!vm.loading && !vm.error">
+          <div class="confirmation-hero">
+            <div class="confirmation-checkmark">&#10003;</div>
+            <h1 class="confirmation-title">Booking Confirmed!</h1>
+            <p class="confirmation-sub">
+              {{ vm.paymentMode === 'PayAtClinic' ? 'Your appointment has been reserved. Please pay at the clinic on your visit day.' : 'Your appointment has been submitted and is awaiting payment verification.' }}
+            </p>
+          </div>
+
+          <div class="stat-card stat-card--green queue-card" *ngIf="vm.queueNumber">
+            <p class="queue-label">You are</p>
+            <p class="queue-number">#{{ vm.queueNumber }}</p>
+            <p class="queue-label">in the queue</p>
+          </div>
+
+          <p class="booking-id">
+            Booking ID: <span class="data-mono">{{ vm.bookingId }}</span>
           </p>
-        </div>
 
-        <div class="stat-card stat-card--green queue-card">
-          <p class="queue-label">You are</p>
-          <p class="queue-number">#{{ vm.queueNumber ?? '-' }}</p>
-          <p class="queue-label">in the queue</p>
-        </div>
-
-        <p class="booking-id">
-          Booking ID: <span class="data-mono">{{ vm.bookingId }}</span>
-        </p>
-
-        <div class="clinic-card summary-card">
-          <p class="section-heading">Appointment Details</p>
-          <div class="summary-row">
-            <span>Doctor</span>
-            <strong>{{ vm.doctorName }}</strong>
-          </div>
-          <div class="summary-row">
-            <span>Date</span>
-            <strong>{{ vm.selectedDate | date : 'MMMM d, y (EEE)' }}</strong>
-          </div>
-          <div class="summary-row">
-            <span>Time</span>
-            <strong class="data-mono"
-              >{{ vm.selectedSlot | timeSlot }} - {{ vm.selectedSlotEnd | timeSlot }}</strong
-            >
-          </div>
-          <div class="summary-row">
-            <span>Service</span>
-            <strong>{{ vm.serviceName }}</strong>
-          </div>
-          <div class="divider"></div>
-          <div class="summary-row summary-row--total">
-            <span>Total Fee</span>
-            <strong class="fee-total">{{ vm.totalFee | peso }}</strong>
-          </div>
-        </div>
-
-        <div style="text-align: center; margin: var(--space-4) 0">
-          <app-status-badge status="Pending"></app-status-badge>
-          <span class="confirmation-status-text">Awaiting payment verification</span>
-        </div>
-
-        <div class="confirmation-actions">
-          <ng-container *ngIf="vm.isAuthenticated; else guestActions">
-            <button class="btn-primary" routerLink="/patient/bookings" type="button">
-              View My Appointments
-            </button>
-          </ng-container>
-          <ng-template #guestActions>
-            <div class="confirmation-guest-note">
-              <p>Create an account to track your bookings.</p>
+          <div class="clinic-card summary-card">
+            <p class="section-heading">Appointment Details</p>
+            <div class="summary-row">
+              <span>Doctor</span>
+              <strong>{{ vm.doctorName }}</strong>
             </div>
-            <button class="btn-primary" routerLink="/auth/register" type="button">
-              Create Account
-            </button>
-          </ng-template>
-          <button class="btn-outline" routerLink="/public" type="button">Back to Home</button>
+            <div class="summary-row">
+              <span>Date</span>
+              <strong>{{ vm.selectedDate | date : 'MMMM d, y (EEE)' }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Time</span>
+              <strong class="data-mono"
+                >{{ vm.selectedSlot | timeSlot }} - {{ vm.selectedSlotEnd | timeSlot }}</strong
+              >
+            </div>
+            <div class="summary-row">
+              <span>Service</span>
+              <strong>{{ vm.serviceName }}</strong>
+            </div>
+            <div class="divider"></div>
+            <div class="summary-row summary-row--total">
+              <span>Total Fee</span>
+              <strong class="fee-total">{{ vm.totalFee | peso }}</strong>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin: var(--space-4) 0">
+            <app-status-badge status="Pending"></app-status-badge>
+            <span class="confirmation-status-text">Awaiting payment verification</span>
+          </div>
+
+          <div class="confirmation-actions">
+            <ng-container *ngIf="vm.isAuthenticated; else guestActions">
+              <button class="btn-primary" routerLink="/patient/bookings" type="button">
+                View My Appointments
+              </button>
+            </ng-container>
+            <ng-template #guestActions>
+              <div class="confirmation-guest-note">
+                <p>Create an account to track your bookings.</p>
+              </div>
+              <button class="btn-primary" routerLink="/auth/register" type="button">
+                Create Account
+              </button>
+            </ng-template>
+            <button class="btn-outline" routerLink="/public" type="button">Back to Home</button>
+          </div>
+        </ng-container>
+
+        <div class="confirmation-container" *ngIf="!vm.loading && vm.error">
+          <div class="confirmation-hero">
+            <h1 class="confirmation-title">Booking Not Found</h1>
+            <p class="confirmation-sub">{{ vm.error }}</p>
+          </div>
+          <div class="confirmation-actions">
+            <button class="btn-primary" routerLink="/public" type="button">Back to Home</button>
+          </div>
         </div>
       </div>
     </ion-content>
@@ -100,24 +131,40 @@ export class BookingConfirmationPage {
     this.authState.isAuthenticated$
   ]).pipe(
     switchMap(([params, wizard, isAuthenticated]) => {
-      const bookingId = params.get('bookingId') ?? wizard.bookingId ?? '-';
-      const doctor$ = wizard.selectedDoctorId
-        ? this.apiService.get<any[]>('doctors').pipe(
-            map((doctors) => doctors.find((d) => d.id === wizard.selectedDoctorId) ?? null)
-          )
-        : of(null);
-      const service$ = wizard.selectedServiceId
-        ? this.apiService.get<any[]>('services').pipe(
-            map((services) => services.find((s) => s.id === wizard.selectedServiceId) ?? null)
-          )
-        : of(null);
+      const bookingId = params.get('bookingId') ?? wizard.bookingId ?? '';
 
-      return combineLatest([doctor$, service$]).pipe(
-        map(([doctor, service]) => {
-          const consultationFee = doctor?.consultationFee ?? 0;
-          const serviceFee = service?.price ?? 0;
+      if (!bookingId) {
+        return of({
+          bookingId: '-',
+          queueNumber: null,
+          doctorName: '-',
+          selectedDate: null,
+          selectedSlot: null,
+          selectedSlotEnd: null,
+          serviceName: '-',
+          totalFee: 0,
+          paymentMode: 'PayAtClinic',
+          isAuthenticated,
+          loading: false,
+          error: 'No booking reference found.'
+        });
+      }
 
-          return {
+      // If wizard state has data (fresh booking), use it
+      if (wizard.selectedDoctorId && wizard.selectedDate) {
+        const doctor$ = wizard.selectedDoctorId
+          ? this.apiService.get<any[]>('doctors').pipe(
+              map((doctors) => doctors.find((d) => d.id === wizard.selectedDoctorId) ?? null)
+            )
+          : of(null);
+        const service$ = wizard.selectedServiceId
+          ? this.apiService.get<any[]>('services').pipe(
+              map((services) => services.find((s) => s.id === wizard.selectedServiceId) ?? null)
+            )
+          : of(null);
+
+        return combineLatest([doctor$, service$]).pipe(
+          map(([doctor, service]) => ({
             bookingId,
             queueNumber: wizard.queueNumber,
             doctorName: doctor?.fullName ?? '-',
@@ -125,11 +172,31 @@ export class BookingConfirmationPage {
             selectedSlot: wizard.selectedSlot,
             selectedSlotEnd: wizard.selectedSlotEnd,
             serviceName: service?.name ?? '-',
-            totalFee: consultationFee + serviceFee,
+            totalFee: (doctor?.consultationFee ?? 0) + (service?.price ?? 0),
             paymentMode: wizard.paymentMode,
-            isAuthenticated
-          };
-        })
+            isAuthenticated,
+            loading: false,
+            error: null
+          }))
+        );
+      }
+
+      // Fallback: load from public-safe endpoint (direct navigation / bookmark)
+      return this.apiService.get<any>(`bookings/${bookingId}/public-summary`).pipe(
+        map((data) => ({
+          bookingId: data?.id ?? bookingId,
+          queueNumber: data?.queueNumber ?? null,
+          doctorName: data?.doctorName ?? '-',
+          selectedDate: data?.appointmentDate ?? null,
+          selectedSlot: data?.slotStartTime ?? null,
+          selectedSlotEnd: data?.slotEndTime ?? null,
+          serviceName: data?.serviceName ?? '-',
+          totalFee: data?.totalFee ?? 0,
+          paymentMode: data?.paymentStatus === 'Paid' ? 'Online' : 'PayAtClinic',
+          isAuthenticated,
+          loading: false,
+          error: null
+        }))
       );
     })
   );

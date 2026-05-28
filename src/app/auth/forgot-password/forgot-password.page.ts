@@ -5,8 +5,9 @@ import { RouterLink } from '@angular/router';
 import { IonIcon, IonInput, IonItem, IonLabel } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { checkmarkCircle } from 'ionicons/icons';
-import { timer } from 'rxjs';
+import { catchError, finalize, of } from 'rxjs';
 import { AuthLayoutComponent } from '../components/auth-layout/auth-layout.component';
+import { ApiService } from '../../core/services/api.service';
 
 @Component({
   standalone: true,
@@ -26,10 +27,12 @@ import { AuthLayoutComponent } from '../components/auth-layout/auth-layout.compo
 })
 export class ForgotPasswordPage {
   private readonly fb = inject(FormBuilder);
+  private readonly api = inject(ApiService);
 
   showSuccess = false;
   submitting = false;
   submittedEmail = '';
+  errorMessage = '';
 
   form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]]
@@ -45,9 +48,19 @@ export class ForgotPasswordPage {
       return;
     }
     this.submitting = true;
+    this.errorMessage = '';
     this.submittedEmail = this.form.getRawValue().email;
-    timer(800).subscribe(() => {
-      this.submitting = false;
+
+    this.api.post<any>('auth/forgot-password', { email: this.submittedEmail }).pipe(
+      catchError(() => {
+        this.errorMessage = 'Something went wrong. Please try again later.';
+        return of(null);
+      }),
+      finalize(() => {
+        this.submitting = false;
+      })
+    ).subscribe(() => {
+      // Always show success — do not reveal whether the email exists
       this.showSuccess = true;
     });
   }
