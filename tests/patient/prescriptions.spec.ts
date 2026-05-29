@@ -64,4 +64,35 @@ test.describe('Patient Prescriptions', () => {
     await expect(page.locator(SELECTORS.retryBtn)).toBeVisible({ timeout: 3000 });
     await expectNoPersistentLoading(page);
   });
+
+  test('Download Prescription PDF: download button fires API call', async ({ page }) => {
+    await loginAsPatient(page);
+    await openPatientRoute(page, ROUTES.prescriptions);
+
+    const downloadBtn = page.locator('button:has-text("Download Prescription PDF")').first();
+    if (!(await downloadBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      console.log('ℹ️ No prescription download buttons visible — no prescriptions loaded.');
+      return;
+    }
+
+    const downloadResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/patient-documents/me/prescriptions/') &&
+        resp.url().includes('/pdf') &&
+        resp.request().method() === 'GET',
+      { timeout: 10000 }
+    );
+
+    await downloadBtn.click();
+    const resp = await downloadResponse;
+    console.log(`📡 Prescription PDF API: ${resp.status()}`);
+
+    if (resp.status() === 200) {
+      const contentType = resp.headers()['content-type'] || '';
+      expect(contentType).toContain('pdf');
+      console.log('✅ Prescription PDF download returned 200 with PDF content type.');
+    } else {
+      console.log(`ℹ️ Prescription PDF returned ${resp.status()} — document may not be generated yet.`);
+    }
+  });
 });

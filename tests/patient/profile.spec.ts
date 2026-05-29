@@ -9,7 +9,8 @@ test.describe('Patient Profile', () => {
 
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('My Profile', { timeout: 10000 });
     // Form may load after patient API call — wait for it
-    await expect(page.locator(SELECTORS.profileForm)).toBeVisible({ timeout: 15000 });
+    // Use first() because profile has 2 forms (profile + password) both with class 'profile-card'
+    await expect(page.locator(SELECTORS.profileForm).first()).toBeVisible({ timeout: 15000 });
     await expectNoPersistentLoading(page);
 
     expect(responses.some(r => r.url.includes('/api/patients/me') && r.status === 200)).toBeTruthy();

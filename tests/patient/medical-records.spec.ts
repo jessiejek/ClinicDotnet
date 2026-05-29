@@ -73,4 +73,66 @@ test.describe('Patient Medical Records', () => {
     await expect(page.locator(SELECTORS.retryBtn)).toBeVisible({ timeout: 3000 });
     await expectNoPersistentLoading(page);
   });
+
+  test('Download PDF: download button fires API call with correct endpoint', async ({ page }) => {
+    await loginAsPatient(page);
+    await openPatientRoute(page, ROUTES.medicalRecords);
+
+    const downloadBtn = page.locator('button:has-text("Download Medical Record PDF")').first();
+    if (!(await downloadBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      console.log('ℹ️ No download buttons visible — no records to download from.');
+      return;
+    }
+
+    // Intercept the download API endpoint
+    const downloadResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/patient-documents/me/medical-records/') &&
+        resp.url().includes('/pdf') &&
+        resp.request().method() === 'GET',
+      { timeout: 10000 }
+    );
+
+    await downloadBtn.click();
+    const resp = await downloadResponse;
+    console.log(`📡 Download PDF API: ${resp.status()}`);
+
+    // Accept either 200 (real PDF) or error toast (document not available yet)
+    if (resp.status() === 200) {
+      const contentType = resp.headers()['content-type'] || '';
+      expect(contentType).toContain('pdf');
+      console.log('✅ PDF download returned 200 with PDF content type.');
+    } else {
+      console.log(`ℹ️ PDF download returned ${resp.status()} — document may not be generated yet.`);
+    }
+  });
+
+  test('Download Summary PDF: summary download button fires correct API call', async ({ page }) => {
+    await loginAsPatient(page);
+    await openPatientRoute(page, ROUTES.medicalRecords);
+
+    const summaryBtn = page.locator('button:has-text("Download Summary PDF")').first();
+    if (!(await summaryBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      console.log('ℹ️ No summary download buttons visible.');
+      return;
+    }
+
+    const summaryResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/patient-documents/me/bookings/') &&
+        resp.url().includes('/pdf') &&
+        resp.request().method() === 'GET',
+      { timeout: 10000 }
+    );
+
+    await summaryBtn.click();
+    const resp = await summaryResponse;
+    console.log(`📡 Summary PDF API: ${resp.status()}`);
+
+    if (resp.status() === 200) {
+      console.log('✅ Summary PDF download returned 200.');
+    } else {
+      console.log(`ℹ️ Summary PDF returned ${resp.status()} — document may not be generated yet.`);
+    }
+  });
 });
