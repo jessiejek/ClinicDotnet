@@ -46,3 +46,6 @@ Thumbs.db
 
 # Zip files
 *.zip
+# Playwright
+test-results/
+/playwright-report/
