@@ -38,7 +38,7 @@ import { PATIENT_NAV_ITEMS } from '../../patient.routes';
           [clinicName]="clinicName"
           [currentUser]="currentUser()"
           [isOpen]="sidebarOpen"
-          (navClick)="closeSidebar()"
+          (navClick)="handleSidebarNavClick()"
           (logout)="logout()"
       ></app-admin-sidebar>
 
@@ -149,6 +149,12 @@ export class PatientLayoutComponent implements OnInit {
 
   toggleSidebar(): void {
     this.sidebarOpen = !this.sidebarOpen;
+  }
+
+  handleSidebarNavClick(): void {
+    if (this.sidebarMode === 'mobile') {
+      this.sidebarOpen = false;
+    }
   }
 
   logout(): void {

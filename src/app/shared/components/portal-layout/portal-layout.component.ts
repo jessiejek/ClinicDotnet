@@ -73,7 +73,7 @@ import { TopbarComponent } from '../../../portals/admin/components/topbar/topbar
           [clinicName]="clinicName"
           [currentUser]="currentUser$ | async"
           [isOpen]="sidebarOpen"
-          (navClick)="closeSidebar()"
+          (navClick)="handleSidebarNavClick()"
           (menuToggle)="toggleSidebar()"
           (logout)="logout()"
       ></app-admin-sidebar>
@@ -198,6 +198,12 @@ export class PortalLayoutComponent implements OnInit {
 
   closeSidebar(): void {
     this.sidebarOpen = false;
+  }
+
+  handleSidebarNavClick(): void {
+    if (this.sidebarMode === 'mobile') {
+      this.sidebarOpen = false;
+    }
   }
 
   toggleSidebar(): void {
