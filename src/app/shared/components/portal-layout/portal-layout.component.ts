@@ -89,7 +89,7 @@ import { TopbarComponent } from '../../../portals/admin/components/topbar/topbar
           (logout)="logout()"
         ></app-admin-topbar>
 
-        <main class="main-content">
+        <main class="main-content" [class.main-content--tight-top]="tightTopRoute">
           <router-outlet></router-outlet>
         </main>
       </div>
@@ -130,6 +130,7 @@ export class PortalLayoutComponent implements OnInit {
   pageTitle = 'Dashboard';
   resolvedNavItems: NavItem[] = [];
   sidebarOpen = false;
+  tightTopRoute = false;
   private sidebarMode = 'desktop';
 
   constructor() {
@@ -228,6 +229,8 @@ export class PortalLayoutComponent implements OnInit {
     const route = this.getDeepestChild(this.route);
     this.pageTitle =
       (route.snapshot.data['title'] as string | undefined) ?? this.portalTitle ?? 'Dashboard';
+    const currentUrl = this.router.url.split('?')[0];
+    this.tightTopRoute = currentUrl.includes('/doctor/consultation/');
   }
 
   private getDeepestChild(route: ActivatedRoute): ActivatedRoute {
