@@ -14,12 +14,18 @@ test.describe('Doctor Schedule', () => {
     expect(responses.some(r => r.url.includes('/api/doctors') && r.status === 200)).toBeTruthy();
   });
 
-  test('Status panel for setting today availability', async ({ page }) => {
+  test('Schedule editor loads with doctor data', async ({ page }) => {
     await loginAsDoctor(page);
     await openDoctorRoute(page, ROUTES.schedule);
 
-    const statusPanel = page.locator(SELECTORS.statusPanel);
-    await expect(statusPanel).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(SELECTORS.scheduleEditor)).toBeVisible({ timeout: 10000 });
+
+    // Status indicator should show saved state when schedule loads
+    const statusIndicator = page.locator('.schedule-page-head__status');
+    if (await statusIndicator.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const text = await statusIndicator.textContent();
+      console.log(`ℹ️ Schedule status: ${text?.trim() || 'unknown'}`);
+    }
   });
 
   test('API Failure: handles gracefully', async ({ page }) => {

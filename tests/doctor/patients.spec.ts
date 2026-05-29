@@ -11,7 +11,7 @@ test.describe('Doctor Patients', () => {
     await expect(page.locator(SELECTORS.patientSearchInput)).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
 
-    expect(responses.some(r => r.url.includes('/api/patients') && r.status === 200)).toBeTruthy();
+    expect(responses.some(r => r.url.includes('/api/bookings/doctor/patients') && r.status === 200)).toBeTruthy();
   });
 
   test('Search: typing filters patient list', async ({ page }) => {

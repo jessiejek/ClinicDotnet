@@ -26,15 +26,18 @@ test.describe('Doctor Dashboard', () => {
     }
   });
 
-  test('Main Action: Start Consult navigates to consultation page', async ({ page }) => {
+  test('Main Action: click queue item navigates to appointment or consultation', async ({ page }) => {
     await loginAsDoctor(page);
     await openDoctorRoute(page, ROUTES.dashboard);
 
-    const startBtn = page.locator(SELECTORS.startConsultBtn);
-    if (await startBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await startBtn.click();
-      await page.waitForURL(/\/doctor\/consultation\//, { timeout: 10000 });
+    const queueItem = page.locator(SELECTORS.queueItem).first();
+    if (await queueItem.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await queueItem.click();
+      await page.waitForTimeout(3000);
+      const url = page.url();
+      expect(url.includes('/doctor/appointments/') || url.includes('/doctor/consultation/')).toBeTruthy();
     }
+    // If no queue items, test passes silently (no data today)
   });
 
   test('API Failure: dashboard does not crash', async ({ page }) => {

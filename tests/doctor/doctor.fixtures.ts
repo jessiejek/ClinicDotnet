@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 
 /** Doctor test credentials (IdentitySeeder) */
 export const DOCTOR_EMAIL = process.env.PLAYWRIGHT_DOCTOR_EMAIL || 'dr.santos@gavino.clinic';
-export const DOCTOR_PASSWORD = proces…WORD || 'Doctor@123456';
+export const DOCTOR_PASSWORD = process.env.PLAYWRIGHT_DOCTOR_PASSWORD || 'Doctor@123456';
 export const API_BASE = 'http://localhost:5000/api';
 
 /** Route map */

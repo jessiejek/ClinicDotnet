@@ -7,7 +7,7 @@ test.describe('Doctor Appointments', () => {
     await loginAsDoctor(page);
     const responses = await openDoctorRoute(page, ROUTES.appointments);
 
-    await expect(page.locator('.page-header__title')).toContainText(/Today Queue/i, { timeout: 10000 });
+    await expect(page.locator('app-page-header')).toContainText(/Today Queue/i, { timeout: 10000 });
     await expect(page.locator(SELECTORS.statBar)).toBeVisible({ timeout: 10000 });
     await expect(page.locator(SELECTORS.filterSelect).first()).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
@@ -51,7 +51,7 @@ test.describe('Doctor Appointments', () => {
 
   test('Empty State: shows when no appointments for today', async ({ page }) => {
     await loginAsDoctor(page);
-    await mockApiResponse(page, 'bookings/doctor/today', { items: [], totalCount: 0 });
+    await mockApiResponse(page, 'bookings/doctor/today', []);
     await page.goto(ROUTES.appointments);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
