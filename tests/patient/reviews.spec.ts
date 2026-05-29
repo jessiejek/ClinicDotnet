@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, mockApiFailure, expectNoPersistentLoading, ROUTES } from './patient.fixtures';
+import { loginAsPatient, mockApiFailure, expectNoPersistentLoading, expectPageVisible, ROUTES } from './patient.fixtures';
 
 /**
  * Reviews page requires a completed booking with no existing review.
@@ -26,6 +26,7 @@ test.describe('Patient Reviews', () => {
       await page.waitForTimeout(3000);
       await expect(page.locator('.page-title')).toContainText(/review/i, { timeout: 5000 });
       await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
     } else if (await viewDetailBtns.first().isVisible({ timeout: 3000 }).catch(() => false)) {
       // Navigate to a booking detail to check if review action exists
       console.log('⚠️ No review link found on bookings page. Checking booking detail pages...');
@@ -45,3 +46,5 @@ test.describe('Patient Reviews', () => {
     await expect(page.locator('app-empty-state')).toBeVisible({ timeout: 10000 });
   });
 });
+
+

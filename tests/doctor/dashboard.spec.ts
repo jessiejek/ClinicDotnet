@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsDoctor, openDoctorRoute, mockApiFailure, expectNoPersistentLoading, SELECTORS, ROUTES } from './doctor.fixtures';
+import { loginAsDoctor, openDoctorRoute, mockApiFailure, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './doctor.fixtures';
 
 test.describe('Doctor Dashboard', () => {
 
@@ -10,6 +10,7 @@ test.describe('Doctor Dashboard', () => {
     await expect(page.locator(SELECTORS.greeting)).toContainText(/Dr\./i, { timeout: 10000 });
     await expect(page.locator(SELECTORS.kpiCards).first()).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/doctors') || r.url.includes('/api/bookings') && r.status === 200)).toBeTruthy();
   });
@@ -50,3 +51,4 @@ test.describe('Doctor Dashboard', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 });
+

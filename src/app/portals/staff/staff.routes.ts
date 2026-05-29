@@ -29,6 +29,7 @@ export const STAFF_ROUTES: Routes = [
       },
       {
         path: 'bookings',
+        pathMatch: 'full',
         loadComponent: () => import('./bookings/staff-bookings.page').then((m) => m.StaffBookingsPage),
         data: { title: 'Bookings' }
       },
@@ -50,6 +51,7 @@ export const STAFF_ROUTES: Routes = [
       },
       {
         path: 'patients',
+        pathMatch: 'full',
         loadComponent: () => import('./patients/staff-patients.page').then((m) => m.StaffPatientsPage),
         data: { title: 'Patients' }
       },

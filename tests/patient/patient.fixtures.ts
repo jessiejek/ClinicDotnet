@@ -59,13 +59,15 @@ export async function loginAsPatient(page: Page) {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await page.waitForSelector('input[type="email"], ion-input[formControlName="email"] input', { timeout: 10000 });
+  await page.locator('ion-input[formControlName="email"]').waitFor({ state: 'attached', timeout: 10000 });
 
-  const emailInput = page.locator('input[type="email"]').or(page.locator('ion-input[formControlName="email"] input')).first();
-  const passwordInput = page.locator('input[type="password"]').or(page.locator('ion-input[formControlName="password"] input')).first();
+  const emailInput = page.locator('ion-input[formControlName="email"]').locator('input');
+  const passwordInput = page.locator('ion-input[formControlName="password"]').locator('input');
   const signInBtn = page.getByRole('button', { name: /sign ?in/i });
 
+  await emailInput.waitFor({ state: 'visible', timeout: 5000 });
   await emailInput.fill(PATIENT_EMAIL);
+  await passwordInput.waitFor({ state: 'visible', timeout: 5000 });
   await passwordInput.fill(PATIENT_PASSWORD);
   await signInBtn.click();
 
@@ -104,6 +106,15 @@ export async function expectNoPersistentLoading(page: Page) {
   await expect(page.locator(SELECTORS.loading)).toHaveCount(0, { timeout: 8000 }).catch(async () => {
     await expect(page.locator(SELECTORS.loading).first()).toBeHidden({ timeout: 5000 });
   });
+}
+
+/** Assert page content is actually visible to the user (not hidden by CSS) */
+export async function expectPageVisible(page: Page, selector = '.page-shell, .page-shell__header, .page-title, main') {
+  const el = page.locator(selector).first();
+  await expect(el).toBeAttached({ timeout: 10000 });
+  // Verify computed display is not 'none' — catches CSS visibility bugs
+  const display = await el.evaluate((node) => getComputedStyle(node).display);
+  expect(display).not.toBe('none');
 }
 
 /** Navigate to patient route after login, return API responses */

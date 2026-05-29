@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsStaff, openStaffRoute, mockApiFailure, expectNoPersistentLoading, SELECTORS, ROUTES } from './staff.fixtures';
+import { loginAsStaff, openStaffRoute, mockApiFailure, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './staff.fixtures';
 
 test.describe('Staff Booking Detail', () => {
 
@@ -11,15 +11,6 @@ test.describe('Staff Booking Detail', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    const bookingLink = page.locator('a, button, .booking-row').filter({ hasText: /View|Open|Details|booking/i }).first();
-    let bookingUrl = '';
-
-    if (await bookingLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Try navigating via clicks if available
-    }
-
-    // Navigate to a known booking from the e2e-booking tests or fallback
-    // First try to get a booking ID from the URL pattern
     const bookingRows = page.locator('.booking-row, tr[role="button"]');
     const rowCount = await bookingRows.count();
 
@@ -28,6 +19,8 @@ test.describe('Staff Booking Detail', () => {
       await page.waitForURL(/\/staff\/bookings\//, { timeout: 10000 });
       expect(page.url()).toContain('/staff/bookings/');
       await expect(page.locator(SELECTORS.pageTitle)).toContainText('Booking Details', { timeout: 10000 });
+      // VERIFY CONTENT IS VISIBLE — catches CSS display:none bugs
+      await expectPageVisible(page);
     } else {
       console.log('ℹ️ No bookings available on current date — cannot test booking detail.');
       test.skip();

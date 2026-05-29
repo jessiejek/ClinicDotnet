@@ -1432,10 +1432,6 @@ ion-item.clinic-input {
   color: var(--clinic-text-muted);
 }
 
-.no-print {
-  display: none !important;
-}
-
 @media print {
   .no-print {
     display: none !important;

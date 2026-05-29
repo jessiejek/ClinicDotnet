@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Bookings', () => {
 
@@ -13,6 +13,7 @@ test.describe('Patient Bookings', () => {
     // Booking rows or empty state shown
     await expect(page.locator('table.clinic-table tbody tr, app-patient-booking-card, app-empty-state').first()).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/bookings') && r.status === 200)).toBeTruthy();
   });
@@ -69,6 +70,7 @@ test.describe('Patient Bookings', () => {
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('API Failure: shows "Unable to load bookings" with Retry', async ({ page }) => {
@@ -80,6 +82,7 @@ test.describe('Patient Bookings', () => {
 
     await expect(page.locator(SELECTORS.emptyState).filter({ hasText: /unable to load/i })).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('Null and Zero Handling: null queue number shows dash', async ({ page }) => {
@@ -108,5 +111,7 @@ test.describe('Patient Bookings', () => {
     // Should see the booking in the DOM
     await expect(page.getByText('Dr. Null Test').first()).toBeAttached({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

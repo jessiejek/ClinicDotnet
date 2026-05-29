@@ -2906,7 +2906,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   }
 
   private updateConsultationRecord$(bookingId: string, dto: ConsultationRecordUpdateRequest): Observable<ConsultationRecordResponse> {
-    return this.apiService.post<any>('bookings/' + bookingId + '/consultation-record', dto).pipe(
+    return this.apiService.put<any>('bookings/' + bookingId + '/consultation-record', dto).pipe(
       switchMap(() => this.apiService.get<any>('bookings/' + bookingId + '/consultation-record')),
       map((data) =>
         data

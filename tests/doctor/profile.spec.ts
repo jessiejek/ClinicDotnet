@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsDoctor, openDoctorRoute, mockApiFailure, expectNoPersistentLoading, SELECTORS, ROUTES } from './doctor.fixtures';
+import { loginAsDoctor, openDoctorRoute, mockApiFailure, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './doctor.fixtures';
 
 test.describe('Doctor Profile', () => {
 
@@ -10,6 +10,7 @@ test.describe('Doctor Profile', () => {
     await expect(page.locator('h2, .page-title').first()).toContainText(/Profile/i, { timeout: 10000 });
     await expect(page.locator(SELECTORS.profileForm).first()).toBeVisible({ timeout: 15000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('API Failure: page handles gracefully', async ({ page }) => {
@@ -21,3 +22,4 @@ test.describe('Doctor Profile', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 });
+

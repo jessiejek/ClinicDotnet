@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Privacy Consent', () => {
 
@@ -10,6 +10,7 @@ test.describe('Patient Privacy Consent', () => {
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('Privacy Consent', { timeout: 10000 });
     await expect(page.locator(SELECTORS.consentCheckbox)).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/patients/me') && r.status === 200)).toBeTruthy();
   });
@@ -30,3 +31,4 @@ test.describe('Patient Privacy Consent', () => {
     await expect(acceptBtn).toBeEnabled({ timeout: 3000 });
   });
 });
+

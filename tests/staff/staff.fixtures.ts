@@ -20,7 +20,7 @@ export const ROUTES = {
 
 /** Confirmed selectors from Phase 1 analysis */
 export const SELECTORS = {
-  pageTitle: '.page-title',
+  pageTitle: '.page-title, h2.pt',
   pageSubtitle: '.page-subtitle',
   loadingCard: '.loading-card',
   skeleton: 'app-skeleton',
@@ -66,10 +66,10 @@ export const SELECTORS = {
   retryBtn: 'button:has-text("Retry")',
 
   // Patients
-  searchInput: 'input.fi[aria-label="Search patients"]',
-  patientsTable: 'table.pt',
-  patientRow: 'tr[role="button"]',
-  patientMobileCard: '.mc',
+  searchInput: 'input.fi[aria-label="Search patients"], input[aria-label="Search patients"]',
+  patientsTable: 'table.pt, table.clinic-table',
+  patientRow: 'tr[role="button"], table.pt tbody tr',
+  patientMobileCard: '.mc, .mobile-card',
   patientMeta: '.pm',
 
   // Walk-In
@@ -81,8 +81,8 @@ export const SELECTORS = {
   walkInSubmitBtn: 'button:has-text("Confirm Walk-In")',
 
   // Profile
-  profileForm: 'form.profile-card',
-  profileInput: 'ion-input',
+  profileForm: 'form.profile-form, form.profile-card',
+  profileInput: 'ion-input, input.filter-input',
 } as const;
 
 /** Real-time login as staff */
@@ -91,13 +91,17 @@ export async function loginAsStaff(page: Page) {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await page.waitForSelector('input[type="email"], ion-input[formControlName="email"] input', { timeout: 10000 });
+  // Wait for ion-inputs to render (Ionic web components with shadow DOM)
+  await page.locator('ion-input[formControlName="email"]').waitFor({ state: 'attached', timeout: 10000 });
 
-  const emailInput = page.locator('input[type="email"]').or(page.locator('ion-input[formControlName="email"] input')).first();
-  const passwordInput = page.locator('input[type="password"]').or(page.locator('ion-input[formControlName="password"] input')).first();
+  // Use locator chaining to penetrate shadow DOM of ion-input
+  const emailInput = page.locator('ion-input[formControlName="email"]').locator('input');
+  const passwordInput = page.locator('ion-input[formControlName="password"]').locator('input');
   const signInBtn = page.getByRole('button', { name: /sign ?in/i });
 
+  await emailInput.waitFor({ state: 'visible', timeout: 5000 });
   await emailInput.fill(STAFF_EMAIL);
+  await passwordInput.waitFor({ state: 'visible', timeout: 5000 });
   await passwordInput.fill(STAFF_PASSWORD);
   await signInBtn.click();
 
@@ -133,9 +137,18 @@ export function collectApiResponses(page: Page) {
 
 /** Assert loading resolves */
 export async function expectNoPersistentLoading(page: Page) {
-  await expect(page.locator(SELECTORS.loadingCard, SELECTORS.skeleton, SELECTORS.spinner)).toHaveCount(0, { timeout: 8000 }).catch(async () => {
+  const loadingSelectors = [SELECTORS.loadingCard, SELECTORS.skeleton, SELECTORS.spinner].filter(Boolean).join(', ');
+  await expect(page.locator(loadingSelectors)).toHaveCount(0, { timeout: 8000 }).catch(async () => {
     await expect(page.locator(SELECTORS.loadingCard).first()).toBeHidden({ timeout: 5000 });
   });
+}
+
+/** Assert page content is actually visible to the user (not hidden by CSS) */
+export async function expectPageVisible(page: Page, selector = '.page-shell, .page-shell__header, h2.pt, main') {
+  const el = page.locator(selector).first();
+  await expect(el).toBeAttached({ timeout: 10000 });
+  const display = await el.evaluate((el) => getComputedStyle(el).display);
+  expect(display).not.toBe('none');
 }
 
 /** Navigate to staff route after login */

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Medical Records', () => {
 
@@ -10,6 +10,7 @@ test.describe('Patient Medical Records', () => {
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('Medical Records', { timeout: 10000 });
     await expect(page.locator(SELECTORS.searchbar)).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/medical-records/me') && r.status === 200)).toBeTruthy();
   });
@@ -35,6 +36,7 @@ test.describe('Patient Medical Records', () => {
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('Null and Zero Handling: null diagnosis shows fallback text', async ({ page }) => {
@@ -60,6 +62,7 @@ test.describe('Patient Medical Records', () => {
 
     await expect(page.getByText('No diagnosis recorded yet')).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('API Failure: shows error state with Retry', async ({ page }) => {
@@ -72,6 +75,7 @@ test.describe('Patient Medical Records', () => {
     await expect(page.locator(SELECTORS.errorState)).toBeVisible({ timeout: 10000 });
     await expect(page.locator(SELECTORS.retryBtn)).toBeVisible({ timeout: 3000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('Download PDF: download button fires API call with correct endpoint', async ({ page }) => {
@@ -136,3 +140,4 @@ test.describe('Patient Medical Records', () => {
     }
   });
 });
+

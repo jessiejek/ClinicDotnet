@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, expectNoPersistentLoading, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, expectNoPersistentLoading, expectPageVisible, ROUTES } from './patient.fixtures';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -16,6 +16,7 @@ test.describe('Patient Documents', () => {
     // Upload form should exist
     await expect(page.locator('.patient-media-panel__upload')).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('Page renders without crashing', async ({ page }) => {
@@ -98,3 +99,5 @@ test.describe('Patient Documents', () => {
     }
   });
 });
+
+

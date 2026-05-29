@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 /** Doctor test credentials (IdentitySeeder) */
-export const DOCTOR_EMAIL = process.env.PLAYWRIGHT_DOCTOR_EMAIL || 'dr.santos@gavino.clinic';
+export const DOCTOR_EMAIL = process.env.PLAYWRIGHT_DOCTOR_EMAIL || 'dr.reyes@gavino.clinic';
 export const DOCTOR_PASSWORD = process.env.PLAYWRIGHT_DOCTOR_PASSWORD || 'Doctor@123456';
 export const API_BASE = 'http://localhost:5000/api';
 
@@ -80,12 +80,15 @@ export async function loginAsDoctor(page: Page) {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await page.waitForSelector('input[type="email"]', { timeout: 10000 });
-  const emailInput = page.locator('input[type="email"]').first();
-  const passwordInput = page.locator('input[type="password"]').first();
+  await page.locator('ion-input[formControlName="email"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  const emailInput = page.locator('ion-input[formControlName="email"]').locator('input');
+  const passwordInput = page.locator('ion-input[formControlName="password"]').locator('input');
   const signInBtn = page.getByRole('button', { name: /sign ?in/i });
 
+  await emailInput.waitFor({ state: 'visible', timeout: 5000 });
   await emailInput.fill(DOCTOR_EMAIL);
+  await passwordInput.waitFor({ state: 'visible', timeout: 5000 });
   await passwordInput.fill(DOCTOR_PASSWORD);
   await signInBtn.click();
   await page.waitForURL(/\/doctor\//, { timeout: 20000 });
@@ -123,6 +126,14 @@ export async function expectNoPersistentLoading(page: Page) {
   await expect(page.locator(SELECTORS.loading)).toHaveCount(0, { timeout: 10000 }).catch(async () => {
     await expect(page.locator(SELECTORS.loading).first()).toBeHidden({ timeout: 5000 });
   });
+}
+
+/** Assert page content is actually visible to the user (not hidden by CSS) */
+export async function expectPageVisible(page: Page, selector = '.page-shell, .page-shell__header, .page-title, main') {
+  const el = page.locator(selector).first();
+  await expect(el).toBeAttached({ timeout: 10000 });
+  const display = await el.evaluate((el) => getComputedStyle(el).display);
+  expect(display).not.toBe('none');
 }
 
 /** Open doctor route after login */

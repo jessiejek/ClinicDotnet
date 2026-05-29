@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Vaccinations', () => {
 
@@ -11,6 +11,7 @@ test.describe('Patient Vaccinations', () => {
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('My Vaccinations', { timeout: 10000 });
     await expect(page.locator(SELECTORS.searchbar)).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     const apiHit = responses.some(r =>
       r.url.includes('/api/') && (r.status === 200 || r.status === 500)
@@ -32,6 +33,7 @@ test.describe('Patient Vaccinations', () => {
       await expect(page.locator(SELECTORS.emptyState)).toContainText(/no vaccination/i);
     }
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test.skip('Null and Zero Handling: service is stubbed (returns of([])), no API to mock', async () => {
@@ -51,5 +53,7 @@ test.describe('Patient Vaccinations', () => {
       console.log('⚠️ Vaccination error state not shown — may use stubbed service.');
     });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

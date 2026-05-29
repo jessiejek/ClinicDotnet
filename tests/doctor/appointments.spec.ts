@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsDoctor, openDoctorRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './doctor.fixtures';
+import { loginAsDoctor, openDoctorRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './doctor.fixtures';
 
 test.describe('Doctor Appointments', () => {
 
@@ -11,6 +11,7 @@ test.describe('Doctor Appointments', () => {
     await expect(page.locator(SELECTORS.statBar)).toBeVisible({ timeout: 10000 });
     await expect(page.locator(SELECTORS.filterSelect).first()).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/bookings/doctor') || r.url.includes('/api/bookings') && r.status === 200)).toBeTruthy();
   });
@@ -58,6 +59,7 @@ test.describe('Doctor Appointments', () => {
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('API Failure: handles gracefully', async ({ page }) => {
@@ -69,5 +71,7 @@ test.describe('Doctor Appointments', () => {
 
     await expect(page.locator('body')).toBeVisible();
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

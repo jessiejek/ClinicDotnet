@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Profile', () => {
 
@@ -12,6 +12,7 @@ test.describe('Patient Profile', () => {
     // Use first() because profile has 2 forms (profile + password) both with class 'profile-card'
     await expect(page.locator(SELECTORS.profileForm).first()).toBeVisible({ timeout: 15000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/patients/me') && r.status === 200)).toBeTruthy();
   });
@@ -37,5 +38,7 @@ test.describe('Patient Profile', () => {
 
     await expect(page.locator(SELECTORS.warningBanner)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

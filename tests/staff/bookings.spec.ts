@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsStaff, openStaffRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './staff.fixtures';
+import { loginAsStaff, openStaffRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './staff.fixtures';
 
 test.describe('Staff Bookings', () => {
 
@@ -7,11 +7,12 @@ test.describe('Staff Bookings', () => {
     await loginAsStaff(page);
     const responses = await openStaffRoute(page, ROUTES.bookings);
 
-    await expect(page.locator('.page-header__title')).toContainText(/Bookings/i, { timeout: 10000 });
+    await expect(page.locator(SELECTORS.pageTitle)).toContainText(/Bookings/i, { timeout: 10000 });
     await expect(page.locator(SELECTORS.filterSelect).first()).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
-    expect(responses.some(r => r.url.includes('/api/bookings/staff') && r.status === 200)).toBeTruthy();
+    expect(responses.some(r => r.url.includes('/api/bookings/staff/all') && r.status === 200)).toBeTruthy();
   });
 
   test('Populated State: booking rows appear in the table', async ({ page }) => {
@@ -24,7 +25,6 @@ test.describe('Staff Bookings', () => {
       const count = await rows.count();
       expect(count).toBeGreaterThanOrEqual(0);
     } else {
-      // Mobile cards fallback
       const cards = page.locator(SELECTORS.mobileCard);
       const count = await cards.count().catch(() => 0);
       expect(count).toBeGreaterThanOrEqual(0);
@@ -49,7 +49,7 @@ test.describe('Staff Bookings', () => {
     await checkInBtn.click();
     const resp = await checkInResponse;
     expect(resp.status()).toBe(200);
-    console.log(`📡 Check-in API: ${resp.status()} ✅`);
+    console.log(`✅ Check-in API: ${resp.status()} ✅.`);
   });
 
   test('Filters: doctor filter and status filter change visible bookings', async ({ page }) => {
@@ -84,5 +84,21 @@ test.describe('Staff Bookings', () => {
 
     await expect(page.locator('body')).toBeVisible();
     await expectNoPersistentLoading(page);
+  });
+
+  test('Navigation: click booking row opens detail page', async ({ page }) => {
+    await loginAsStaff(page);
+    await openStaffRoute(page, ROUTES.bookings);
+
+    const bookingRow = page.locator(SELECTORS.bookingRow).first();
+    if (!(await bookingRow.isVisible({ timeout: 5000 }).catch(() => false))) {
+      console.log('ℹ️ No booking rows available.');
+      return;
+    }
+
+    await bookingRow.click();
+    await page.waitForURL(/\/staff\/bookings\//, { timeout: 10000 });
+    expect(page.url()).toContain('/staff/bookings/');
+    console.log('✅ Booking detail page opened.');
   });
 });

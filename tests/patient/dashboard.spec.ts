@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Dashboard', () => {
 
@@ -18,6 +18,7 @@ test.describe('Patient Dashboard', () => {
     });
     // Loading not stuck
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
     // API evidence
     const apiCalls = responses.filter(r => r.status === 200).map(r => r.url);
     expect(apiCalls.some(url => url.includes('/api/patients/me'))).toBeTruthy();
@@ -60,5 +61,7 @@ test.describe('Patient Dashboard', () => {
     const bodyText = await page.locator('body').innerText();
     expect(bodyText.length).toBeGreaterThan(50);
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

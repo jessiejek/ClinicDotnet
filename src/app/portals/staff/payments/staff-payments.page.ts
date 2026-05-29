@@ -345,7 +345,7 @@ export class StaffPaymentsPage implements OnInit {
       return;
     }
 
-    if (this.amountReceived < this.selectedItem.amountDue) {
+    if (this.amountReceived <= 0 || this.amountReceived < this.selectedItem.amountDue) {
       void this.presentToast('Amount received must be equal to or greater than the amount due.', 'warning');
       return;
     }
@@ -555,7 +555,7 @@ function normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffFor
     appointmentDate,
     slotStartTime,
     queueNumber: normalizeNullableNumber(row['queue_number'] ?? row['queueNumber']),
-    amountDue: normalizeNumber(row['final_amount'] ?? row['finalAmount']),
+    amountDue: normalizeNumber(row['amountDue'] ?? row['final_amount'] ?? row['finalAmount']),
     doctorCompletedAt: trimOptionalString(row['doctor_completed_at'] ?? row['doctorCompletedAt']),
     paymentStatus: paymentStatus as StaffForPaymentItem['paymentStatus'],
     status: status as StaffForPaymentItem['status']

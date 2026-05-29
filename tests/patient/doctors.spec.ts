@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './patient.fixtures';
+import { loginAsPatient, openPatientRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './patient.fixtures';
 
 test.describe('Patient Doctors', () => {
 
@@ -10,6 +10,7 @@ test.describe('Patient Doctors', () => {
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('Doctors', { timeout: 10000 });
     await expect(page.locator(SELECTORS.doctorCard).first()).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/doctors') && r.status === 200)).toBeTruthy();
   });
@@ -45,6 +46,7 @@ test.describe('Patient Doctors', () => {
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('Null and Zero Handling: null fee/schedule does not crash', async ({ page }) => {
@@ -68,6 +70,7 @@ test.describe('Patient Doctors', () => {
 
     await expect(page.getByText('Dr. Null Test')).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('API Failure: shows retryable error state', async ({ page }) => {
@@ -79,5 +82,7 @@ test.describe('Patient Doctors', () => {
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

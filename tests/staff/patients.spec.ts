@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsStaff, openStaffRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, SELECTORS, ROUTES } from './staff.fixtures';
+import { loginAsStaff, openStaffRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './staff.fixtures';
 
 test.describe('Staff Patients', () => {
 
@@ -10,6 +10,7 @@ test.describe('Staff Patients', () => {
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('Patients', { timeout: 10000 });
     await expect(page.locator(SELECTORS.searchInput)).toBeVisible({ timeout: 5000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/patients') && r.status === 200)).toBeTruthy();
   });
@@ -42,13 +43,14 @@ test.describe('Staff Patients', () => {
 
   test('Empty State: shows when no patients match', async ({ page }) => {
     await loginAsStaff(page);
-    await mockApiResponse(page, 'patients?search=', []);
+    await mockApiResponse(page, 'patients', []);
     await page.goto(ROUTES.patients);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 
   test('API Failure: shows error handling gracefully', async ({ page }) => {
@@ -60,5 +62,7 @@ test.describe('Staff Patients', () => {
 
     await expect(page.locator('body')).toBeVisible();
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
   });
 });
+

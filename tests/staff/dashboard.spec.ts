@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsStaff, openStaffRoute, mockApiFailure, expectNoPersistentLoading, SELECTORS, ROUTES } from './staff.fixtures';
+import { loginAsStaff, openStaffRoute, mockApiFailure, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './staff.fixtures';
 
 test.describe('Staff Dashboard', () => {
 
@@ -11,6 +11,7 @@ test.describe('Staff Dashboard', () => {
     await expect(page.locator(SELECTORS.statCard).first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator(SELECTORS.queueTable)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     const apiCalls = responses.filter(r => r.status === 200).map(r => r.url);
     expect(apiCalls.length).toBeGreaterThan(0);

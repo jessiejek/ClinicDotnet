@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsStaff, openStaffRoute, mockApiFailure, expectNoPersistentLoading, SELECTORS, ROUTES } from './staff.fixtures';
+import { loginAsStaff, openStaffRoute, mockApiFailure, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './staff.fixtures';
 
 test.describe('Staff Profile', () => {
 
@@ -10,6 +10,7 @@ test.describe('Staff Profile', () => {
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('My Profile', { timeout: 10000 });
     await expect(page.locator(SELECTORS.profileForm).first()).toBeVisible({ timeout: 15000 });
     await expectNoPersistentLoading(page);
+    await expectPageVisible(page);
 
     expect(responses.some(r => r.url.includes('/api/auth/me') || r.url.includes('/api/'))).toBeTruthy();
   });
@@ -31,3 +32,4 @@ test.describe('Staff Profile', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 });
+
