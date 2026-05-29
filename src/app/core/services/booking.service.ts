@@ -1357,14 +1357,57 @@ function mapPaymentRow(row: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRecordResponse {
+function normalizeRecordRow(raw: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = { ...raw };
+  r['booking_id'] = r['booking_id'] ?? r['bookingId'];
+  r['consultation_id'] = r['consultation_id'] ?? r['consultationId'];
+  r['patient_id'] = r['patient_id'] ?? r['patientId'];
+  r['doctor_id'] = r['doctor_id'] ?? r['doctorId'];
+  r['booking_status'] = r['booking_status'] ?? r['bookingStatus'];
+  r['general_notes'] = r['general_notes'] ?? r['generalNotes'];
+  r['vital_signs'] = r['vital_signs'] ?? (r['vitalSigns'] ? [r['vitalSigns']] : undefined);
+  r['soap_note'] = r['soap_note'] ?? r['soap'];
+  r['prescriptions'] = r['prescriptions'] ?? (r['prescription'] ? [r['prescription']] : undefined);
+  r['lab_orders'] = r['lab_orders'] ?? (r['labOrders'] ? [r['labOrders']] : undefined);
+  r['follow_ups'] = r['follow_ups'] ?? (r['followUp'] ? [r['followUp']] : undefined);
+  return r;
+}
+
+function normalizePrescriptionItem(raw: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = { ...raw };
+  r['medication_name'] = r['medication_name'] ?? r['medicineName'];
+  r['dosage_form'] = r['dosage_form'] ?? r['dosageForm'];
+  r['dosage'] = r['dosage'] ?? r['dosageForm'];
+  r['test_name'] = r['test_name'] ?? r['testName'];
+  r['test_code'] = r['test_code'] ?? r['testCode'];
+  return r;
+}
+
+function normalizeVitalSigns(raw: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = { ...raw };
+  r['systolic_bp'] = r['systolic_bp'] ?? r['systolicBp'];
+  r['diastolic_bp'] = r['diastolic_bp'] ?? r['diastolicBp'];
+  r['heart_rate'] = r['heart_rate'] ?? r['heartRate'];
+  r['respiratory_rate'] = r['respiratory_rate'] ?? r['respiratoryRate'];
+  r['temperature_c'] = r['temperature_c'] ?? r['temperature'];
+  r['oxygen_saturation'] = r['oxygen_saturation'] ?? r['oxygenSaturation'];
+  r['weight_kg'] = r['weight_kg'] ?? r['weight'];
+  r['height_cm'] = r['height_cm'] ?? r['height'];
+  r['pain_score'] = r['pain_score'] ?? r['painScore'];
+  r['taken_at'] = r['taken_at'] ?? r['takenAt'];
+  return r;
+}
+
+function mapConsultationRecordRow(raw: Record<string, unknown>): ConsultationRecordResponse {
+  const row = normalizeRecordRow(raw);
+
   const diagnoses = extractArray(row['diagnoses'])
     .filter(isRecord)
     .map((item) => ({
       id: trimOptionalString(item['id']),
-      diagnosisText: trimOptionalString(item['diagnosis_text']) ?? '',
-      diagnosisCode: trimOptionalString(item['diagnosis_code']),
-      isPrimary: normalizeBoolean(item['is_primary'], false),
+      diagnosisText: trimOptionalString(item['diagnosisText'] ?? item['diagnosis_text']) ?? '',
+      diagnosisCode: trimOptionalString(item['diagnosisCode'] ?? item['diagnosis_code']),
+      isPrimary: normalizeBoolean(item['isPrimary'] ?? item['is_primary'], false),
       notes: trimOptionalString(item['notes'])
     }))
     .filter((item) => item.diagnosisText.length > 0);
@@ -1377,17 +1420,20 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
         notes: trimOptionalString(firstPrescription['notes']),
         items: extractArray(firstPrescription['items'])
           .filter(isRecord)
-          .map((item) => ({
-            id: trimOptionalString(item['id']),
-            medicationName: trimOptionalString(item['medication_name']) ?? '',
-            strength: trimOptionalString(item['strength']),
-            dosage: trimOptionalString(item['dosage']),
-            route: trimOptionalString(item['route']),
-            frequency: trimOptionalString(item['frequency']),
-            duration: trimOptionalString(item['duration']),
-            quantity: trimOptionalString(item['quantity']),
-            instructions: trimOptionalString(item['instructions'])
-          }))
+          .map((item) => {
+            const pi = normalizePrescriptionItem(item);
+            return {
+              id: trimOptionalString(pi['id']),
+              medicationName: trimOptionalString(pi['medication_name']) ?? '',
+              strength: trimOptionalString(pi['strength']),
+              dosage: trimOptionalString(pi['dosage']),
+              route: trimOptionalString(pi['route']),
+              frequency: trimOptionalString(pi['frequency']),
+              duration: trimOptionalString(pi['duration']),
+              quantity: trimOptionalString(pi['quantity']),
+              instructions: trimOptionalString(pi['instructions'])
+            };
+          })
           .filter((item) => item.medicationName.length > 0)
       }
     : null;
@@ -1399,12 +1445,15 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
       notes: trimOptionalString(order['notes']),
       items: extractArray(order['items'])
         .filter(isRecord)
-        .map((item) => ({
-          id: trimOptionalString(item['id']),
-          testName: trimOptionalString(item['test_name']) ?? '',
-          testCode: trimOptionalString(item['test_code']),
-          instructions: trimOptionalString(item['instructions'])
-        }))
+        .map((item) => {
+          const li = normalizePrescriptionItem(item);
+          return {
+            id: trimOptionalString(li['id']),
+            testName: trimOptionalString(li['test_name']) ?? '',
+            testCode: trimOptionalString(li['test_code']),
+            instructions: trimOptionalString(li['instructions'])
+          };
+        })
         .filter((item) => item.testName.length > 0)
     }));
 
@@ -1421,7 +1470,7 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
     : null;
 
   const vitalRows = extractArray(row['vital_signs']).filter(isRecord);
-  const latestVitals = vitalRows[0];
+  const latestVitals = vitalRows.length > 0 ? normalizeVitalSigns(vitalRows[0]) : null;
 
   return {
     bookingId: trimOptionalString(row['booking_id']) ?? '',
@@ -1770,10 +1819,10 @@ function mapBookingViewRow(row: Record<string, unknown>): Record<string, unknown
         }
 
         return {
-          id: trimOptionalString(item['service_id']) ?? trimOptionalString(item['id']) ?? '',
-          serviceId: trimOptionalString(item['service_id']) ?? trimOptionalString(item['id']) ?? '',
-          name: trimOptionalString(item['service_name']) ?? trimOptionalString(item['name']) ?? '',
-          serviceName: trimOptionalString(item['service_name']) ?? trimOptionalString(item['name']) ?? ''
+          id: trimOptionalString(item['serviceId']) ?? trimOptionalString(item['id']) ?? '',
+          serviceId: trimOptionalString(item['serviceId']) ?? trimOptionalString(item['id']) ?? '',
+          name: trimOptionalString(item['serviceName']) ?? trimOptionalString(item['name']) ?? '',
+          serviceName: trimOptionalString(item['serviceName']) ?? trimOptionalString(item['name']) ?? ''
         };
       })
     : [];
@@ -1786,49 +1835,53 @@ function mapBookingViewRow(row: Record<string, unknown>): Record<string, unknown
     .filter((value): value is string => Boolean(value));
 
   return {
-    bookingId: trimOptionalString(row['booking_id']),
-    id: trimOptionalString(row['booking_id']),
-    patientId: trimOptionalString(row['patient_id']),
-    patientName: trimOptionalString(row['patient_name']),
-    doctorId: trimOptionalString(row['doctor_id']),
-    doctorName: trimOptionalString(row['doctor_name']),
-    serviceId: trimOptionalString(row['primary_service_id']) ?? serviceIds[0],
-    serviceName: trimOptionalString(row['primary_service_name']) ?? serviceNames[0],
+    bookingId: trimOptionalString(row['id']),
+    id: trimOptionalString(row['id']),
+    patientId: trimOptionalString(row['patientId']) ?? trimOptionalString(row['patient_id']),
+    patientName: trimOptionalString(row['patientName']) ?? trimOptionalString(row['patient_name']),
+    doctorId: trimOptionalString(row['doctorId']) ?? trimOptionalString(row['doctor_id']),
+    doctorName: trimOptionalString(row['doctorName']) ?? trimOptionalString(row['doctor_name']),
+    serviceId: trimOptionalString(row['serviceId']) ?? trimOptionalString(row['primary_service_id']) ?? serviceIds[0],
+    serviceName: trimOptionalString(row['serviceName']) ?? trimOptionalString(row['primary_service_name']) ?? serviceNames[0],
     serviceIds,
     serviceNames,
     services,
-    appointmentDate: normalizeDateOnly(row['appointment_date']),
-    slotStartTime: normalizeTimeOnly(row['slot_start_time']),
-    slotEndTime: normalizeTimeOnly(row['slot_end_time']),
-    queueNumber: normalizeNullableNumber(row['queue_number']),
-    status: trimOptionalString(row['booking_status']),
-    paymentStatus: trimOptionalString(row['payment_status']),
-    paymentMode: trimOptionalString(row['payment_mode']) ?? 'PayAtClinic',
-    totalFee: normalizeNumber(row['total_fee']),
-    finalAmount: normalizeNullableNumberPreserveUndefined(row['final_amount']),
-    isWalkIn: normalizeBoolean(row['is_walk_in'], false),
-    proofType: trimOptionalString(row['proof_type']),
-    proofSubmittedAt: trimOptionalString(row['proof_submitted_at']),
-    checkedInAt: trimOptionalString(row['checked_in_at']),
-    doctorCompletedAt: trimOptionalString(row['doctor_completed_at']),
-    createdAt: trimOptionalString(row['created_at']),
-    updatedAt: trimOptionalString(row['updated_at']),
+    appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+    slotStartTime: normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+    slotEndTime: normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']),
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    status: trimOptionalString(row['status'] ?? row['booking_status']),
+    paymentStatus: trimOptionalString(row['paymentStatus'] ?? row['payment_status']),
+    paymentMode: trimOptionalString(row['paymentMode'] ?? row['payment_mode']) ?? 'PayAtClinic',
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount: normalizeNullableNumberPreserveUndefined(row['finalAmount'] ?? row['final_amount']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in'], false),
+    proofType: trimOptionalString(row['proofType'] ?? row['proof_type']),
+    proofSubmittedAt: trimOptionalString(row['proofSubmittedAt'] ?? row['proof_submitted_at']),
+    checkedInAt: trimOptionalString(row['checkedInAt'] ?? row['checked_in_at']),
+    doctorCompletedAt: trimOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
+    createdAt: trimOptionalString(row['createdAt'] ?? row['created_at']),
+    updatedAt: trimOptionalString(row['updatedAt'] ?? row['updated_at']),
     consultationFeeSnapshot: 0,
     serviceFeeSnapshot: 0,
-    patient: {
-      id: trimOptionalString(row['patient_id']) ?? '',
-      patientCode: trimOptionalString(row['patient_code']),
-      fullName: trimOptionalString(row['patient_name'])
-    },
-    doctor: {
-      id: trimOptionalString(row['doctor_id']) ?? '',
-      fullName: trimOptionalString(row['doctor_name']),
-      specialization: trimOptionalString(row['doctor_specialization'])
-    },
-    service: trimOptionalString(row['primary_service_id'])
+    patient: trimOptionalString(row['patientId']) ?? trimOptionalString(row['patient_id'])
       ? {
-          id: trimOptionalString(row['primary_service_id']) ?? '',
-          name: trimOptionalString(row['primary_service_name'])
+          id: trimOptionalString(row['patientId']) ?? trimOptionalString(row['patient_id']) ?? '',
+          patientCode: trimOptionalString(row['patientCode']) ?? trimOptionalString(row['patient_code']),
+          fullName: trimOptionalString(row['patientName']) ?? trimOptionalString(row['patient_name'])
+        }
+      : undefined,
+    doctor: trimOptionalString(row['doctorId']) ?? trimOptionalString(row['doctor_id'])
+      ? {
+          id: trimOptionalString(row['doctorId']) ?? trimOptionalString(row['doctor_id']) ?? '',
+          fullName: trimOptionalString(row['doctorName']) ?? trimOptionalString(row['doctor_name']),
+          specialization: trimOptionalString(row['specialization']) ?? trimOptionalString(row['doctor_specialization'])
+        }
+      : undefined,
+    service: trimOptionalString(row['serviceId']) ?? trimOptionalString(row['primary_service_id'])
+      ? {
+          id: trimOptionalString(row['serviceId']) ?? trimOptionalString(row['primary_service_id']) ?? '',
+          name: trimOptionalString(row['serviceName']) ?? trimOptionalString(row['primary_service_name'])
         }
       : undefined
   };

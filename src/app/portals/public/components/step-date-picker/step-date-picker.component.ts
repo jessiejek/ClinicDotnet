@@ -135,9 +135,9 @@ export class StepDatePickerComponent implements OnInit {
           .pipe(
             map((rows) =>
               (rows ?? []).map((row) => ({
-                dayOfWeek: normalizeScheduleDayOfWeek(row.day_of_week),
-                startTime: normalizeTime(row.start_time),
-                endTime: normalizeTime(row.end_time)
+                dayOfWeek: normalizeScheduleDayOfWeek(row.dayOfWeek),
+                startTime: normalizeTime(row.startTime),
+                endTime: normalizeTime(row.endTime)
               }))
             ),
             takeUntilDestroyed(this.destroyRef)
@@ -303,10 +303,10 @@ export class StepDatePickerComponent implements OnInit {
 
 interface DoctorScheduleRow {
   id: string;
-  doctor_id: string;
-  day_of_week: string;
-  start_time: string | null;
-  end_time: string | null;
+  doctorId: string;
+  dayOfWeek: string;
+  startTime: string | null;
+  endTime: string | null;
 }
 
 function normalizeScheduleDayOfWeek(value: unknown): WorkingDay['dayOfWeek'] {

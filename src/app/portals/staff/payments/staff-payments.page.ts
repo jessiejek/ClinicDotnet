@@ -369,11 +369,10 @@ export class StaffPaymentsPage implements OnInit {
     const bookingId = this.selectedItem.paymentId;
     const selectedItem = this.selectedItem;
     this.apiService.patch<any>('payments/' + bookingId + '/confirm', {
-      p_booking_id: bookingId,
-      p_amount: payload.amountReceived,
-      p_payment_method: payload.paymentMethod,
-      p_reference_number: payload.referenceNumber ?? null,
-      p_or_number: null
+      paymentMethod: payload.paymentMethod,
+      amountReceived: payload.amountReceived,
+      referenceNumber: payload.referenceNumber ?? null,
+      notes: null
     }).pipe(
       map((payResult) => {
         const payment = payResult ? normalizePaymentRow(payResult) : undefined;

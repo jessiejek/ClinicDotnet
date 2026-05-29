@@ -14,8 +14,6 @@ import {
   DoctorScheduleFormComponent
 } from '../components/doctor-schedule-form/doctor-schedule-form.component';
 import {
-  AdminDoctorsService,
-  CreateDoctorInviteDto,
   CreateDoctorDto,
   DoctorSummary,
   UpsertSchedulesDto
@@ -66,16 +64,29 @@ const DAY_NAMES: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
                   class="filter-input"
                   type="email"
                   formControlName="doctorEmail"
-                  placeholder="Doctor email for social login invite"
+                  placeholder="e.g. dr.jones@clinic.com"
                   autocomplete="email"
                 />
                 <div class="form-error-message" *ngIf="form.get('doctorEmail')?.touched && form.get('doctorEmail')?.invalid">
                   <span *ngIf="form.get('doctorEmail')?.hasError('required')">Doctor email is required.</span>
                   <span *ngIf="form.get('doctorEmail')?.hasError('email')">Enter a valid doctor email.</span>
                 </div>
-                <p class="form-field__hint" *ngIf="!isEditMode">
-                  The doctor will use this email to sign in with Google or Facebook.
-                  No password needed.
+              </label>
+              <label class="form-field" *ngIf="!isEditMode">
+                <span class="form-field__label">Temporary Password</span>
+                <input
+                  class="filter-input"
+                  type="text"
+                  formControlName="tempPassword"
+                  placeholder="e.g. Temp@123456"
+                  autocomplete="off"
+                />
+                <div class="form-error-message" *ngIf="form.get('tempPassword')?.touched && form.get('tempPassword')?.invalid">
+                  <span *ngIf="form.get('tempPassword')?.hasError('required')">Temporary password is required.</span>
+                  <span *ngIf="form.get('tempPassword')?.hasError('minlength')">At least 8 characters.</span>
+                </div>
+                <p class="form-field__hint">
+                  The doctor uses this temporary password + email to log in, then sets a new password on first login.
                 </p>
               </label>
               <label class="form-field">
@@ -176,7 +187,6 @@ const DAY_NAMES: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 export class DoctorFormPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly apiService = inject(ApiService);
-  private readonly adminDoctorsService = inject(AdminDoctorsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toastController = inject(ToastController);
@@ -195,6 +205,7 @@ export class DoctorFormPage implements OnInit {
   form = this.fb.group({
     fullName: ['', [Validators.required, Validators.minLength(2)]],
     doctorEmail: ['', [Validators.required, Validators.email]],
+    tempPassword: ['', [Validators.required, Validators.minLength(8)]],
     specialization: ['', Validators.required],
     bio: [''],
     licenseNumber: [''],
@@ -334,10 +345,9 @@ export class DoctorFormPage implements OnInit {
           }
         });
     } else {
-      // Create mode: create a doctor invite (no password needed)
-      const invitePayload: CreateDoctorInviteDto = {
+      // Create mode: send doctor details + temp password to backend
+      const createPayload: CreateDoctorDto = {
         fullName: value.fullName ?? '',
-        email: String(value.doctorEmail ?? '').trim(),
         specialization: value.specialization ?? '',
         bio: value.bio ?? '',
         licenseNumber: value.licenseNumber ?? '',
@@ -347,17 +357,11 @@ export class DoctorFormPage implements OnInit {
         slotDurationMinutes: Number(value.slotDurationMinutes ?? 30),
         slotCapacity: Number(value.slotCapacity ?? 1),
         dailyPatientLimit: value.dailyPatientLimit ?? null,
-        schedule: this.scheduleDraft
-          .filter((row) => row.enabled)
-          .map((row) => ({
-            dayOfWeek: row.dayOfWeek,
-            startTime: row.startTime,
-            endTime: row.endTime
-          })),
-        serviceIds: Array.from(this.selectedServiceIds)
+        doctorEmail: String(value.doctorEmail ?? '').trim(),
+        tempPassword: String(value.tempPassword ?? '')
       };
 
-      this.adminDoctorsService.createDoctorInvite(invitePayload)
+      this.apiService.post<any>('doctors', createPayload)
         .pipe(
           finalize(() => {
             this.isSaving = false;
@@ -367,7 +371,7 @@ export class DoctorFormPage implements OnInit {
         .subscribe({
           next: async () => {
             const toast = await this.toastController.create({
-              message: 'Doctor invite created. The doctor must sign in with Google or Facebook using this email to activate the account.',
+              message: 'Doctor account created. The doctor can now log in with the temporary password.',
               duration: 5000,
               color: 'success',
               position: 'top'
@@ -376,7 +380,7 @@ export class DoctorFormPage implements OnInit {
             void this.router.navigate(['/admin/doctors']);
           },
           error: (error: unknown) => {
-            void this.presentToast(extractApiErrorMessage(error, 'Failed to create doctor invite.'));
+            void this.presentToast(extractApiErrorMessage(error, 'Failed to create doctor.'));
           }
         });
     }

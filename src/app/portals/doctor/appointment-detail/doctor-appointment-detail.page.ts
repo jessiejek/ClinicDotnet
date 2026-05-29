@@ -299,7 +299,10 @@ function normalizeBookingSnapshot(value: unknown): Booking | undefined {
     checkedInAt: normalizeOptionalString(asString(row['checkedInAt'] ?? row['checked_in_at'])),
     doctorCompletedAt: normalizeOptionalString(asString(row['doctorCompletedAt'] ?? row['doctor_completed_at'])),
     isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
-    professionalFeeWaivedReason: normalizeOptionalString(asString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']))
+    professionalFeeWaivedReason: normalizeOptionalString(asString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason'])),
+    doctor: (row['doctor'] ?? undefined) as any,
+    patient: (row['patient'] ?? undefined) as any,
+    service: (row['service'] ?? undefined) as any
   };
 }
 
@@ -412,3 +415,6 @@ function buildPatientFromBooking(booking: Booking): Patient {
     isGuest: Boolean(booking.patient?.isGuest)
   };
 }
+
+
+

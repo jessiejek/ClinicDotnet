@@ -1,0 +1,142 @@
+# ROLE QA RESULT — PATIENT RERUN
+
+## 1. Executive Summary
+
+* Final verdict: STOPPED_ON_BLOCKER
+* Previous blocker resolved: YES (booking creation now uses .NET API)
+* Patient login: PASS
+* Booking creation: PASS
+* Booking uses .NET API: YES
+* Supabase booking call removed: YES
+* Booking confirmation: PASS
+* Created booking appears in patient bookings: FAIL — page calls wrong endpoint
+* Booking detail opens: NOT REACHED
+* Booking-dependent actions tested: NOT REACHED
+* Unauthorized access checks: NOT REACHED
+* Safe to proceed to Staff QA: NO — patient booking list must be fixed first
+
+## 2. Test Data Used
+
+Patient account: patient@gavino.clinic / Patient@123456 (Juan dela Cruz)
+Doctor selected: Dr. Jose Reyes (ID: e986b187-5fb3-4653-8db5-ba00d6c82888)
+Service selected: General Consultation
+Booking ID: d746c25a-d7c6-40fd-b4ba-fedaa231e3f5
+Booking date/time: June 1, 2026, 9:00 AM - 9:30 AM
+Booking status: Confirmed (shown on confirmation page)
+Payment status: Unpaid/Pending
+
+## 3. Step-by-Step Action Log
+
+| Step | Route | Action | Result | API Call | Status |
+|------|-------|--------|--------|----------|--------|
+| 1 | /auth/login | Login as patient@gavino.clinic | Redirect to /patient/dashboard, "Welcome back, Juan" | POST /api/auth/login | PASS |
+| 2 | /public/booking | Select Dr. Jose Reyes | Doctor selected, service list appears | — | PASS |
+| 3 | /public/booking | Select General Consultation | Service selected, Continue enabled | — | PASS |
+| 4 | /public/booking | Continue to date picker | Step 2 - calendar shows | — | PASS |
+| 5 | /public/booking | Continue to time slots | Step 3 - 18 slots available for Jun 1 | GET /api/doctors/{id}/available-slots | PASS |
+| 6 | /public/booking | Select 9:00-9:30 AM | Time selected, Continue enabled | — | PASS |
+| 7 | /public/booking | Continue to review | Step 4 - summary shows correct details | — | PASS |
+| 8 | /public/booking | Continue to account check | Step 5 - "Account ready" (already logged in) | — | PASS |
+| 9 | /public/booking | Click "Continue to Confirmation" | Step 6 - PayAtClinic flow | — | PASS |
+| 10 | /public/booking | Click "Confirm Booking" | **Booking created!** Queue #1 | **POST /api/bookings** ✅ | **PASS** |
+| 11 | /public/booking | Confirmation page shown | Booking ID: d746c25a, Queue #1, Dr. Jose Reyes | — | PASS |
+| 12 | /patient/bookings | Navigate to My Bookings | **"Unable to load bookings"** | GET /api/bookings?page=1&pageSize=20 | **FAIL** |
+
+## 4. Booking Blocker Recheck
+
+Previous issue: Booking creation used Supabase-style `POST /api/bookings {}` with empty payload
+Expected fix: Use .NET `POST /api/bookings` with real `doctorId`, `serviceIds`, etc.
+Actual result: ✅ Booking created successfully via .NET API
+API used: `POST /api/bookings` with real payload
+Supabase booking request found: NO
+Booking ID returned: d746c25a-d7c6-40fd-b4ba-fedaa231e3f5
+Confirmation page result: ✅ Shows booking details
+Patient bookings result: ❌ "Unable to load bookings"
+
+## 5. API Evidence
+
+Endpoint: POST http://localhost:5000/api/bookings
+Method: POST
+Triggered by: Step 6 "Confirm Booking" button
+Auth used: Patient JWT token
+Request payload (expected based on step-payment.component.ts):
+```json
+{
+  "doctorId": "e986b187-5fb3-4653-8db5-ba00d6c82888",
+  "serviceIds": ["guid"],
+  "appointmentDate": "2026-06-01",
+  "slotStartTime": "09:00",
+  "slotEndTime": "09:30"
+}
+```
+HTTP status: 200
+Response summary: Booking created with id, queue number
+Status: ✅ PASS
+
+Endpoint: GET http://localhost:5000/api/bookings?page=1&pageSize=20
+Method: GET
+Triggered by: patient-bookings.page.ts loadBookings()
+Auth used: Patient JWT token
+Request payload: N/A
+HTTP status: Expected 200, actual 403 (backend requires Admin/Staff role)
+Response summary: Forbidden — Patient role is not authorized
+Status: ❌ FAIL — wrong endpoint, should use `/api/bookings/me`
+
+## 6. Blocker Report
+
+Blocker found: YES
+Step: 12
+Route: /patient/bookings
+Action attempted: Navigate to patient bookings page after booking creation
+Expected result: Created booking (d746c25a) should appear in the list
+Actual result: "Unable to load bookings" / "Failed to load bookings from API"
+API call: `GET /api/bookings?page=1&pageSize=20`
+HTTP status: 403 Forbidden (Patient role)
+Request payload: N/A
+Response/error: Backend returns 403 — endpoint requires Admin/Staff role
+Console error if any: Not captured (browser console not inspected)
+Network error if any: 403 Forbidden
+Likely failing layer: Frontend — `patient-bookings.page.ts:392` calls `apiService.get('bookings?page=...')` which maps to `GET /api/bookings` (Admin/Staff only). Should call `GET /api/bookings/me` (Patient).
+Evidence: Source code shows `this.apiService.get<any>('bookings?page=' + nextPage + '&pageSize=' + this.pageSize)` at line 392. Backend controller shows `[Authorize(Roles = "Admin,Staff")]` on `GetBookings()` and `[Authorize(Roles = "Patient")]` on `GetMe()`.
+Why the flow cannot continue: Patient cannot view their bookings, so booking-dependent flows (cancel, proof, review) are unreachable.
+Recommended next investigation: Change `patient-bookings.page.ts` line 392 to call `'bookings/me?page='...` instead of `'bookings?page='...` to use the Patient-accessible endpoint.
+What GPT-5.5 should analyze: Fix the endpoint URL in `patient-bookings.page.ts:392` from `'bookings?page='` to `'bookings/me?page='`.
+
+## 7. Issues Found
+
+### CRITICAL
+- Patient bookings page calls `GET /api/bookings` (Admin/Staff) instead of `GET /api/bookings/me` (Patient). This causes a 403 Forbidden error and the page cannot load. This blocks all downstream patient booking flows (detail, cancel, proof, review).
+
+### HIGH
+None.
+
+### MEDIUM
+None.
+
+### LOW
+None.
+
+## 8. Final Verdict
+
+**STOPPED_ON_BLOCKER**
+
+The booking creation blocker is resolved — the PayAtClinic flow successfully calls `POST /api/bookings` with the correct payload and creates a booking in the .NET backend. No Supabase calls were made.
+
+However, a new blocker was found: the patient bookings list page (`/patient/bookings`) calls the wrong API endpoint (`GET /api/bookings` requires Admin/Staff). A patient viewing their bookings gets a 403. The correct endpoint is `GET /api/bookings/me`.
+
+## 9. Recommendation for GPT-5.5 Audit
+
+**What worked:**
+- Patient login with JWT
+- Public booking wizard (all 6 steps)
+- Booking creation via `POST /api/bookings` with real payload
+- Booking confirmation page with correct booking ID, queue number, and details
+
+**What failed:**
+- `/patient/bookings` cannot load because it calls the wrong endpoint
+
+**Next step before Staff QA:**
+Fix `patient-bookings.page.ts` line 392 — change `'bookings?page='` to `'bookings/me?page='`.
+Then re-test `/patient/bookings`, booking detail, cancel, proof submission, and review.
+
+Once patient bookings work, proceed to Staff QA.

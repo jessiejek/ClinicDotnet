@@ -35,6 +35,34 @@ interface PatientRow {
   updated_at?: NullableString;
 }
 
+function withCamelCaseFallback(raw: Record<string, unknown>): PatientRow {
+  const row: Record<string, unknown> = { ...raw };
+  row['patient_code'] = row['patient_code'] ?? row['patientCode'];
+  row['first_name'] = row['first_name'] ?? row['firstName'];
+  row['middle_name'] = row['middle_name'] ?? row['middleName'];
+  row['last_name'] = row['last_name'] ?? row['lastName'];
+  row['date_of_birth'] = row['date_of_birth'] ?? row['dateOfBirth'];
+  row['civil_status'] = row['civil_status'] ?? row['civilStatus'];
+  row['zip_code'] = row['zip_code'] ?? row['zipCode'];
+  row['contact_number'] = row['contact_number'] ?? row['contactNumber'];
+  row['contact_email'] = row['contact_email'] ?? row['email'];
+  row['emergency_contact_name'] = row['emergency_contact_name'] ?? row['emergencyContactName'];
+  row['emergency_contact_number'] = row['emergency_contact_number'] ?? row['emergencyContactNumber'];
+  row['emergency_contact_relationship'] = row['emergency_contact_relationship'] ?? row['emergencyContactRelationship'];
+  row['blood_type'] = row['blood_type'] ?? row['bloodType'];
+  row['phil_health_number'] = row['phil_health_number'] ?? row['philHealthNumber'];
+  row['hmo_provider'] = row['hmo_provider'] ?? row['hmoProvider'];
+  row['hmo_card_number'] = row['hmo_card_number'] ?? row['hmoCardNumber'];
+  row['user_id'] = row['user_id'] ?? row['userId'];
+  row['is_guest'] = row['is_guest'] ?? row['isGuest'];
+  row['is_email_verified'] = row['is_email_verified'] ?? row['isEmailVerified'];
+  row['consented_at'] = row['consented_at'] ?? row['consentedAt'];
+  row['consent_version'] = row['consent_version'] ?? row['consentVersion'];
+  row['created_at'] = row['created_at'] ?? row['createdAt'];
+  row['updated_at'] = row['updated_at'] ?? row['updatedAt'];
+  return row as unknown as PatientRow;
+}
+
 function rowToPatient(row: PatientRow): Patient {
   return {
     id: row.id,
@@ -85,8 +113,8 @@ export class PatientStateService {
     this.api.get<any>('patients').subscribe({
       next: (data: any) => {
         try {
-          const rows = (data?.items ?? data ?? []) as PatientRow[];
-          this.patientsSubject.next(mapRows(rows));
+          const rawRows = (data?.items ?? data ?? []) as Record<string, unknown>[];
+          this.patientsSubject.next(rawRows.map(r => rowToPatient(withCamelCaseFallback(r))));
         } finally {
           this.loadingSubject.next(false);
         }
@@ -102,14 +130,15 @@ export class PatientStateService {
 
   getPatientById(id: string): Observable<Patient | undefined> {
     return this.api.get<any>('patients/' + id).pipe(
-      map((data) => data ? rowToPatient(data as PatientRow) : undefined)
+      map((data) => data ? rowToPatient(withCamelCaseFallback(data as Record<string, unknown>)) : undefined)
     );
   }
 
   getPatientByUserId(userId: string): Observable<Patient | undefined> {
     return this.api.get<any[]>('patients?userId=' + userId).pipe(
       map((data) => {
-        const rows = (data ?? []) as PatientRow[];
+        const rawRows = (data ?? []) as Record<string, unknown>[];
+        const rows = rawRows.map(r => withCamelCaseFallback(r));
         return rows.length > 0 ? rowToPatient(rows[0]) : undefined;
       })
     );
@@ -117,7 +146,10 @@ export class PatientStateService {
 
   getFilteredPatients(query: string): Observable<Patient[]> {
     return this.api.get<any[]>('patients?search=' + encodeURIComponent(query)).pipe(
-      map((data) => mapRows((data ?? []) as PatientRow[]))
+      map((data) => {
+        const rawRows = (data ?? []) as Record<string, unknown>[];
+        return rawRows.map(r => rowToPatient(withCamelCaseFallback(r)));
+      })
     );
   }
 

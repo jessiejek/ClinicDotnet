@@ -3194,7 +3194,45 @@ function normalizeString(value: NullableString): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function normalizeConsultationBookingRow(row: Record<string, unknown>): Booking | undefined {
+function normalizeConsultationBookingRow(rawRow: Record<string, unknown>): Booking | undefined {
+  // Map camelCase .NET API fields to snake_case keys for backward compatibility
+  const row: Record<string, unknown> = { ...rawRow };
+  row['booking_id'] = row['booking_id'] ?? row['id'];
+  row['patient_id'] = row['patient_id'] ?? row['patientId'];
+  row['patient_name'] = row['patient_name'] ?? row['patientName'];
+  row['doctor_id'] = row['doctor_id'] ?? row['doctorId'];
+  row['doctor_name'] = row['doctor_name'] ?? row['doctorName'];
+  row['service_id'] = row['service_id'] ?? row['serviceId'];
+  row['service_name'] = row['service_name'] ?? row['serviceName'];
+  row['service_ids'] = row['service_ids'] ?? row['serviceIds'] ?? row['serviceNames'];
+  row['service_names'] = row['service_names'] ?? row['serviceNames'] ?? row['serviceIds'];
+  row['appointment_date'] = row['appointment_date'] ?? row['appointmentDate'];
+  row['slot_start_time'] = row['slot_start_time'] ?? row['slotStartTime'];
+  row['slot_end_time'] = row['slot_end_time'] ?? row['slotEndTime'];
+  row['booking_status'] = row['booking_status'] ?? row['status'];
+  row['payment_status'] = row['payment_status'] ?? row['paymentStatus'];
+  row['payment_mode'] = row['payment_mode'] ?? row['paymentMode'];
+  row['queue_number'] = row['queue_number'] ?? row['queueNumber'];
+  row['total_fee'] = row['total_fee'] ?? row['totalFee'];
+  row['final_amount'] = row['final_amount'] ?? row['finalAmount'];
+  row['amount_due'] = row['amount_due'] ?? row['amountDue'];
+  row['consultation_fee_snapshot'] = row['consultation_fee_snapshot'] ?? row['consultationFeeSnapshot'];
+  row['service_fee_snapshot'] = row['service_fee_snapshot'] ?? row['serviceFeeSnapshot'];
+  row['is_walk_in'] = row['is_walk_in'] ?? row['isWalkIn'];
+  row['proof_type'] = row['proof_type'] ?? row['proofType'];
+  row['proof_value'] = row['proof_value'] ?? row['proofValue'];
+  row['proof_submitted_at'] = row['proof_submitted_at'] ?? row['proofSubmittedAt'];
+  row['cancellation_reason'] = row['cancellation_reason'] ?? row['cancellationReason'];
+  row['notes'] = row['notes'] ?? row['notes'];
+  row['rescheduled_from_booking_id'] = row['rescheduled_from_booking_id'] ?? row['rescheduledFromBookingId'];
+  row['receipt_url'] = row['receipt_url'] ?? row['receiptUrl'];
+  row['created_at'] = row['created_at'] ?? row['createdAt'];
+  row['checked_in_at'] = row['checked_in_at'] ?? row['checkedInAt'];
+  row['doctor_completed_at'] = row['doctor_completed_at'] ?? row['doctorCompletedAt'];
+  row['is_professional_fee_waived'] = row['is_professional_fee_waived'] ?? row['isProfessionalFeeWaived'];
+  row['professional_fee_waived_reason'] = row['professional_fee_waived_reason'] ?? row['professionalFeeWaivedReason'];
+  row['or_number'] = row['or_number'] ?? row['orNumber'];
+
   const bookingId = trimOptionalString(row['booking_id']) ?? trimOptionalString(row['id']);
   if (!bookingId) {
     return undefined;
@@ -3252,11 +3290,27 @@ function normalizeConsultationBookingRow(row: Record<string, unknown>): Booking 
     checkedInAt: trimOptionalString(row['checked_in_at']),
     doctorCompletedAt: trimOptionalString(row['doctor_completed_at']),
     isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['is_professional_fee_waived']),
-    professionalFeeWaivedReason: trimOptionalString(row['professional_fee_waived_reason'])
+    professionalFeeWaivedReason: trimOptionalString(row['professional_fee_waived_reason']),
+    doctor: (row['doctor'] ?? undefined) as any,
+    patient: (row['patient'] ?? undefined) as any,
+    service: (row['service'] ?? undefined) as any
   };
 }
 
-function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRecordResponse {
+function mapConsultationRecordRow(rawRow: Record<string, unknown>): ConsultationRecordResponse {
+  // Map camelCase .NET API fields to snake_case keys
+  const row: Record<string, unknown> = { ...rawRow };
+  row['booking_id'] = row['booking_id'] ?? row['bookingId'];
+  row['consultation_id'] = row['consultation_id'] ?? row['consultationId'];
+  row['patient_id'] = row['patient_id'] ?? row['patientId'];
+  row['doctor_id'] = row['doctor_id'] ?? row['doctorId'];
+  row['booking_status'] = row['booking_status'] ?? row['bookingStatus'];
+  row['general_notes'] = row['general_notes'] ?? row['generalNotes'];
+  row['vital_signs'] = row['vital_signs'] ?? row['vitalSigns'];
+  row['soap_note'] = row['soap_note'] ?? row['soap'] ?? row['soapNote'];
+  row['lab_orders'] = row['lab_orders'] ?? row['labOrders'];
+  row['follow_ups'] = row['follow_ups'] ?? row['followUp'];
+
   const diagnoses = extractArray(row['diagnoses'])
     .filter(isRecord)
     .map((item) => ({

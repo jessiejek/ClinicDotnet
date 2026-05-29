@@ -196,20 +196,32 @@ export class DoctorStateService {
   }
 }
 
+function withCamelCaseFallbackDoctor(raw: Record<string, unknown>): Record<string, unknown> {
+  const row: Record<string, unknown> = { ...raw };
+  row['user_id'] = row['user_id'] ?? row['userId'];
+  row['full_name'] = row['full_name'] ?? row['fullName'];
+  row['consultation_fee'] = row['consultation_fee'] ?? row['consultationFee'];
+  row['profile_photo_url'] = row['profile_photo_url'] ?? row['profilePhotoUrl'];
+  row['average_rating'] = row['average_rating'] ?? row['averageRating'];
+  row['review_count'] = row['review_count'] ?? row['reviewCount'];
+  return row;
+}
+
 function mapDoctorRow(row: Record<string, unknown>): Doctor {
+  const r = withCamelCaseFallbackDoctor(row);
   return {
-    id: trimStr(row['id']) ?? '',
-    userId: trimStr(row['user_id']) ?? '',
-    fullName: trimStr(row['full_name']) ?? 'Unnamed Doctor',
-    specialization: trimStr(row['specialization']) ?? '',
-    consultationFee: normalizeNum(row['consultation_fee']),
+    id: trimStr(r['id']) ?? '',
+    userId: trimStr(r['user_id']) ?? '',
+    fullName: trimStr(r['full_name']) ?? 'Unnamed Doctor',
+    specialization: trimStr(r['specialization']) ?? '',
+    consultationFee: normalizeNum(r['consultation_fee']),
     slotDurationMinutes: 30,
     slotCapacity: 1,
     dailyPatientLimit: null,
-    status: (trimStr(row['status']) as DoctorStatus) ?? 'Active',
-    profilePhotoUrl: trimStr(row['profile_photo_url']),
-    averageRating: normalizeNum(row['average_rating']),
-    reviewCount: normalizeNum(row['review_count']),
+    status: (trimStr(r['status']) as DoctorStatus) ?? 'Active',
+    profilePhotoUrl: trimStr(r['profile_photo_url']),
+    averageRating: normalizeNum(r['average_rating']),
+    reviewCount: normalizeNum(r['review_count']),
   };
 }
 
