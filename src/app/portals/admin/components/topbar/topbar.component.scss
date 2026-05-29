@@ -1,7 +1,7 @@
 .topbar {
   min-height: 64px;
   height: auto;
-  background: white;
+  background: var(--clinic-bg-elevated);
   border-bottom: 1px solid var(--clinic-border);
   display: flex;
   align-items: center;
@@ -16,6 +16,38 @@
 
 .topbar__title-group {
   min-width: 180px;
+}
+
+.topbar__hamburger {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--radius-md);
+  background: var(--clinic-bg-elevated);
+  color: var(--clinic-text-primary);
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  box-shadow: var(--shadow-xs);
+}
+
+.topbar__hamburger:hover,
+.topbar__hamburger:focus-visible {
+  background: var(--color-neutral-100);
+  border-color: var(--clinic-border-strong);
+  color: var(--ion-color-primary);
+}
+
+.topbar__hamburger:focus-visible {
+  outline: 2px solid rgba(93, 62, 142, 0.16);
+  outline-offset: 2px;
+}
+
+.topbar__hamburger ion-icon {
+  font-size: 22px;
 }
 
 .topbar__portal-label {
@@ -38,19 +70,6 @@
   align-items: center;
   gap: var(--space-3);
   margin-left: auto;
-}
-
-.topbar__menu-btn {
-  display: none;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--clinic-border);
-  border-radius: var(--radius-md);
-  background: white;
-  color: var(--clinic-text-primary);
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
 }
 
 .topbar__user {
@@ -178,10 +197,6 @@
     margin-left: 0;
   }
 
-  .topbar__menu-btn {
-    display: inline-flex;
-  }
-
   .topbar__logout-label {
     display: none;
   }
@@ -201,31 +216,8 @@
   }
 }
 
-.topbar__hamburger {
-  display: none;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--clinic-border);
-  background: white;
-  color: var(--clinic-text-primary);
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-
-  ion-icon {
-    font-size: 22px;
-  }
-
-  &:hover {
-    background: var(--color-neutral-100);
-  }
-}
-
-@media (max-width: 767px) {
+@media (min-width: 769px) {
   .topbar__hamburger {
-    display: inline-flex;
+    background: linear-gradient(180deg, var(--clinic-bg-elevated), var(--color-neutral-100));
   }
 }

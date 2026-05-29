@@ -15,11 +15,17 @@ import { AuthUser, NavItem, Role } from '../../../../core/models';
     <aside class="sidebar" [class.is-open]="isOpen">
       <div class="sidebar__brand">
         <div class="sidebar__logo" aria-hidden="true">G</div>
-        <div>
+        <div class="sidebar__brand-copy">
           <div class="sidebar__clinic-name">{{ clinicName }}</div>
           <div class="sidebar__portal-label">{{ portalLabel }}</div>
         </div>
-        <button type="button" class="sidebar__close" aria-label="Close menu" (click)="navClick.emit()">
+        <button
+          type="button"
+          class="sidebar__close"
+          aria-label="Close menu"
+          title="Close menu"
+          (click)="navClick.emit()"
+        >
           <ion-icon name="close-outline"></ion-icon>
         </button>
       </div>
@@ -37,10 +43,11 @@ import { AuthUser, NavItem, Role } from '../../../../core/models';
             routerLinkActive="active"
             [routerLinkActiveOptions]="{ exact: item.route.endsWith('/dashboard') }"
             class="nav-item"
+            [attr.title]="item.label"
             (click)="navClick.emit()"
           >
             <ion-icon class="nav-item__icon" [name]="item.icon"></ion-icon>
-            <span>{{ item.label }}</span>
+            <span class="nav-item__label">{{ item.label }}</span>
             <span *ngIf="item.badgeCount && item.badgeCount > 0" class="nav-item__badge">
               {{ item.badgeCount }}
             </span>
@@ -53,6 +60,7 @@ import { AuthUser, NavItem, Role } from '../../../../core/models';
           type="button"
           class="sidebar__profile"
           [attr.aria-label]="profileAriaLabel"
+          [attr.title]="currentUser ? currentUser.fullName : 'Open profile'"
           [disabled]="!profileRoute"
           (click)="goToProfile()"
         >
@@ -63,7 +71,13 @@ import { AuthUser, NavItem, Role } from '../../../../core/models';
           </div>
         </button>
 
-        <button type="button" class="sidebar__logout-action" aria-label="Logout" (click)="onLogoutClick($event)">
+        <button
+          type="button"
+          class="sidebar__logout-action"
+          aria-label="Logout"
+          title="Logout"
+          (click)="onLogoutClick($event)"
+        >
           <ion-icon name="log-out-outline"></ion-icon>
           <span class="sidebar__logout-label">Logout</span>
         </button>
@@ -72,6 +86,7 @@ import { AuthUser, NavItem, Role } from '../../../../core/models';
           type="button"
           class="sidebar__rail-toggle"
           [attr.aria-label]="isOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+          [attr.title]="isOpen ? 'Collapse sidebar' : 'Expand sidebar'"
           (click)="menuToggle.emit()"
         >
           <ion-icon [name]="isOpen ? 'close-outline' : 'menu-outline'"></ion-icon>

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { catchError, filter, of } from 'rxjs';
 import { addIcons } from 'ionicons';
@@ -48,7 +48,8 @@ import { PATIENT_NAV_ITEMS } from '../../patient.routes';
           [portalLabel]="portalLabel"
           [currentUser]="currentUser()"
           [unreadCount]="unreadCount()"
-          (menuToggle)="openSidebar()"
+          [sidebarOpen]="sidebarOpen"
+          (menuToggle)="toggleSidebar()"
           (logout)="logout()"
         ></app-admin-topbar>
 
@@ -108,6 +109,7 @@ export class PatientLayoutComponent implements OnInit {
   pageTitle = 'Dashboard';
   navItems: NavItem[] = PATIENT_NAV_ITEMS;
   sidebarOpen = false;
+  private sidebarMode = 'desktop';
   downloadingClinicalRecords = false;
 
   constructor() {
@@ -124,6 +126,7 @@ export class PatientLayoutComponent implements OnInit {
 
   ngOnInit(): void {
     this.clinicName = this.clinicSettingsService.load().clinicName;
+    this.syncSidebarState(true);
     this.updatePageTitle();
     this.loadNotifications();
 
@@ -135,12 +138,17 @@ export class PatientLayoutComponent implements OnInit {
       .subscribe(() => this.updatePageTitle());
   }
 
-  openSidebar(): void {
-    this.sidebarOpen = true;
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.syncSidebarState();
   }
 
   closeSidebar(): void {
     this.sidebarOpen = false;
+  }
+
+  toggleSidebar(): void {
+    this.sidebarOpen = !this.sidebarOpen;
   }
 
   logout(): void {
@@ -205,6 +213,32 @@ export class PatientLayoutComponent implements OnInit {
       .get<any[]>('notifications')
       .pipe(catchError(() => of([] as any[])))
       .subscribe((items) => this.notificationService.setNotifications(items as any));
+  }
+
+  private syncSidebarState(force = false): void {
+    const nextMode = this.getSidebarMode();
+    if (!force && nextMode === this.sidebarMode) {
+      return;
+    }
+
+    this.sidebarMode = nextMode;
+    this.sidebarOpen = nextMode === 'desktop';
+  }
+
+  private getSidebarMode(): 'desktop' | 'compact' | 'mobile' {
+    if (typeof window === 'undefined') {
+      return 'desktop';
+    }
+
+    if (window.innerWidth < 768) {
+      return 'mobile';
+    }
+
+    if (window.innerWidth < 1280) {
+      return 'compact';
+    }
+
+    return 'desktop';
   }
 
   private async showToast(message: string): Promise<void> {

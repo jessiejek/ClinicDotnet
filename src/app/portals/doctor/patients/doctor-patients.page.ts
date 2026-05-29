@@ -1,5 +1,5 @@
 import { NgFor, NgIf } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, map, of } from 'rxjs';
@@ -61,7 +61,7 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
   `,
   styleUrl: './doctor-patients.page.scss'
 })
-export class DoctorPatientsPage {
+export class DoctorPatientsPage implements OnInit {
   private readonly apiService = inject(ApiService);
   private readonly router = inject(Router);
 
@@ -123,20 +123,20 @@ export class DoctorPatientsPage {
         const records = (rows ?? []) as Record<string, unknown>[];
         const patientMap = new Map<string, Record<string, unknown>>();
         for (const row of records) {
-          const patientId = trimOptionalString(row['patient_id']);
+          const patientId = trimOptionalString(row['patientId'] ?? row['patient_id']);
           if (!patientId || patientMap.has(patientId)) continue;
           patientMap.set(patientId, row);
         }
         return Array.from(patientMap.values()).map((row) => ({
-          patientId: trimOptionalString(row['patient_id']) ?? '',
-          patientName: trimOptionalString(row['patient_name']) ?? 'Patient',
-          patientCode: trimOptionalString(row['patient_code']),
-          latestDate: normalizeDateOnly(row['appointment_date']),
-          latestTime: normalizeTimeOnly(row['slot_start_time']),
+          patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
+          patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
+          patientCode: trimOptionalString(row['patientCode'] ?? row['patient_code']),
+          latestDate: normalizeDateOnly(row['latestDate'] ?? row['appointment_date']),
+          latestTime: normalizeTimeOnly(row['latestTime'] ?? row['slot_start_time']),
           services: normalizeBookingServices(row['services']).map((s) => s.name).filter(Boolean).join(', '),
-          status: normalizeBookingStatus(row['booking_status']) ?? 'Pending',
-          queueNumber: normalizeNullableNumber(row['queue_number']),
-          latestBookingId: trimOptionalString(row['booking_id']) ?? ''
+          status: normalizeBookingStatus(row['status'] ?? row['booking_status']) ?? 'Pending',
+          queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+          latestBookingId: trimOptionalString(row['latestBookingId'] ?? row['booking_id']) ?? ''
         }));
       }),
       catchError((err) => {

@@ -3,7 +3,7 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, logOutOutline, menuOutline } from 'ionicons/icons';
+import { chevronBackOutline, closeOutline, logOutOutline, menuOutline } from 'ionicons/icons';
 import { AuthUser, Role } from '../../../../core/models';
 import { getClinicalRoleBadge, resolveClinicalRole } from '../../../../core/utils/clinical-role.util';
 import { AvatarComponent } from '../../../../shared/components/avatar/avatar.component';
@@ -15,19 +15,20 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
   imports: [IonIcon, AvatarComponent, NotificationBellComponent, NgClass],
   template: `
     <header class="topbar">
+      <button
+        type="button"
+        class="topbar__hamburger"
+        [attr.aria-label]="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+        [attr.title]="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+        (click)="menuToggle.emit()"
+      >
+        <ion-icon [name]="sidebarOpen ? 'chevron-back-outline' : 'menu-outline'"></ion-icon>
+      </button>
+
       <div class="topbar__title-group">
         <div class="topbar__portal-label">{{ portalLabel }}</div>
         <h1 class="topbar__title">{{ title }}</h1>
       </div>
-
-      <button
-        type="button"
-        class="topbar__hamburger"
-        aria-label="Toggle sidebar"
-        (click)="menuToggle.emit()"
-      >
-        <ion-icon name="menu-outline"></ion-icon>
-      </button>
 
       <div class="topbar__actions">
         <app-notification-bell [unreadCount]="unreadCount"></app-notification-bell>
@@ -54,6 +55,7 @@ export class TopbarComponent {
   @Input() portalLabel = 'Portal';
   @Input() currentUser: AuthUser | null = null;
   @Input() unreadCount = 0;
+  @Input() sidebarOpen = false;
 
   @Output() logout = new EventEmitter<void>();
   @Output() menuToggle = new EventEmitter<void>();
@@ -67,7 +69,7 @@ export class TopbarComponent {
   };
 
   constructor() {
-    addIcons({ closeOutline, logOutOutline, menuOutline });
+    addIcons({ chevronBackOutline, closeOutline, logOutOutline, menuOutline });
   }
 
   get roleBadge() {

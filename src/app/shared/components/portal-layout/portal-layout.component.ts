@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   HostBinding,
+  HostListener,
   Input,
   OnInit,
   inject
@@ -83,6 +84,7 @@ import { TopbarComponent } from '../../../portals/admin/components/topbar/topbar
           [portalLabel]="portalLabel"
           [currentUser]="currentUser$ | async"
           [unreadCount]="(unreadCount$ | async) ?? 0"
+          [sidebarOpen]="sidebarOpen"
           (menuToggle)="toggleSidebar()"
           (logout)="logout()"
         ></app-admin-topbar>
@@ -128,6 +130,7 @@ export class PortalLayoutComponent implements OnInit {
   pageTitle = 'Dashboard';
   resolvedNavItems: NavItem[] = [];
   sidebarOpen = false;
+  private sidebarMode = 'desktop';
 
   constructor() {
     addIcons({
@@ -173,6 +176,7 @@ export class PortalLayoutComponent implements OnInit {
     this.clinicName = this.clinicSettingsService.load().clinicName;
     this.resolvedNavItems = (this.route.snapshot.data['navItems'] as NavItem[]) ?? this.navItems;
     this.portalLabel = (this.route.snapshot.data['portalLabel'] as string | undefined) ?? this.portalLabel;
+    this.syncSidebarState(true);
     this.updatePageTitle();
     this.loadNotifications();
 
@@ -185,6 +189,11 @@ export class PortalLayoutComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => this.updatePageTitle());
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.syncSidebarState();
   }
 
   closeSidebar(): void {
@@ -228,5 +237,31 @@ export class PortalLayoutComponent implements OnInit {
       .get<any[]>('notifications')
       .pipe(catchError(() => of([] as any[])))
       .subscribe((items) => this.notificationService.setNotifications(items as any));
+  }
+
+  private syncSidebarState(force = false): void {
+    const nextMode = this.getSidebarMode();
+    if (!force && nextMode === this.sidebarMode) {
+      return;
+    }
+
+    this.sidebarMode = nextMode;
+    this.sidebarOpen = nextMode === 'desktop';
+  }
+
+  private getSidebarMode(): 'desktop' | 'compact' | 'mobile' {
+    if (typeof window === 'undefined') {
+      return 'desktop';
+    }
+
+    if (window.innerWidth < 768) {
+      return 'mobile';
+    }
+
+    if (window.innerWidth < 1280) {
+      return 'compact';
+    }
+
+    return 'desktop';
   }
 }

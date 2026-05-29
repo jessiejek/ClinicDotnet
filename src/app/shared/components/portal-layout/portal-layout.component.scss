@@ -11,8 +11,9 @@
 }
 
 .portal-layout__sidebar {
-  flex: 0 0 260px;
-  width: 260px;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
 }
 
 .portal-layout__main {
@@ -61,21 +62,6 @@
 }
 
 @media (max-width: 767px) {
-  .portal-layout__sidebar {
-    position: fixed;
-    left: -260px;
-    top: 0;
-    width: 260px;
-    height: 100dvh;
-    z-index: 200;
-    transition: left 200ms ease;
-    flex: none;
-  }
-
-  .portal-layout__sidebar.is-open {
-    left: 0;
-  }
-
   .main-content {
     padding: var(--space-5);
     padding-bottom: 0;
@@ -98,16 +84,6 @@
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
-  .portal-layout__sidebar {
-    width: 48px;
-    flex-basis: 48px;
-  }
-
-  .portal-layout__sidebar.is-open {
-    width: 240px;
-    flex-basis: 240px;
-  }
-
   .portal-layout__main {
     min-width: 0;
   }
