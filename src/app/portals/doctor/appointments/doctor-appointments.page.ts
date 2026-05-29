@@ -142,21 +142,14 @@ type DoctorQueueFilter = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSh
                 <td>
                   <div class="action-row">
                     <button
-                      *ngIf="booking.status === 'Confirmed'"
+                      *ngIf="booking.status === 'Confirmed' || booking.status === 'CheckedIn' || booking.status === 'InProgress'"
                       type="button"
                       class="btn-primary"
                       (click)="consult(booking.id)"
                     >
                       Start Consultation
                     </button>
-                    <button
-                      *ngIf="booking.status === 'CheckedIn' || booking.status === 'InProgress'"
-                      type="button"
-                      class="btn-outline"
-                      (click)="openCompleteModal(booking)"
-                    >
-                      Complete
-                    </button>
+
                     <button type="button" class="btn-ghost" (click)="view(booking.id)">View</button>
                   </div>
                 </td>
@@ -199,21 +192,14 @@ type DoctorQueueFilter = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSh
 
             <div class="appointment-card__actions">
               <button
-                *ngIf="booking.status === 'Confirmed'"
+                *ngIf="booking.status === 'Confirmed' || booking.status === 'CheckedIn' || booking.status === 'InProgress'"
                 type="button"
                 class="btn-primary"
                 (click)="consult(booking.id)"
               >
                 Start Consultation
               </button>
-              <button
-                *ngIf="booking.status === 'CheckedIn' || booking.status === 'InProgress'"
-                type="button"
-                class="btn-outline"
-                (click)="openCompleteModal(booking)"
-              >
-                Complete
-              </button>
+
             </div>
           </article>
         </section>
