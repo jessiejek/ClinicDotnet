@@ -33,7 +33,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
       <div class="topbar__actions">
         <app-notification-bell [unreadCount]="unreadCount"></app-notification-bell>
         <button type="button" class="topbar__user" aria-label="Account options" (click)="goToProfile()">
-          <app-avatar [name]="currentUser?.fullName || 'Admin'" size="sm"></app-avatar>
+          <app-avatar [name]="currentUser?.fullName || 'Admin'" [imageUrl]="currentUser?.avatarUrl" size="sm"></app-avatar>
           <span class="topbar__user-meta">
             <span class="topbar__user-line">
               <span class="topbar__user-name">{{ displayUserName }}</span>

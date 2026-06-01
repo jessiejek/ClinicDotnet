@@ -1,0 +1,1935 @@
+# PROJECT BLUEPRINT — Clinic Hospital Web Portal
+
+> **Document purpose:** Authoritative reverse-engineered reference for Playwright E2E testing, feature development, and onboarding.
+> **Source:** Full static analysis of `/src` as committed. No assumptions have been made; every claim traces directly to source code.
+> **Last scanned:** src as provided (app version token: `54e9c87`)
+
+---
+
+## Table of Contents
+
+1. [App Overview](#1-app-overview)
+2. [Role: Doctor](#2-role-doctor)
+3. [Role: Patient](#3-role-patient)
+4. [Role: Staff](#4-role-staff)
+5. [Role: Admin](#5-role-admin)
+6. [Shared / Common Flows](#6-shared--common-flows)
+7. [API Surface](#7-api-surface)
+8. [UI Element Inventory](#8-ui-element-inventory)
+9. [Data Models / Entities](#9-data-models--entities)
+10. [State Management](#10-state-management)
+11. [Environment & Configuration](#11-environment--configuration)
+12. [Third-Party Dependencies](#12-third-party-dependencies)
+13. [Security & Permissions](#13-security--permissions)
+14. [Error Handling Strategy](#14-error-handling-strategy)
+15. [Coding Standards & Conventions](#15-coding-standards--conventions)
+16. [Design & UI Conventions](#16-design--ui-conventions)
+17. [Known Gaps, Bugs & Incomplete Features](#17-known-gaps-bugs--incomplete-features)
+
+---
+
+## 1. App Overview
+
+### Purpose
+
+A multi-role hospital/clinic web portal that allows patients to browse doctors, book appointments, and manage their health records; staff to manage the daily queue, walk-in registrations, and payments; doctors to view their schedule, conduct consultations, and maintain clinical records; and admins to configure the clinic, manage all users, run reports, and view audit logs.
+
+### Tech Stack (confirmed from source)
+
+| Layer | Technology |
+|---|---|
+| Framework | Angular 17 (standalone components throughout) |
+| UI Library | Ionic Angular 7 (`@ionic/angular/standalone`) |
+| Language | TypeScript ~5.4 |
+| State | RxJS BehaviorSubjects + Angular Signals (`toSignal`) |
+| HTTP | Angular `HttpClient` wrapped by `ApiService` |
+| Realtime | Microsoft SignalR (`@microsoft/signalr` v10) |
+| Push Notifications | Firebase Messaging v10 (FCM) |
+| Auth | JWT Bearer tokens — access + refresh pair, stored in `localStorage` |
+| Social Auth | Google Identity Services (GIS) popup; Facebook JS SDK popup |
+| Routing | Angular Router with lazy-loaded standalone components |
+| Build | Angular CLI 17 / `@angular-devkit/build-angular` |
+| E2E Testing | Playwright (`@playwright/test` v1.60) |
+| Unit Testing | Karma + Jasmine |
+| Hosting | Vercel (confirmed from `vercel.json`) |
+| Backend | .NET Web API (`https://localhost:44384/api` in dev; `https://api.yourclinicdomain.com/api` in prod) |
+| Currency | Philippine Peso (PHP) — `PesoPipe` uses `en-PH` locale |
+| Timezone | Asia/Manila used for all date calculations |
+
+### Auth Mechanism
+
+**Login flow (email/password):**
+
+1. `POST /auth/login` with `{ email, password }`.
+2. Response: `AuthSessionDto` containing `accessToken`, `refreshToken`, `user`.
+3. `TokenService.setTokens()` persists both tokens to `localStorage` under keys `clinic.auth.access-token` and `clinic.auth.refresh-token`.
+4. `AuthStateService.setUser()` stores `AuthUser` in memory (`BehaviorSubject`) and calls `AuthService.persistUser()` which writes to `localStorage` under `clinic.auth.user`.
+5. `AuthService.navigateByRole()` redirects based on the resolved role.
+
+**App initialisation (reload/refresh):**
+
+On bootstrap, `APP_INITIALIZER` (`initializeAuthSession` in `app.config.ts`) reads tokens from `localStorage`. If tokens exist, it calls `GET /auth/me` to rehydrate the authenticated user into `AuthStateService`. On failure it calls `authState.logout()`.
+
+**Social login (Google / Facebook):**
+
+- Google: loads GIS script lazily, calls `requestAccessToken()`, then `POST /auth/google` with `{ provider, idToken, accessToken }`.
+- Facebook: loads FB SDK lazily, calls `FB.login()`, then `POST /auth/facebook` with `{ accessToken, userId }`.
+- Both paths follow the same store-tokens → set-user → navigate-by-role sequence.
+
+**Token refresh:**
+
+The `authInterceptor` attaches `Authorization: Bearer <accessToken>` to all non-public requests. On a `401` response it calls `POST /auth/refresh-token` with `{ refreshToken }`, updates tokens, and retries the original request once (guarded by `AUTH_RETRY_ATTEMPTED` context token). On refresh failure it clears the session and redirects to `/auth/login`.
+
+**Logout:**
+
+`AuthStateService.logout()` clears the in-memory `BehaviorSubject`, calls `AuthService.clearSession()` which removes all three `localStorage` keys, and clears the error/loading subjects.
+
+**Auth callback page (`/auth/callback`):**
+
+Reads `access_token` and `refresh_token` from the URL hash fragment (OAuth redirect flow). Stores tokens and calls `GET /auth/me` to hydrate the user, then navigates by role. This is the entry point for redirect-based OAuth flows (distinct from the popup-based flows used by the main login page).
+
+### Role Detection
+
+Role is determined in `AuthService.resolveRole()`:
+
+1. First attempts `normalizeRole()` on the `role` string returned by the backend in `AuthUserDto.role`.
+2. If that fails, attempts to decode the JWT `accessToken` and reads the role from any of: `role`, `Role`, `roles`, or the Microsoft claim URI `http://schemas.microsoft.com/ws/2008/06/identity/claims/role`.
+3. If neither succeeds, throws `Unable to determine authenticated user role.`
+
+Valid roles: `'Admin' | 'Staff' | 'Doctor' | 'Patient'` (case-insensitive match, then normalised to title-case).
+
+After detection, the role is stored in `AuthUser.role` and exposed via `AuthStateService.userRole$` (Observable) and `AuthStateService.userRole` (Signal).
+
+---
+
+## 2. Role: Doctor
+
+### Entry Point / Login Flow
+
+1. Doctor logs in at `/auth/login`.
+2. `navigateByRole()` redirects to `/doctor/dashboard`.
+3. `firstLoginGuard` intercepts if `isFirstLogin === true` and redirects to `/auth/set-password` instead.
+4. The `PortalLayoutComponent` (shared shell) is used; `RealtimeInitService` is injected, activating SignalR and push notification subscriptions.
+
+### Pages and Routes
+
+All routes are protected by `authGuard` + `roleGuard` (roles: `['Doctor']`).
+
+#### `/doctor/dashboard` — `DoctorDashboardPage`
+
+**Data displayed:**
+- Doctor's own profile (name, specialization, avatar, `profilePhotoUrl`).
+- Today's availability status badge (Available / RunningLate / UnavailableToday).
+- KPI cards: Booked Today, Waiting, Checked In, Completed.
+- "Up Next" patient banner (next queued booking with queue number, time, service).
+- Today's full queue list (sorted by queue number) with status badges.
+- Weekly schedule summary (working days and hours).
+
+**API calls:**
+- `GET /doctors/me` — own doctor profile.
+- `GET /bookings/doctor/today` — today's booking list.
+- `GET /bookings/doctor/today-summary` — aggregate stats (`DoctorTodaySummary`).
+- `GET /doctors/{id}/schedule` — working day schedule.
+- `GET /doctors/{id}/day-status` — today's availability status.
+
+**Actions:**
+- Click queue item → navigates to `/doctor/appointments/{id}`.
+- Click "Start Consult" (Up Next banner) → navigates to `/doctor/consultation/{bookingId}`.
+- Click "View Chart" → navigates to `/doctor/patients/{patientId}`.
+- Change availability status (Available / RunningLate / UnavailableToday): `POST /doctors/{id}/day-status` with `{ date, status, runningLateMinutes? }`.
+- Realtime: listens to `ClinicDashboardRealtimeService` events (`BookingCreated`, `PatientCheckedIn`, `DoctorCompletedConsultation`) to refresh the queue live.
+
+#### `/doctor/appointments` — `DoctorAppointmentsPage`
+
+**Data displayed:**
+- Stat bar: Booked, In Clinic, Waiting, Completed, No Show, Cancelled for today.
+- Filterable list of today's appointments (filter: all / Confirmed / CheckedIn / Completed / NoShow / Cancelled).
+- Each row: patient name, queue number, time, service(s), status badge.
+
+**API calls:**
+- `GET /bookings/doctor/today` — today's booking list.
+- `GET /bookings/doctor/today-summary` — stats summary.
+
+**Actions:**
+- Filter tabs to switch view.
+- Click row → navigate to `/doctor/appointments/{id}`.
+- Mark complete inline (from this page): `PATCH /bookings/{bookingId}/doctor-complete` with `DoctorCompleteBookingRequest`.
+- Waive professional fee inline: `PATCH /payments/{bookingId}/waive` with `{ reason }`.
+- Realtime refresh on `ClinicDashboardRealtimeService` events.
+
+#### `/doctor/appointments/:id` — `DoctorAppointmentDetailPage`
+
+**Data displayed:**
+- Full booking detail (patient name, doctor, service, date/time, status, payment, queue number).
+
+**API calls:**
+- `GET /bookings/{bookingId}` — full booking record.
+
+**Actions:**
+- Navigate to consultation form: link to `/doctor/consultation/{bookingId}`.
+
+#### `/doctor/consultation/:bookingId` — `DoctorConsultationPage`
+
+This is the most complex page in the application (~2900 lines). It is the full clinical encounter form.
+
+**Data displayed:**
+- Patient info panel: demographics, contact, allergies.
+- Previous consultations / prescriptions / lab results / vaccinations / follow-ups (patient history sidebar).
+- Current booking status.
+- SOAP note editor (Subjective, Objective, Assessment, Plan).
+- Vital signs form (BP, HR, RR, Temp, SpO2, Weight, Height, BMI, Pain Score).
+- Diagnosis picker (supports ICD-10 codes).
+- Prescription builder (medication name, strength, route, frequency, duration, quantity, sig, controlled substance flag).
+- Lab request form.
+- Vaccination form.
+- Follow-up form.
+- Allergy warning banner.
+- Attending physician request (beta feature).
+
+**API calls:**
+- `GET /doctors/me` — doctor identity.
+- `GET /bookings/{bookingId}` — booking record.
+- `GET /bookings/{bookingId}/consultation-record` — existing consultation data (SOAP, vitals, diagnoses, prescriptions, lab orders, follow-up).
+- `GET /medical-records/consultations?patientId={id}` — consultation history.
+- `GET /medical-records/prescriptions?patientId={id}` — prescription history.
+- `GET /medical-records/allergies?patientId={id}` — allergies.
+- `GET /medical-records/lab-orders?patientId={id}` — lab order history.
+- `GET /medical-records/lab-results?patientId={id}` — lab results.
+- `GET /medical-records/vaccinations?patientId={id}` — vaccination history.
+- `GET /medical-records/follow-ups?patientId={id}` — follow-up history.
+- `GET /patients/{id}` — patient demographics.
+- `GET /bookings?patientId={id}&pageSize=50` — booking history.
+- `GET /audit-logs` — audit log for this booking.
+- `PUT /bookings/{bookingId}/consultation-record` — auto-save/draft of consultation record.
+- `PATCH /bookings/{bookingId}/doctor-complete` — finalise consultation (triggers status transition to Completed).
+- `PATCH /payments/{bookingId}/waive` — waive professional fee.
+- `POST /audit-logs` — manual audit log entry.
+- `POST /consultation-requests/request-attending-physician` — [NEEDS CLARIFICATION: beta/partial feature, endpoint may not be live].
+
+**Actions:**
+- Fill SOAP, vitals, diagnoses, prescriptions, lab orders, vaccinations, follow-up.
+- Auto-save (PUT consultation record) on field change.
+- "Complete Consultation" button: calls `PATCH .../doctor-complete`.
+- Toggle professional fee waiver.
+- Submit attending physician request (beta).
+
+#### `/doctor/patients` — `DoctorPatientsPage`
+
+**Data displayed:**
+- List of patients seen by this doctor (derived from bookings history).
+
+**API calls:**
+- `GET /bookings/doctor/patients` — returns `DoctorPatientSummaryDto[]`.
+
+**Actions:**
+- Click patient → navigate to `/doctor/patients/{id}`.
+
+#### `/doctor/patients/:id` — `DoctorPatientDetailPage`
+
+**Data displayed:**
+- Patient demographics.
+- Booking history (last 50).
+- Consultation history, prescription history, lab results, vaccinations, follow-ups.
+- Consultation record detail for any selected booking.
+
+**API calls:**
+- `GET /patients/{id}` — demographics.
+- `GET /bookings?patientId={id}&pageSize=50` — booking history.
+- `GET /medical-records/consultations?patientId={id}`.
+- `GET /medical-records/prescriptions?patientId={id}`.
+- `GET /medical-records/lab-results?patientId={id}`.
+- `GET /medical-records/vaccinations?patientId={id}`.
+- `GET /medical-records/follow-ups?patientId={id}`.
+- `GET /bookings/{bookingId}/consultation-record` — on booking selection.
+
+**Actions:**
+- Select booking to view consultation record.
+
+#### `/doctor/schedule` — `DoctorSchedulePage`
+
+**Data displayed:**
+- Weekly schedule editor (working days, start/end times).
+- Blocked dates list with reasons.
+- Slot preview for a selected date.
+- Daily patient limit.
+- Unsaved changes indicator.
+
+**API calls:**
+- `GET /doctors/me` — doctor profile (to get `id`, `dailyPatientLimit`, `slotDurationMinutes`).
+- `GET /doctors/{id}/schedule` — weekly schedule.
+- `GET /doctors/{id}/blocked-dates` — blocked dates.
+
+**Actions:**
+- Edit weekly schedule → `PUT /doctors/{id}/schedule` with `{ schedules: DoctorScheduleInput[] }`.
+- Edit daily patient limit / slot duration → `PUT /doctors/{id}` with profile update.
+- Add blocked date → `POST /doctors/{id}/blocked-dates` with `{ blockedDate, reason }`.
+- Delete blocked date → `DELETE /doctors/{id}/blocked-dates/{blockedDateId}`.
+
+#### `/doctor/profile` (also `/doctor/my-profile`) — `DoctorProfilePage`
+
+**Data displayed:**
+- Professional profile: full name, specialization, bio, license number, PTR number, S2 number, consultation fee, slot duration.
+- Profile photo (with upload button).
+- Profile completeness percentage bar.
+- Password change form.
+
+**API calls:**
+- `GET /doctors/me` — own profile on load.
+- `PUT /doctors/me` with updated profile fields on save.
+- `POST /doctors/{id}/photo` (form data) — photo upload. [NEEDS CLARIFICATION: seen as `postFormData` in admin doctor form; Doctor profile page uses `PUT /doctors/me` + a separate photo endpoint]
+- `POST /auth/change-password` with `{ currentPassword, newPassword }`.
+
+**Actions:**
+- Edit profile fields → save.
+- Upload photo.
+- Change password.
+
+### Key User Flows — Doctor
+
+**Flow: Doctor starts a consultation**
+1. Doctor opens `/doctor/dashboard` → sees "Up Next" patient banner.
+2. Clicks "Start Consult" → navigates to `/doctor/consultation/{bookingId}`.
+3. Consultation page loads all patient history via parallel `forkJoin` API calls.
+4. Doctor fills SOAP notes, vital signs, diagnoses.
+5. Adds prescriptions via prescription builder component.
+6. Adds lab requests via lab request form component.
+7. Sets follow-up date/reason.
+8. Clicks "Complete Consultation" → `PATCH /bookings/{bookingId}/doctor-complete` with full payload.
+9. Booking status transitions to `Completed`. Patient moves to payment queue for Staff.
+
+**Flow: Doctor sets availability status**
+1. On Dashboard, doctor selects status from availability panel.
+2. `POST /doctors/{id}/day-status` with `{ date, status }`.
+3. Other portals receive the `DoctorScheduleUpdated` SignalR event.
+
+---
+
+## 3. Role: Patient
+
+### Entry Point / Login Flow
+
+1. Patient registers at `/auth/register` (self-registration) or is created by Staff/Admin and given a portal account.
+2. After login, `navigateByRole()` → `/patient/dashboard`.
+3. `firstLoginGuard` → `/auth/set-password` if `isFirstLogin`.
+4. New patients may also be redirected to `/auth/privacy-consent` (route guarded for Patient role) to consent to the privacy policy.
+5. Patient portal uses `PatientLayoutComponent` (distinct from `PortalLayoutComponent`), which also reuses the `SidebarComponent` and `TopbarComponent` from admin.
+
+### Pages and Routes
+
+All protected by `authGuard` + `roleGuard` (roles: `['Patient']`).
+
+#### `/patient/dashboard` — `PatientDashboardPage`
+
+**Data displayed:**
+- Welcome hero with patient name and summary stats: upcoming count, pending proof count, completed visits, active prescriptions.
+- Warning banners: missing email verification, pending privacy consent.
+- Upcoming appointments cards.
+- Pending proof-of-payment bookings (if any).
+- Recent consultations list with doctor.
+- Recent prescriptions list with doctor.
+- Recommended doctors section.
+
+**API calls:**
+- `GET /patients/me` — own patient record.
+- `GET /bookings?page=1&pageSize=100` — all bookings (filtered client-side).
+- `GET /medical-records/consultations?patientId={id}` — recent consultations.
+- `GET /medical-records/prescriptions?patientId={id}` — recent prescriptions.
+
+**Actions:**
+- Navigate to booking detail.
+- Navigate to doctors list.
+- Navigate to bookings.
+
+#### `/patient/doctors` — `PatientDoctorsPage`
+
+**Data displayed:**
+- List of doctors with cards (photo, name, specialization, rating, fee).
+
+**API calls:**
+- Uses `DoctorStateService` which calls `GET /doctors` (confirmed via service injection).
+
+**Actions:**
+- Click doctor card → navigates to `/public/doctors/{id}` (the public doctor profile page, which allows booking).
+
+#### `/patient/bookings` — `PatientBookingsPage`
+
+**Data displayed:**
+- Paginated, filterable list of all patient bookings.
+- Filter tabs: All, Upcoming, For Payment, Completed, Cancelled.
+- Each card: doctor, service, date/time, queue number, status badge, payment status.
+- Pagination controls (Previous / Next / page indicator).
+
+**API calls:**
+- `GET /bookings?page={page}&pageSize={size}` with optional status filter (derived from selected tab).
+
+**Actions:**
+- Click booking → `/patient/bookings/{id}`.
+- Cancel booking (Confirmed status only): `PATCH /bookings/{id}/cancel` with `{ reason: 'Cancelled by patient.' }` (confirmation modal first).
+- Tab filters update query params and re-fetch.
+
+#### `/patient/bookings/:id` — `PatientBookingDetailPage`
+
+**Data displayed:**
+- Full booking detail: doctor, service, date/time, status, queue number, payment details.
+- Payment proof details if submitted.
+- Cancellation reason if cancelled.
+- Booking timeline (status progression).
+
+**API calls:**
+- `GET /patients/me` — own patient info.
+- `GET /bookings/{bookingId}` — booking record.
+- `GET /payments/{paymentId}` — payment detail (when payment exists).
+
+**Actions:**
+- Cancel booking: `PATCH /bookings/{id}/cancel`.
+- View receipt (if completed and paid).
+
+#### `/patient/medical-records` — `PatientMedicalRecordsPage`
+
+**Data displayed:**
+- List of medical records (consultation summaries per booking).
+- Each row: date, doctor, diagnosis, services.
+
+**API calls:**
+- `GET /medical-records/me` — patient's own medical records.
+
+**Actions:**
+- Download individual record PDF: `GET /patient-documents/me/medical-records/{id}/pdf` (blob download).
+- Download booking summary PDF: `GET /patient-documents/me/bookings/{bookingId}/pdf` (blob download).
+- Download all records PDF: `GET /patient-documents/me/all.pdf` (blob download).
+
+#### `/patient/prescriptions` — `PatientPrescriptionsPage`
+
+**Data displayed:**
+- List of prescriptions with doctor name, date, medication names.
+
+**API calls:**
+- `GET /prescriptions/me` — patient's prescriptions.
+
+**Actions:**
+- Download prescription PDF: `GET /patient-documents/me/prescriptions/{id}/pdf`.
+- Download booking PDF: `GET /patient-documents/me/bookings/{bookingId}/pdf`.
+- Download all: `GET /patient-documents/me/all.pdf`.
+
+#### `/patient/documents` — `PatientDocumentsPage`
+
+Uses `PatientMediaPanelComponent` with `kind="document"`.
+
+**Data displayed:**
+- Uploaded documents with type, title, description, upload date.
+- Filtering by booking, search.
+
+**API calls:**
+- `GET /patients/me/documents` (with optional `?bookingId=` filter).
+- `POST /patients/me/documents` (FormData — file upload).
+- `GET /patients/{id}/documents/{documentId}/file` (blob for preview/download).
+- `GET /bookings` or `GET /bookings?page=1&pageSize=100` — to populate booking filter dropdown.
+
+**Actions:**
+- Upload document (file picker + type/title/description form).
+- Preview image documents.
+- Download file.
+- Filter by booking.
+
+#### `/patient/lab-results` — `PatientLabResultsPage`
+
+Uses `PatientMediaPanelComponent` with `kind="lab-result"`.
+
+**Data displayed:**
+- Lab results uploaded by clinic or patient.
+
+**API calls:**
+- `GET /patients/me/lab-results` (with optional `?bookingId=` filter).
+- `POST /patients/me/lab-results` (FormData).
+- `GET /patients/{id}/lab-results/{id}/file` (blob).
+
+**Actions:**
+- Upload lab result.
+- Preview / download.
+
+#### `/patient/vaccinations` — `PatientVaccinationsPage`
+
+**Data displayed:**
+- Vaccination records list (vaccine name, manufacturer, lot number, administered date, dose number, next due date, source, status).
+- Searchable by name/manufacturer/notes.
+
+**API calls:**
+- None currently — `PatientVaccinationsService.getPatientVaccinations()` returns `of([])` as a stub (table not yet deployed). [NEEDS CLARIFICATION: This page renders but always shows empty — backend table not yet live.]
+
+#### `/patient/profile` — `PatientProfilePage`
+
+**Data displayed:**
+- Personal info form: first/last name, date of birth, sex, contact number, address, emergency contact, blood type, PhilHealth, HMO.
+- Password change form.
+- Privacy consent status and re-consent button.
+
+**API calls:**
+- `GET /patients/me` — own patient record on load.
+- `PUT /patients/me` with updated fields.
+- `POST /auth/change-password` with `{ currentPassword, newPassword }`.
+- `POST /patients/me/consent` with `{ consentVersion }` — record consent.
+
+**Actions:**
+- Save profile edits.
+- Change password.
+- Re-consent to privacy policy.
+
+#### `/patient/reviews/:bookingId` — `PatientReviewsPage`
+
+**Data displayed:**
+- Doctor info for the booking.
+- Star rating selector (1–5).
+- Comment textarea.
+- Existing review if already submitted.
+
+**API calls:**
+- `GET /patients/me` — own patient.
+- `GET /bookings/{bookingId}` — booking.
+- `GET /reviews?bookingId={bookingId}` — check if review exists.
+- `POST /reviews` with `{ bookingId, doctorId, patientId, rating, comment }`.
+
+**Actions:**
+- Submit star rating + optional comment.
+
+#### `/patient/privacy-consent` — `PatientPrivacyConsentPage`
+
+Displays clinic privacy policy text and a consent button. [NEEDS CLARIFICATION: exact API call for consent submission not confirmed in this page's source — may delegate to `/patient/profile` consent flow or use `POST /patients/me/consent` directly.]
+
+### Key User Flows — Patient
+
+**Flow: Patient books an appointment (public wizard)**
+1. Patient visits `/public/booking` (no auth required) or clicks "Book Now" from doctor profile.
+2. **Step 1 (Doctor & Service):** Selects a doctor from the list (`GET /doctors`), then selects one or more services (`GET /doctors/{id}/services`).
+3. **Step 2 (Date):** Picks a date from a calendar (days filtered against doctor's working schedule).
+4. **Step 3 (Slot):** Selects a time slot (`GET /doctors/{id}/available-slots?date={date}`).
+5. **Step 4 (Auth Check):** If not logged in, prompted to log in or continue as guest.
+6. **Step 5 (Payment/Proof):**
+   - If `PayAtClinic` mode: confirms booking directly.
+   - If `Online` mode: submits reference number or screenshot proof.
+7. `POST /bookings` with `{ doctorId, serviceIds, appointmentDate, slotStartTime, slotEndTime, notes? }`.
+8. On success:
+   - Logged-in patient → redirected to `/patient/bookings/{bookingId}`.
+   - Guest → redirected to `/public/booking-confirmation/{bookingId}`.
+
+**Flow: Patient cancels a booking**
+1. Opens `/patient/bookings`.
+2. Clicks booking card → `/patient/bookings/{id}`.
+3. Clicks "Cancel Booking" → confirm modal appears.
+4. Confirms → `PATCH /bookings/{id}/cancel` with reason "Cancelled by patient."
+5. Status updates to `Cancelled` on the page.
+
+---
+
+## 4. Role: Staff
+
+### Entry Point / Login Flow
+
+1. Staff account is created by Admin via invite (`POST /admin/staff/invite`).
+2. Staff activates account via Google/Facebook social login (email invite sends credentials).
+3. After login, redirected to `/staff/dashboard`.
+4. `firstLoginGuard` may redirect to `/auth/set-password`.
+5. Uses `PortalLayoutComponent` with staff nav items and `RealtimeInitService`.
+
+### Pages and Routes
+
+All protected by `authGuard` + `roleGuard` (roles: `['Staff']`).
+
+#### `/staff/dashboard` — `StaffDashboardPage`
+
+**Data displayed:**
+- Stat cards: Today's Appointments, Ready for Payment, Walk-Ins Today, (fourth card visible but partially truncated in scan — likely Total Patients or Checked In).
+- Live queue table (`QueueTableComponent`) showing today's bookings.
+
+**API calls:**
+- Uses `BookingService.getStaffTodayBookings()` → `GET /bookings/staff/today?page=1&pageSize=20`.
+- Uses `DoctorStateService` and `PatientStateService` for lookup data.
+
+**Actions:**
+- Check in patient (from queue table): `PATCH /bookings/{bookingId}/check-in`.
+- Undo check-in: `PATCH /bookings/{bookingId}/undo-check-in`.
+- Click row → navigate to `/staff/bookings/{id}`.
+- Realtime updates via `ClinicDashboardRealtimeService` events.
+
+#### `/staff/bookings` — `StaffBookingsPage`
+
+**Data displayed:**
+- Filtered, paginated list of all bookings (not just today — uses `GET /bookings/staff/all`).
+- Filter bar: doctor dropdown, status dropdown, date picker.
+- Each row: patient, doctor, service, date/time, queue number, status badge.
+
+**API calls:**
+- `GET /doctors` — to populate doctor filter.
+- `GET /bookings/staff/all?page={page}&pageSize={size}` — paginated booking list.
+
+**Actions:**
+- Filter by doctor, status, date.
+- Check in: `PATCH /bookings/{id}/check-in`.
+- Undo check-in: `PATCH /bookings/{id}/undo-check-in`.
+- Click row → `/staff/bookings/{id}`.
+
+#### `/staff/bookings/:id` — `StaffBookingDetailPage`
+
+**Data displayed:**
+- Full booking detail: patient, doctor, service, status, queue number, date/time.
+- Payment section: amount due, method, reference, receipt.
+- Status action buttons based on current status.
+
+**API calls:**
+- `GET /bookings/{bookingId}` — booking record.
+- `GET /payments/{paymentId}` — payment details.
+
+**Actions:**
+- Check in: `PATCH /bookings/{id}/check-in`.
+- Undo check-in: `PATCH /bookings/{id}/undo-check-in`.
+- Confirm payment: `PATCH /payments/{bookingId}/confirm` with `{ paymentMethod, amountReceived, referenceNumber?, notes? }`.
+- Waive payment: `PATCH /payments/{id}/waive` with `{ reason }`.
+- Print receipt: opens `ReceiptModalComponent` → triggers browser print.
+- Print booking summary: uses `BookingPrintDocumentComponent`.
+
+#### `/staff/payments` — `StaffPaymentsPage`
+
+**Data displayed:**
+- Stat cards: Ready to Collect (count), Total Due on Page (PHP amount).
+- Paginated payment queue: `StaffForPaymentItem` list (completed consultations with unpaid amount).
+- Each row: patient, doctor, services, date, queue number, amount due, payment status.
+
+**API calls:**
+- `GET /bookings/staff/for-payment?page={page}&pageSize={size}`.
+
+**Actions:**
+- Collect payment (per row): opens inline payment method selector (Cash / GCash / Maya / BankTransfer) → `PATCH /payments/{bookingId}/confirm` with `{ paymentMethod, amountReceived }`.
+- Waive payment: opens waive modal → `PATCH /payments/{bookingId}/waive` with `{ reason }`.
+- View receipt modal after payment.
+- Realtime refresh on `PaymentCompleted` / `PaymentWaived` SignalR events.
+
+#### `/staff/walk-in` — `StaffWalkInPage`
+
+Three-step wizard for registering an unscheduled walk-in patient.
+
+**Step 1 — Patient Selection:**
+- `IonSearchbar` with debounced search against `GET /patients?search={query}` (or similar patient search endpoint).
+- Shows existing patient results.
+- Option to quick-register a new patient (inline form).
+
+**Step 2 — Booking Details:**
+- Doctor dropdown: `GET /doctors`.
+- Service dropdown: `GET /doctors/{doctorId}/services` (dynamic on doctor change); fallback `GET /services`.
+- Date picker (Manila timezone aware).
+- Time slot grid: `GET /doctors/{doctorId}/available-slots?date={date}`.
+
+**Step 3 — Confirmation:**
+- Summary review and submit.
+
+**API calls (mutations):**
+- `POST /patients` with `CreatePatientRequest` — if registering a new patient.
+- `POST /bookings/walk-in` with `{ patientId, doctorId, serviceId, appointmentDate, slotStartTime, slotEndTime, isWalkIn: true, paymentMode? }`.
+
+**Key user flow — Staff registers walk-in patient:**
+1. Go to `/staff/walk-in`.
+2. Search for existing patient by name/code/contact.
+3. If found: select patient → move to Step 2.
+4. If not found: fill quick-register form (firstName, lastName, DOB, sex, contact, email, address) → auto-creates patient record.
+5. Select doctor → services populate.
+6. Select date → slot grid loads.
+7. Select slot.
+8. Review summary → click "Confirm Walk-In".
+9. `POST /bookings/walk-in` → booking created with `isWalkIn: true`.
+10. Redirected to booking detail or success state.
+
+#### `/staff/patients` — `StaffPatientsPage`
+
+**Data displayed:**
+- Searchable patient list (same component as admin patients).
+
+**API calls:**
+- `GET /patients?search={query}&page={page}&pageSize={size}`.
+
+**Actions:**
+- Click patient → `/staff/patients/{id}`.
+
+#### `/staff/patients/:id` — `StaffPatientDetailPage`
+
+**Data displayed:**
+- Patient demographics.
+- Portal account status (has account / no account).
+- Option to create a portal account for the patient.
+
+**API calls:**
+- Patient data loaded from upstream state/navigation.
+- `POST /patients/{id}/portal-account` with `{ email, temporaryPassword }` — create patient portal login.
+
+**Actions:**
+- Create portal account for patient.
+
+#### `/staff/doctor-status` — `DoctorStatusPage`
+
+**Data displayed:**
+- Stat cards: Available, Running Late, Unavailable counts.
+- Doctor status cards (`DoctorStatusCardComponent`) for each doctor.
+
+**API calls:**
+- `GET /doctors` via `DoctorStateService`.
+- `GET /doctors/{id}/day-status` per doctor.
+
+**Actions:**
+- Update doctor availability: `POST /doctor-day-status/{doctorId}/status` with `{ status: AvailabilityStatus, runningLateMinutes? }`.
+
+#### `/staff/profile` — `StaffProfilePage`
+
+**Data displayed:**
+- Current user info.
+- Avatar upload.
+
+**API calls:**
+- `POST /auth/avatar` (FormData) — upload avatar image; returns `{ avatarUrl: string }`.
+
+**Actions:**
+- Upload profile photo.
+
+---
+
+## 5. Role: Admin
+
+### Entry Point / Login Flow
+
+1. Admin account exists in the backend; no self-registration.
+2. Login at `/auth/login` → `navigateByRole()` → `/admin/dashboard`.
+3. Uses `PortalLayoutComponent` with `ADMIN_NAV_ITEMS` and `RealtimeInitService`.
+4. Admin portal has the most navigation items: Dashboard, Bookings, Walk-In, Calendar, Patients, Doctors, Services, Staff Accounts, Announcements, Reports, Audit Logs, Settings.
+
+### Pages and Routes
+
+All protected by `authGuard` + `roleGuard` (roles: `['Admin']`) + `firstLoginGuard`.
+
+#### `/admin/dashboard` — `DashboardPage`
+
+**Data displayed:**
+- Eight stat cards: Today's Appointments, Monthly Appointments, Revenue Today (PHP), Pending Verifications, On Hold Bookings, Unpaid Completed, No Shows Today, Follow-Ups (7 days).
+- "Most Booked Doctors" bar chart (SVG, data derived from bookings).
+- "Revenue This Month" area chart (SVG inline, data derived from bookings).
+- Today's appointments table (`TodayAppointmentsTableComponent`).
+
+**API calls:**
+- `GET /bookings?status=CheckedIn&pageSize=1` — for specific stat.
+- `GET /bookings?fromDate={monthStart}&toDate={today}&pageSize=1000` — monthly bookings for charts.
+- `GET /doctors` — for doctor list and chart labels.
+- `GET /patients?pageSize=1000` — patients.
+- `GET /services` — services.
+
+**Actions:**
+- Realtime updates via `ClinicDashboardRealtimeService`.
+- Click booking row → `/admin/bookings/{id}`.
+
+#### `/admin/bookings` — `BookingsPage`
+
+**Data displayed:**
+- Filterable, paginated table of all bookings.
+- Filters: doctor, status, date, free-text search.
+- Bulk select checkbox column.
+- Each row: queue number, patient, doctor/service, status badge, payment badge, date, actions.
+
+**API calls:**
+- `GET /doctors` — for doctor filter dropdown.
+- `GET /bookings` — all bookings (with filters applied client-side from local cache).
+
+**Actions:**
+- Filter by doctor, status, date, search term.
+- Bulk select (UI exists; [NEEDS CLARIFICATION: bulk action endpoint not confirmed in code]).
+- Click row → `/admin/bookings/{id}`.
+- "New Walk-In" button → `/admin/walk-in`.
+
+#### `/admin/bookings/:id` — `BookingDetailPage`
+
+**Data displayed:**
+- Status timeline with step indicators (Pending → Confirmed → CheckedIn → Completed).
+- Booking info card: patient, doctor, service, date/time, payment mode, fees.
+- Patient detail section (loaded separately).
+- Payment section: amount, method, reference, OR number.
+- Action buttons (context-sensitive by status).
+
+**API calls:**
+- `GET /bookings/{id}` — booking record.
+- `GET /patients/{patientId}` — patient info.
+
+**Actions:**
+- Confirm booking: `PATCH /bookings/{id}/confirm`.
+- Reject booking: `PATCH /bookings/{id}/cancel` with `{ reason: 'Rejected by admin' }`.
+- Confirm payment: `PATCH /bookings/{id}/confirm` (payment context).
+- Mark Complete: `PATCH /bookings/{id}/complete`.
+- Mark No Show: `PATCH /bookings/{id}/no-show`.
+- Cancel: `PATCH /bookings/{id}/cancel` with `{ reason: 'Cancelled by admin' }`.
+- Waive payment: `PUT /bookings/{id}/waive` with `{ reason }`.
+- Refund payment: `PUT /bookings/{id}/refund` with `{ reason }`.
+- All actions log to audit: `POST /audit-logs`.
+- View/print receipt: `ReceiptModalComponent`.
+
+#### `/admin/walk-in` — `WalkInPage`
+
+Same wizard as Staff Walk-In (`StaffWalkInPage`) reused/duplicated in admin portal.
+
+**API calls:**
+- `GET /doctors` — doctor list.
+- `GET /doctors/{id}/services` or `GET /services` — services.
+- `GET /doctors/{doctorId}/available-slots?date={date}` — slots.
+- `POST /patients` — create new patient if needed.
+- `POST /bookings/walk-in` — create walk-in booking.
+
+#### `/admin/calendar` — `CalendarPage`
+
+**Data displayed:**
+- Weekly calendar grid: rows = doctors, columns = days of the current week.
+- Each cell shows bookings (patient name, start time).
+- Week navigation (previous/next week).
+
+**API calls:**
+- `GET /bookings` — all bookings (filtered client-side for the selected week).
+- `GET /doctors` — to build row headers.
+
+**Actions:**
+- Navigate weeks.
+
+#### `/admin/doctors` — `DoctorsPage`
+
+**Data displayed:**
+- List of all doctors with profile photo, name, specialization, status, schedule summary.
+
+**API calls:**
+- `GET /doctors/admin` (admin-specific endpoint, returns more detail than `/doctors`).
+- `GET /doctors/{id}/schedule` — per doctor schedule.
+
+**Actions:**
+- Click "Add Doctor" → `/admin/doctors/new`.
+- Click doctor → edit or view.
+- Navigate to `/admin/doctors/{id}/edit`.
+
+#### `/admin/doctors/new` and `/admin/doctors/:id/edit` — `DoctorFormPage`
+
+**Data displayed:**
+- Full doctor form: name, specialization, bio, license numbers, consultation fee, slot config, services assignment, weekly schedule, photo.
+
+**API calls (load):**
+- `GET /doctors/admin` — doctor list for context.
+- `GET /doctors/{id}/schedule` — existing schedule.
+
+**API calls (save):**
+- `POST /doctors` with new doctor payload (create).
+- `PUT /doctors/{id}` with updated payload (edit).
+- `PUT /doctors/{id}/schedule` with `{ schedules: DoctorScheduleInput[] }`.
+- `POST /doctors/{id}/photo` (FormData) — photo upload; returns `{ profilePhotoUrl }`.
+
+**Actions:**
+- Fill form → save.
+- Upload photo.
+- Assign services (multi-select from services list).
+- Set weekly schedule.
+
+#### `/admin/services` — `ServicesPage`
+
+**Data displayed:**
+- List of clinic services: name, description, category (Consultation/Procedure/Laboratory/Diagnostic), price, duration, linked doctors.
+
+**API calls:**
+- `GET /services` — service list.
+- `GET /doctors/admin` — to link doctors to services.
+
+**Actions:**
+- Create service: opens inline form → `POST /services`.
+- Edit service: opens inline form → `PUT /services/{id}`.
+- Toggle service active/inactive (implied by save).
+
+#### `/admin/patients` — `PatientsPage`
+
+**Data displayed:**
+- Searchable, paginated patient list.
+- Each row: patient code, name, DOB, sex, contact, account status.
+
+**API calls:**
+- `GET /patients?search={query}&page={page}&pageSize={size}` (or similar endpoint).
+
+**Actions:**
+- Search.
+- Paginate.
+- Click row → `/admin/patients/{id}`.
+- Create patient modal (`AdminPatientCreateModalComponent`) → `POST /patients`.
+
+#### `/admin/patients/:id` — `PatientDetailPage`
+
+**Data displayed:**
+- Full patient demographics.
+- Consultation history, prescription history, allergies, lab results, vaccination records, follow-ups.
+
+**API calls:**
+- `GET /patients/{id}`.
+- `GET /medical-records/consultations?patientId={id}`.
+- `GET /medical-records/prescriptions?patientId={id}`.
+- `GET /medical-records/allergies?patientId={id}`.
+- `GET /medical-records/lab-results?patientId={id}`.
+- `GET /medical-records/vaccinations?patientId={id}`.
+- `GET /medical-records/follow-ups?patientId={id}`.
+
+**Actions:**
+- View records.
+
+#### `/admin/staff` — `StaffPage`
+
+**Data displayed:**
+- Table of all staff accounts: name, email, role, status (Active / Inactive / Invited).
+- Pending invite rows.
+
+**API calls:**
+- `GET /admin/staff` — staff list.
+
+**Actions:**
+- Invite staff: opens form → `POST /admin/staff/invite` with `{ email, role }`.
+- Revoke invite: `PUT /admin/staff/invite/{inviteId}/revoke`.
+- Activate / deactivate staff: `PUT /admin/staff/{id}/update-status` with `{ action: 'activate'|'deactivate' }`.
+
+#### `/admin/announcements` — `AnnouncementsPage`
+
+**Data displayed:**
+- List of clinic announcements: title, body, active status.
+
+**API calls:**
+- `GET /announcements` — all announcements.
+
+**Actions:**
+- Create announcement: inline form → `POST /announcements` with `{ title, body, isActive }`.
+- Edit: `PUT /announcements/{id}` with updated payload.
+- Toggle active: `PUT /announcements/{id}` with `{ isActive: !current }`.
+- Delete: `DELETE /announcements/{id}` (after confirm modal).
+
+#### `/admin/reports` — `ReportsPage`
+
+**Data displayed:**
+- Three report sections (tabs implied):
+  1. **Unpaid Completed Visits** — table: booking ID, patient, doctor, service, visit date, amount, payment status, action link.
+  2. **Pending Follow-Ups** — table: patient, doctor, follow-up date, instructions.
+  3. **Daily Booking Summary** — table: date, total bookings, completed, cancelled, revenue.
+- Date range filter (from / to).
+- Export CSV button.
+
+**API calls:**
+- `GET /reports/unpaid-completed-visits`.
+- `GET /reports/pending-follow-ups`.
+- `GET /reports/daily-booking-summary`.
+
+**Actions:**
+- Filter by date range (client-side filtering of returned data).
+- Export CSV (client-side CSV generation from filtered data).
+
+#### `/admin/audit-logs` — `AuditLogsPage`
+
+**Data displayed:**
+- List of audit log entries: entity type, entity ID, action, performed by, performed at, details.
+
+**API calls:**
+- `GET /audit-logs`.
+
+**Actions:**
+- View only (read-only page).
+
+#### `/admin/settings` — `SettingsPage`
+
+**Data displayed:**
+- Five tabs: General, Hours, Payments, Privacy, Branding.
+- **General:** clinic name, address, phone, email, social URLs, cancellation deadline hours, portal enabled flags (patient portal, vaccination reminder, follow-up reminder), pay-at-clinic mode toggle, no-show window minutes.
+- **Hours:** `OperatingHoursEditorComponent` — per-day open/close times and enabled toggle.
+- **Payments:** GCash QR image URL + account name/number; Maya QR + account; Bank details.
+- **Privacy:** Privacy policy text (rich textarea), consent version display, bump version button.
+- **Branding:** Logo URL, primary/secondary color pickers (`ColorPickerComponent`).
+
+**API calls (load):**
+- [NEEDS CLARIFICATION: Settings load endpoint not directly seen in settings page load; `ClinicSettingsService` is a BehaviorSubject seeded with defaults. The portal layout likely loads settings on startup via `GET /settings`.]
+
+**API calls (save):**
+- `PUT /settings` with full `ClinicSettings` object.
+
+**Actions:**
+- Edit any field → "Save Settings" button.
+- Bump consent version (increments minor version number, updates `consentVersion` field).
+
+### Key User Flows — Admin
+
+**Flow: Admin approves a pending booking**
+1. `/admin/bookings` → filter by status "Pending".
+2. Click booking row → `/admin/bookings/{id}`.
+3. Click "Confirm" → `PATCH /bookings/{id}/confirm`.
+4. Audit log entry created: `POST /audit-logs`.
+
+**Flow: Admin invites a Staff member**
+1. `/admin/staff` → "Invite Staff".
+2. Enter email + role → `POST /admin/staff/invite`.
+3. Staff receives email, activates via social login.
+4. Admin can revoke pending invite or deactivate active account.
+
+---
+
+## 6. Shared / Common Flows
+
+### Public Portal (`/public/*`)
+
+Accessible without authentication.
+
+| Route | Page | Description |
+|---|---|---|
+| `/public` | `HomePage` | Clinic landing page: doctors grid, services grid, announcements, operating hours bar |
+| `/public/doctors` | `DoctorsPage` | Full doctors list with specialty filter |
+| `/public/doctors/:id` | `DoctorProfilePage` | Doctor bio, schedule, reviews, "Book Now" button |
+| `/public/services` | `ServicesPage` | All services grouped by category |
+| `/public/announcements` | `AnnouncementsPage` | Active announcements list |
+| `/public/booking` | `BookingPage` | Multi-step booking wizard (see Patient flows) |
+| `/public/booking-confirmation/:bookingId` | `BookingConfirmationPage` | Post-booking confirmation for guest users |
+| `/public/privacy-policy` | `PrivacyPolicyPage` | Static privacy policy display |
+
+### Logout
+
+Any portal's sidebar includes a logout button. Clicking it calls `AuthStateService.logout()`:
+1. Clears user BehaviorSubject.
+2. Clears error and loading subjects.
+3. Calls `AuthService.clearSession()` → removes `clinic.auth.access-token`, `clinic.auth.refresh-token`, `clinic.auth.user` from `localStorage`.
+4. [NEEDS CLARIFICATION: No `POST /auth/logout` API call is made from the frontend — server-side token invalidation is not confirmed.]
+5. Angular Router navigates to `/auth/login` (implied; not explicitly traced in logout handler but `navigateByRole` defaults there on failed auth).
+
+### Notifications
+
+- `PushNotificationService` connects to SignalR and Firebase FCM on login.
+- `NotificationService` merges live SignalR notifications into a `BehaviorSubject<Notification[]>`.
+- `NotificationPanelComponent` (in topbar) displays unread count badge and dropdown list.
+- Mark one as read: `PUT /notifications/{id}/read`.
+- Mark all as read: `PUT /notifications/read-all`.
+- On logout, `NotificationService` clears the notifications array (triggered by `currentUser$` emitting `null`).
+
+### Password Management
+
+- **Forgot password:** `POST /auth/forgot-password` with `{ email }` → shows success message.
+- **Reset password:** `/auth/reset-password` page → `POST /auth/reset-password` with `{ token, newPassword }`.
+- **Set password (first login):** `/auth/set-password` (guarded by `authGuard`) → `POST /auth/set-password` with `{ newPassword }` → calls `GET /auth/me` to re-fetch updated user → navigates by role.
+- **Change password (from profile):** `POST /auth/change-password` with `{ currentPassword, newPassword }` (Doctor, Patient, Staff profiles all use this).
+
+### Profile Photo Upload
+
+- Staff: `POST /auth/avatar` (FormData) → returns `{ avatarUrl }`.
+- Doctor: `POST /doctors/{id}/photo` (FormData) → returns `{ profilePhotoUrl }`.
+- Admin-managed doctor photo: same endpoint via `DoctorFormPage`.
+
+### SignalR Realtime Events
+
+`ClinicDashboardRealtimeService` maintains a persistent SignalR hub connection to `{signalrHubUrl}` authenticated via Bearer token. It emits a shared `events$: Observable<ClinicDashboardEvent>` stream.
+
+Events subscribed to:
+
+| Event Name | Triggering Action |
+|---|---|
+| `BookingCreated` | New booking placed |
+| `BookingCancelled` | Booking cancelled |
+| `PatientCheckedIn` | Staff checks in a patient |
+| `PatientCheckInUndone` | Staff reverts check-in |
+| `DoctorCompletedConsultation` | Doctor marks consultation complete |
+| `PaymentCompleted` | Staff confirms payment |
+| `PaymentWaived` | Staff/Admin waives payment |
+| `DoctorScheduleUpdated` | Admin/Doctor updates schedule |
+| `DoctorServicesUpdated` | Services linked to doctor changed |
+| `PatientProfileUpdated` | Patient profile changed |
+
+These events are consumed by Dashboard pages (Staff, Doctor, Admin) to refresh displayed data without manual page reload.
+
+---
+
+## 7. API Surface
+
+All calls go through `ApiService` to `{environment.apiUrl}` (base: `/api`). Bearer token attached by `authInterceptor` to all non-public endpoints.
+
+### Auth Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| POST | `/auth/login` | Login form submit | `AuthSessionDto` |
+| POST | `/auth/register` or `/auth/register-patient` | Register form submit | `AuthSessionDto` |
+| POST | `/auth/google` | Google popup login | `AuthSessionDto` |
+| POST | `/auth/facebook` | Facebook popup login | `AuthSessionDto` |
+| GET | `/auth/me` | App init / set-password flow | `AuthUserDto` |
+| POST | `/auth/refresh-token` | 401 interceptor | `RefreshTokenDto` |
+| POST | `/auth/logout` | [NEEDS CLARIFICATION: not confirmed called from frontend] | — |
+| POST | `/auth/forgot-password` | Forgot password form | void |
+| POST | `/auth/reset-password` | Reset password form | void |
+| POST | `/auth/set-password` | First-login set-password form | void |
+| POST | `/auth/change-password` | Profile page password form | void |
+| POST | `/auth/avatar` | Staff/Patient avatar upload | `{ avatarUrl }` |
+
+### Booking Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/bookings` | Various list pages (with optional query filters) | `Booking[]` or paged result |
+| GET | `/bookings/{id}` | Detail pages | `Booking` |
+| POST | `/bookings` | Patient booking wizard (step-proof / step-payment) | Created `Booking` |
+| POST | `/bookings/walk-in` | Staff/Admin walk-in wizard | Created `Booking` |
+| GET | `/bookings/doctor/today` | Doctor dashboard/appointments | `Booking[]` |
+| GET | `/bookings/doctor/today-summary` | Doctor dashboard/appointments | `DoctorTodaySummary` |
+| GET | `/bookings/doctor/patients` | Doctor patients page | `DoctorPatientSummaryDto[]` |
+| GET | `/bookings/staff/today` | Staff dashboard | Paged `Booking[]` |
+| GET | `/bookings/staff/all` | Staff bookings page | Paged `Booking[]` |
+| GET | `/bookings/staff/for-payment` | Staff payments page | Paged `StaffForPaymentItem[]` |
+| GET | `/bookings/{id}/public-summary` | Public booking confirmation page | Public booking summary |
+| GET | `/bookings/{id}/consultation-record` | Doctor consultation, patient detail | `ConsultationRecordResponse` |
+| PUT | `/bookings/{id}/consultation-record` | Doctor consultation auto-save | `ConsultationRecordResponse` |
+| PATCH | `/bookings/{id}/confirm` | Admin booking detail | Updated `Booking` |
+| PATCH | `/bookings/{id}/cancel` | Admin, Staff, Patient | Updated `Booking` |
+| PATCH | `/bookings/{id}/check-in` | Staff dashboard/bookings | Updated `Booking` |
+| PATCH | `/bookings/{id}/undo-check-in` | Staff dashboard/bookings | Updated `Booking` |
+| PATCH | `/bookings/{id}/doctor-complete` | Doctor consultation/appointments | Updated `Booking` |
+| PATCH | `/bookings/{id}/complete` | Admin booking detail | Updated `Booking` |
+| PATCH | `/bookings/{id}/no-show` | Admin booking detail | Updated `Booking` |
+| PUT | `/bookings/{id}/waive` | Admin booking detail | Updated `Booking` |
+| PUT | `/bookings/{id}/refund` | Admin booking detail | Updated `Booking` |
+
+### Payment Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/payments/{id}` | Staff/Patient booking detail | `Payment` |
+| PATCH | `/payments/{bookingId}/confirm` | Staff booking detail, Staff payments | `Payment` |
+| PATCH | `/payments/{bookingId}/waive` | Staff booking detail, Staff payments, Doctor appointments | Updated payment/booking |
+
+### Patient Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/patients` | Admin/Staff patients list (with `?search=`, `?page=`, `?pageSize=`) | Paged `PatientSummary[]` |
+| GET | `/patients/{id}` | Admin, Staff, Doctor detail pages | `PatientDetail` |
+| GET | `/patients/me` | Patient portal pages | `PatientDetail` |
+| POST | `/patients` | Staff/Admin walk-in, Admin create patient | Created `PatientDetail` |
+| PUT | `/patients/{id}` | Admin patient edit [NEEDS CLARIFICATION: not confirmed in admin patient detail] | Updated `PatientDetail` |
+| PUT | `/patients/me` | Patient profile save | Updated `PatientDetail` |
+| POST | `/patients/me/consent` | Patient profile consent | Updated consent record |
+| POST | `/patients/{id}/portal-account` | Staff patient detail | Portal account creation result |
+| GET | `/patients/me/documents` | Patient documents page (via `PatientMediaPanelComponent`) | `PatientDocument[]` |
+| POST | `/patients/me/documents` | Patient documents upload | Created `PatientDocument` |
+| GET | `/patients/{id}/documents/{docId}/file` | Preview/download | Blob |
+| GET | `/patients/me/lab-results` | Patient lab results page | `PatientLabResult[]` |
+| POST | `/patients/me/lab-results` | Lab result upload | Created `PatientLabResult` |
+| GET | `/patients/{id}/lab-results/{id}/file` | Preview/download | Blob |
+
+### Doctor Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/doctors` | Home page, Walk-in, Booking wizard, Admin calendar | `Doctor[]` |
+| GET | `/doctors/admin` | Admin doctors list, doctor form, services page | `Doctor[]` (admin-enriched) |
+| GET | `/doctors/me` | Doctor dashboard, schedule, consultation, profile | Own `Doctor` record |
+| GET | `/doctors/{id}` | Public doctor profile page | `Doctor` detail |
+| POST | `/doctors` | Admin doctor form (create) | Created `Doctor` |
+| PUT | `/doctors/{id}` | Admin doctor form, Doctor schedule/profile | Updated `Doctor` |
+| PUT | `/doctors/me` | Doctor profile save | Updated `Doctor` |
+| POST | `/doctors/{id}/photo` | Admin doctor form, Doctor profile | `{ profilePhotoUrl }` |
+| GET | `/doctors/{id}/schedule` | Admin doctor form, Doctor schedule, Dashboard, Public profile | `DoctorSchedule[]` |
+| PUT | `/doctors/{id}/schedule` | Admin doctor form, Doctor schedule page | Updated `DoctorSchedule[]` |
+| GET | `/doctors/{id}/services` | Booking wizard, Walk-in wizard | `Service[]` |
+| GET | `/doctors/{id}/available-slots?date={date}` | Booking wizard step 3, Walk-in wizard | `AvailableSlot[]` |
+| GET | `/doctors/{id}/blocked-dates` | Doctor schedule page | `DoctorBlockedDate[]` |
+| POST | `/doctors/{id}/blocked-dates` | Doctor schedule page | Created `DoctorBlockedDate` |
+| DELETE | `/doctors/{id}/blocked-dates/{blockedDateId}` | Doctor schedule page | void |
+| GET | `/doctors/{id}/day-status` | Doctor dashboard | `DoctorDayStatus` |
+| POST | `/doctors/{id}/day-status` | Doctor dashboard | Created/updated `DoctorDayStatus` |
+
+### Services Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/services` | Home page, Admin services, Walk-in fallback, Public services | `Service[]` |
+| POST | `/services` | Admin services page | Created `Service` |
+| PUT | `/services/{id}` | Admin services page | Updated `Service` |
+
+### Medical Records Endpoints
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/medical-records/me` | Patient medical records page | Patient's own records |
+| GET | `/medical-records/consultations?patientId={id}` | Doctor consultation, patient details, patient dashboard | `Consultation[]` |
+| GET | `/medical-records/prescriptions?patientId={id}` | Multiple portals | `Prescription[]` |
+| GET | `/medical-records/allergies?patientId={id}` | Doctor consultation, admin patient detail | `Allergy[]` |
+| GET | `/medical-records/lab-orders?patientId={id}` | Doctor consultation | `LabRequest[]` |
+| GET | `/medical-records/lab-results?patientId={id}` | Doctor consultation, patient detail, admin | `LabResult[]` |
+| GET | `/medical-records/vaccinations?patientId={id}` | Doctor consultation, patient detail, admin | `VaccinationRecord[]` |
+| GET | `/medical-records/follow-ups?patientId={id}` | Doctor consultation, patient detail, admin | `FollowUp[]` |
+| GET | `/prescriptions/me` | Patient prescriptions page | `PatientPrescription[]` |
+
+### Patient Documents — PDF Download
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/patient-documents/me/medical-records/{id}/pdf` | Patient medical records | Blob (PDF) |
+| GET | `/patient-documents/me/prescriptions/{id}/pdf` | Patient prescriptions | Blob (PDF) |
+| GET | `/patient-documents/me/bookings/{bookingId}/pdf` | Patient medical records / prescriptions | Blob (PDF) |
+| GET | `/patient-documents/me/all.pdf` | Patient medical records / prescriptions | Blob (PDF) |
+
+### Settings, Announcements, Reviews, Reports, Audit Logs
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/settings` | Portal layout init (home page confirmed; admin settings load inferred) | `ClinicSettings` |
+| PUT | `/settings` | Admin settings save | Updated `ClinicSettings` |
+| GET | `/announcements` | Public announcements, Admin announcements | `Announcement[]` |
+| POST | `/announcements` | Admin announcements | Created `Announcement` |
+| PUT | `/announcements/{id}` | Admin announcements edit/toggle | Updated `Announcement` |
+| DELETE | `/announcements/{id}` | Admin announcements delete | void |
+| GET | `/reviews?doctorId={id}` | Public doctor profile | `Review[]` |
+| GET | `/reviews?bookingId={id}` | Patient reviews page | `Review[]` |
+| POST | `/reviews` | Patient reviews page | Created `Review` |
+| GET | `/audit-logs` | Admin audit logs, Doctor consultation | `AuditLog[]` |
+| POST | `/audit-logs` | Admin booking detail, Doctor consultation | Created `AuditLog` |
+| GET | `/reports/unpaid-completed-visits` | Admin reports | Report rows |
+| GET | `/reports/pending-follow-ups` | Admin reports | Report rows |
+| GET | `/reports/daily-booking-summary` | Admin reports | Report rows |
+| GET | `/notifications` | Notification panel (on load) | `Notification[]` |
+| PUT | `/notifications/{id}/read` | Notification panel | void |
+| PUT | `/notifications/read-all` | Notification panel | void |
+| GET | `/doctor-day-status/{id}` | Public doctor profile | `DoctorDayStatus` |
+| POST | `/doctor-day-status/{doctorId}/status` | Staff doctor-status page | Updated `DoctorDayStatus` |
+
+### Admin — Staff Management
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| GET | `/admin/staff` | Admin staff page | `StaffRow[]` |
+| POST | `/admin/staff/invite` | Admin staff — invite form | Invite record |
+| PUT | `/admin/staff/invite/{inviteId}/revoke` | Admin staff | void |
+| PUT | `/admin/staff/{id}/update-status` | Admin staff — activate/deactivate | `UpdateStatusResponse` |
+
+### Consultation Requests (Beta)
+
+| Method | Endpoint | Triggered By | Returns |
+|---|---|---|---|
+| POST | `/consultation-requests/request-attending-physician` | Doctor consultation page | `{ ok: boolean }` |
+
+---
+
+## 8. UI Element Inventory
+
+### Shared Reusable Components
+
+| Selector | Component | Purpose |
+|---|---|---|
+| `app-portal-layout` | `PortalLayoutComponent` | Shell for Doctor, Staff, Admin portals: sidebar + topbar + router-outlet |
+| `app-patient-layout` | `PatientLayoutComponent` | Shell for Patient portal (same structure, different nav items) |
+| `app-admin-sidebar` | `SidebarComponent` | Left nav drawer with role nav items, clinic name, user avatar, logout |
+| `app-admin-topbar` | `TopbarComponent` | Top bar with hamburger, page title, notification bell |
+| `app-notification-panel` | `NotificationPanelComponent` | Dropdown notification list |
+| `app-avatar` | `AvatarComponent` | Image or initials fallback avatar. Props: `name`, `imageUrl`, `size` (xs/sm/md/lg/xl/2xl) |
+| `app-banner` | `BannerComponent` | Contextual banner (warning/danger/info/success) with optional dismiss |
+| `app-skeleton` | `SkeletonComponent` | Shimmer placeholder. Props: `variant` (text/title/card/avatar/stat/row), `count`, `width` |
+| `app-empty-state` | `EmptyStateComponent` | Zero-data illustration with title, description, optional CTA button or `routerLink` |
+| `app-status-badge` | `StatusBadgeComponent` | Coloured pill badge for `BookingStatus`, `PaymentStatus`, `DoctorStatus`. Props: `status`, `portal`, `labelOverride`, `paymentStatus` |
+| `app-slot-grid` | `SlotGridComponent` | Booking slot grid with available/full/pending/selected/disabled states |
+| `app-confirm-modal` | `ConfirmModalComponent` | Inline modal with optional reason textarea. Props: `isOpen`, `title`, `message`, `requireReason`, `reasonLabel` |
+| `app-receipt-modal` | `ReceiptModalComponent` | IonModal wrapping `ReceiptViewComponent`. Props: `receiptData`, `isOpen` |
+| `app-receipt-view` | `ReceiptViewComponent` | Printable receipt layout. Props: `data: ReceiptData` |
+| `app-booking-print-document` | `BookingPrintDocumentComponent` | Printable receipt/waived/summary document |
+| `app-booking-timer` | `BookingTimerComponent` | Countdown timer for slot reservation |
+| `app-page-header` | `PageHeaderComponent` | Page title + subtitle + optional back button + projected action buttons |
+| `app-patient-media-panel` | `PatientMediaPanelComponent` | Unified upload/preview/download panel for documents and lab results. Props: `kind` (document/lab-result), `heading`, `subheading` |
+| `app-patient-media-preview` | `PatientMediaPreviewModal` | IonModal for previewing a document or lab result (image or PDF), with prev/next navigation |
+| `app-secure-image` | `SecureImageComponent` | Fetches and renders a secured image blob from `/patients/{id}/documents/{id}/file` or lab-result equivalent |
+
+### Portal-Specific Components
+
+**Doctor portal:**
+- `app-doctor-schedule-editor` — weekly schedule grid with drag/edit.
+- `app-soap-form` — SOAP note text areas.
+- `app-vital-signs-form` — structured vitals form.
+- `app-diagnosis-picker` — ICD-10 diagnosis search and add.
+- `app-prescription-builder` — add medication items.
+- `app-prescription-form` — prescription item display.
+- `app-lab-request-form` — lab order entry.
+- `app-vaccination-form` — vaccination entry.
+- `app-follow-up-form` — follow-up date and reason.
+- `app-allergy-warning-banner` — patient allergy alert.
+- `app-vitals-trend-chart` — vital signs over time.
+- `app-doctor-appointment-card` — appointment card in list.
+- `app-doctor-patient-card` — patient summary card.
+- `app-doctor-queue-table` — queue list in appointments.
+- `app-doctor-status-panel` — availability toggle panel.
+
+**Staff portal:**
+- `app-queue-table` (`QueueTableComponent`) — today's queue list with check-in actions.
+- `app-doctor-status-card` — per-doctor availability card.
+
+**Admin portal:**
+- `app-stat-card` (`StatCardComponent`) — dashboard KPI card.
+- `app-today-appointments-table` (`TodayAppointmentsTableComponent`) — inline appointments table.
+- `app-consultation-timeline` — booking status progression timeline.
+- `app-medical-records-tab` — patient clinical history tab.
+- `app-operating-hours-editor` — clinic hours configuration.
+- `app-color-picker` — color picker for branding.
+- `app-waive-payment-modal` — waive payment confirmation.
+- `app-refund-payment-modal` — refund payment confirmation.
+- `app-notification-bell` — topbar notification icon with count badge.
+- `app-booking-actions-menu` — context menu for booking actions.
+- `app-doctor-schedule-form` — doctor schedule entry form.
+
+**Public portal:**
+- `app-hero-section` — landing page hero.
+- `app-operating-hours-bar` — clinic operating hours strip.
+- `app-doctor-card` — doctor card (used on home, doctors list, patient dashboard).
+- `app-service-category-card` — service category card.
+- `app-announcement-card` — announcement card.
+- `app-booking-wizard` — full 6-step booking wizard.
+- `app-review-card` — doctor review card on public profile.
+- `app-booking-summary-bar` — wizard step summary bar.
+
+**Patient portal:**
+- `app-patient-booking-card` — booking card in "My Bookings" list.
+- `app-upcoming-appointment-card` — dashboard upcoming booking.
+- `app-medical-record-card` — consultation record card.
+- `app-prescription-card` — prescription card.
+- `app-booking-timeline` — booking status timeline.
+- `app-proof-submission-form` — payment proof form (reference or screenshot).
+- `app-review-form` — star rating + comment form.
+- `app-patient-topbar` — mobile top navigation bar.
+
+### Tables
+
+All data tables use the class `clinic-table` (custom styled `<table>`). No `ion-list` is used for tabular admin data. Key table instances:
+
+- Admin Bookings: `clinic-table` with columns: checkbox, queue #, patient, doctor/service, status, payment, date, actions.
+- Admin Patients: `clinic-table` with columns: patient code, name, DOB, sex, contact, account status, actions.
+- Admin Audit Logs: `clinic-table` with columns: entity type, ID, action, performed by, timestamp, details.
+- Admin Reports: separate `clinic-table` per report section.
+- Staff Bookings: `clinic-table` with columns: patient, doctor, service, date, queue #, status, actions.
+- Staff Payments: `clinic-table` with columns: patient, doctor, services, date, queue #, amount due, status, collect button.
+
+---
+
+## 9. Data Models / Entities
+
+### `AuthUser` (`auth.models.ts`)
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `string` | User ID (maps to backend `userId`) |
+| `fullName` | `string` | |
+| `email` | `string` | |
+| `role` | `Role` | `'Admin' \| 'Staff' \| 'Doctor' \| 'Patient'` |
+| `clinicalRole` | `ClinicalRole?` | `'physician' \| 'nurse' \| 'medical_assistant' \| 'admin' \| 'receptionist'` — [NEEDS CLARIFICATION: not populated from API in observed flows] |
+| `avatarUrl` | `string?` | |
+| `isFirstLogin` | `boolean` | Drives `firstLoginGuard` |
+| `phoneNumber` | `string?` | |
+
+### `Booking` (`booking.models.ts`)
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `string` | Booking UUID |
+| `patientId` | `string` | |
+| `patientName` | `string?` | Denormalised |
+| `doctorId` | `string` | |
+| `doctorName` | `string?` | Denormalised |
+| `serviceId` | `string` | Primary service |
+| `serviceIds` | `string[]` | All selected services |
+| `serviceName` | `string?` | |
+| `serviceNames` | `string[]` | |
+| `services` | `BookingServiceItem[]` | Embedded service list |
+| `appointmentDate` | `string` | ISO date `YYYY-MM-DD` |
+| `slotStartTime` | `string` | `HH:MM` |
+| `slotEndTime` | `string` | `HH:MM` |
+| `status` | `BookingStatus` | See enum below |
+| `paymentStatus` | `PaymentStatus` | `Unpaid \| Paid \| Waived \| Refunded` |
+| `paymentMode` | `PaymentMode` | `Online \| PayAtClinic` |
+| `queueNumber` | `number \| null` | |
+| `totalFee` | `number` | |
+| `finalAmount` | `number \| null` | Post-adjustment amount |
+| `amountDue` | `number \| null` | |
+| `consultationFeeSnapshot` | `number` | Fee at time of booking |
+| `serviceFeeSnapshot` | `number` | |
+| `isWalkIn` | `boolean` | |
+| `proofType` | `ProofType?` | `ReferenceNumber \| Screenshot` |
+| `proofValue` | `string?` | Reference number or image URL |
+| `proofSubmittedAt` | `string?` | |
+| `cancellationReason` | `string?` | |
+| `notes` | `string?` | |
+| `rescheduledFromBookingId` | `string?` | |
+| `receiptUrl` | `string?` | |
+| `createdAt` | `string` | ISO datetime |
+| `orNumber` | `string?` | Official receipt number |
+| `checkedInAt` | `string?` | |
+| `doctorCompletedAt` | `string?` | |
+| `isProfessionalFeeWaived` | `boolean?` | |
+| `professionalFeeWaivedReason` | `string?` | |
+| `patient` | `BookingPatientInfo?` | Embedded patient summary |
+| `doctor` | `BookingDoctorInfo?` | Embedded doctor summary |
+| `service` | `BookingCatalogService?` | Embedded service summary |
+| `payment` | `Payment?` | Embedded payment record |
+
+**`BookingStatus` enum values:** `Pending`, `ProofSubmitted`, `Confirmed`, `CheckedIn`, `InProgress`, `OnHold`, `Cancelled`, `Completed`, `Expired`, `NoShow`, `Rescheduled`
+
+### `Doctor` (`doctor.models.ts`)
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `userId` | `string` |
+| `fullName` | `string` |
+| `specialization` | `string` |
+| `bio` | `string?` |
+| `profilePhotoUrl` | `string?` |
+| `licenseNumber` | `string?` |
+| `ptrNumber` | `string?` |
+| `s2Number` | `string?` |
+| `consultationFee` | `number` |
+| `slotDurationMinutes` | `number` |
+| `slotCapacity` | `number` |
+| `dailyPatientLimit` | `number \| null` |
+| `status` | `DoctorStatus` (`Active \| Inactive \| OnLeave`) |
+| `isActive` | `boolean?` |
+| `workingDays` | `string[]?` |
+| `schedule` | `Pick<DoctorSchedule, 'dayOfWeek' \| 'startTime' \| 'endTime'>[]?` |
+| `averageRating` | `number?` |
+| `reviewCount` | `number?` |
+
+### `PatientDetail` / `Patient` (`patient.models.ts`)
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `patientCode` | `string` |
+| `firstName` | `string` |
+| `middleName` | `string?` |
+| `lastName` | `string` |
+| `dateOfBirth` | `string` |
+| `sex` | `string` |
+| `civilStatus` | `string?` |
+| `address` | `string?` |
+| `city` | `string?` |
+| `zipCode` | `string?` |
+| `contactNumber` | `string?` |
+| `email` | `string?` |
+| `emergencyContactName` | `string?` |
+| `emergencyContactNumber` | `string?` |
+| `emergencyContactRelationship` | `string?` |
+| `bloodType` | `string?` |
+| `philHealthNumber` | `string?` |
+| `hmoProvider` | `string?` |
+| `hmoCardNumber` | `string?` |
+| `userId` | `string?` |
+| `hasAccount` | `boolean?` |
+| `isEmailVerified` | `boolean?` |
+| `isGuest` | `boolean` |
+| `consentedAt` | `string?` |
+| `consentVersion` | `string?` |
+
+### `Consultation` (`medical-record.models.ts`)
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `bookingId` | `string` |
+| `patientId` | `string` |
+| `doctorId` | `string` |
+| `consultationDate` | `string` |
+| `chiefComplaint` | `string` |
+| `subjective` | `string` |
+| `objective` | `string` |
+| `assessment` | `string` |
+| `plan` | `string` |
+| `generalNotes` | `string?` |
+| `historyOfPresentIllness` | `string?` |
+| `peGeneralFindings` | `string?` |
+| `vitalSigns` | `VitalSigns?` |
+| `diagnoses` | `Diagnosis[]` |
+| `prescriptionIds` | `string[]` |
+| `labRequestIds` | `string[]` |
+| `followUpDate` | `string?` |
+| `status` | `'Draft' \| 'Completed' \| 'Locked' \| 'Amended'` |
+| `isLocked` | `boolean` |
+| `visitSummaryUrl` | `string?` |
+| `createdAt` | `string` |
+| `updatedAt` | `string` |
+
+### `ClinicSettings` (`clinic.models.ts`)
+
+Key fields: `id`, `clinicName`, `logoUrl`, `primaryColor` (default `#5D3E8E`), `secondaryColor` (default `#2563eb`), `address`, `phone`, `email`, `facebookUrl`, `instagramUrl`, `operatingHours` (`OperatingHours`), `cancellationDeadlineHours`, `patientPortalEnabled`, `vaccinationReminderEnabled`, `followUpReminderEnabled`, `isPayAtClinicMode`, `payAtClinicNoShowWindowMinutes`, `privacyPolicyText`, `consentVersion`, `paymentSettings` (`PaymentSettings` — GCash, Maya, Bank details).
+
+### `ReceiptData` (`booking.models.ts`)
+
+Print data object with: `bookingId`, `paymentId`, `orNumber`, `patientName`, `doctorName`, `services[]`, `appointmentDate`, `slotStartTime`, `paidAt`, `amountPaid`, `paymentMethod`, `referenceNumber`, `cashierName`, `clinicName`, `clinicAddress`, `isWaived`, `waivedReason`, `queueNumber`, `consultationFee`, `serviceFee`, `totalFee`, `paymentStatus`.
+
+### `Notification` (`notification.models.ts`)
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `userId` | `string` |
+| `title` | `string` |
+| `message` | `string` |
+| `isRead` | `boolean` |
+| `createdAt` | `string` |
+| `navigateTo` | `string?` |
+
+### `AuditLog` (`clinic.models.ts`)
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `entityType` | `'Booking' \| 'Patient' \| 'Doctor' \| 'Payment' \| 'Settings' \| 'Consultation'` |
+| `entityId` | `string` |
+| `action` | `string` |
+| `performedBy` | `string` |
+| `performedAt` | `string` |
+| `details` | `string?` |
+
+---
+
+## 10. State Management
+
+### Global Services (singleton, `providedIn: 'root'`)
+
+| Service | State Held | Subjects |
+|---|---|---|
+| `AuthStateService` | Current user, loading, error | `BehaviorSubject<AuthUser\|null>`, `BehaviorSubject<boolean>`, `BehaviorSubject<string\|null>` |
+| `TokenService` | Access token, refresh token (in-memory + localStorage) | None (sync access via getters) |
+| `BookingService` | All bookings (local cache array) | `BehaviorSubject<Booking[]>`, `BehaviorSubject<boolean>` (loading) |
+| `BookingWizardService` | Multi-step wizard form state | `BehaviorSubject<BookingWizardState>` |
+| `ClinicSettingsService` | Clinic settings | `BehaviorSubject<ClinicSettings>` |
+| `NotificationService` | In-app notifications | `BehaviorSubject<Notification[]>` |
+| `PushNotificationService` | FCM push + SignalR notifications | `BehaviorSubject<InAppNotification[]>`, `BehaviorSubject<number>` (unread), `BehaviorSubject<boolean>` (device registered) |
+| `ClinicDashboardRealtimeService` | SignalR hub connection | `Subject<ClinicDashboardEvent>` (events stream) |
+| `DoctorStateService` | Doctor list cache | [NEEDS CLARIFICATION: service exists but internals not fully scanned] |
+| `PatientStateService` | Patient list cache | [NEEDS CLARIFICATION: service exists but internals not fully scanned] |
+| `MedicalRecordsService` | Medical records cache | [NEEDS CLARIFICATION: service exists but internals not fully scanned] |
+
+### Angular Signals
+
+`AuthStateService` exposes Signals via `toSignal()`:
+- `currentUser` — `Signal<AuthUser | null>`
+- `isAuthenticated` — `Signal<boolean>`
+- `userRole` — `Signal<Role | null>`
+
+### Per-Page State
+
+Most pages are fully standalone: they inject services and maintain their own local component properties (`bookings: Booking[]`, `isLoading: boolean`, `error: string | null`, etc.) rather than deriving from global service streams.
+
+### State Cleared on Logout
+
+`AuthStateService.logout()` clears:
+- User BehaviorSubject → `null`
+- Error BehaviorSubject → `null`
+- Loading BehaviorSubject → `false`
+- Tokens from localStorage
+- User object from localStorage
+
+`NotificationService` clears its `notifications$` array reactively when `currentUser$` emits `null`.
+
+`BookingWizardService` state is reset by `wizardService.reset()` on each new booking session.
+
+---
+
+## 11. Environment & Configuration
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `src/environments/environment.ts` | Development config |
+| `src/environments/environment.prod.ts` | Production config |
+
+### Key Config Values
+
+| Key | Dev Value | Prod Value |
+|---|---|---|
+| `production` | `false` | `true` |
+| `apiUrl` | `https://localhost:44384/api` | `https://api.yourclinicdomain.com/api` |
+| `apiBaseUrl` | Same as `apiUrl` (legacy alias) | Same |
+| `signalrHubUrl` | `https://localhost:44384/hubs/clinic-dashboard` | `https://api.yourclinicdomain.com/hubs/clinic-dashboard` |
+| `googleClientId` | `506648259313-uk5965cr6lkfhesivnvej5quu6g6hr1o.apps.googleusercontent.com` | `''` (blank in prod) |
+| `facebookAppId` | `904138729352506` | `''` (blank in prod) |
+| `facebookSdkVersion` | `v25.0` | `v25.0` |
+| `useMockData` | `false` | `false` |
+| `siteUrl` | `''` (falls back to `window.location.origin`) | `https://clinic-sup.vercel.app` |
+| Firebase config | Full config present | Full config present (same project `clinic-sup`) |
+| `firebaseVapidKey` | Set | Set |
+| `vapidKey` | Different key also set | Different key also set |
+
+### Feature Flags
+
+- `useMockData: false` — mock data path exists in `MockDataService` but is not active in either environment.
+- `environment.production` — used in `LoginPage` to conditionally show developer credential buttons (quick-fill buttons hidden in production).
+
+### Vercel Deployment
+
+`vercel.json` present. All routes likely rewrite to `index.html` for SPA routing (standard Angular/Vercel pattern; exact rewrite rules not scanned but implied).
+
+### Service Worker
+
+`src/firebase-messaging-sw.js` — Firebase Messaging service worker. Reads Firebase config from URL search parameters at install time, conditionally initialises Firebase if `apiKey` and `appId` are present. Handles background push notifications.
+
+---
+
+## 12. Third-Party Dependencies
+
+### Runtime Dependencies (from `package.json`)
+
+| Package | Version | Usage |
+|---|---|---|
+| `@angular/core` et al. | `^17.3.0` | Core Angular framework |
+| `@ionic/angular` | `^7.8.6` | Ionic UI components (used standalone mode) |
+| `@ionic/angular-toolkit` | `^12.3.0` | Ionic Angular CLI toolkit |
+| `@ionic/core` | `^7.8.6` | Ionic Web Components core |
+| `@microsoft/signalr` | `^10.0.0` | Real-time SignalR hub client (`ClinicDashboardRealtimeService`) |
+| `firebase` | `^10.14.1` | Firebase App + Messaging (FCM push notifications, `PushNotificationService`) |
+| `ionicons` | `^7.4.0` | Icon set used throughout; icons are individually imported via `addIcons()` |
+| `rxjs` | `~7.8.0` | Reactive programming (Observables, BehaviorSubjects, operators) |
+| `zone.js` | `~0.14.3` | Angular change detection |
+| `tslib` | `^2.3.0` | TypeScript helper functions |
+
+### External Scripts (dynamically loaded at runtime)
+
+| Script | URL | Purpose |
+|---|---|---|
+| Google Identity Services | `https://accounts.google.com/gsi/client` | Google OAuth popup token acquisition |
+| Facebook JS SDK | `https://connect.facebook.net/en_US/sdk.js` | Facebook OAuth popup token acquisition |
+| Firebase App Compat | `https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js` | Service Worker only |
+| Firebase Messaging Compat | `https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js` | Service Worker only |
+
+### Dev Dependencies
+
+| Package | Usage |
+|---|---|
+| `@playwright/test` `^1.60.0` | E2E test runner |
+| `@angular/cli` `17.3.17` | Build tooling |
+| `@angular-devkit/build-angular` `^17.3.17` | Webpack/esbuild build |
+| `karma` + `jasmine` | Unit testing |
+| `typescript` `~5.4.2` | TypeScript compiler |
+
+### No Capacitor / Cordova
+
+No Capacitor or Cordova plugins are installed. This is a pure PWA — no native mobile build target.
+
+---
+
+## 13. Security & Permissions
+
+### Route Guards
+
+| Guard | File | Logic |
+|---|---|---|
+| `authGuard` | `core/guards/auth.guard.ts` | Reads `AuthStateService.isAuthenticated$`; if false, redirects to `/auth/login` |
+| `roleGuard` | `core/guards/role.guard.ts` | Reads `AuthStateService.userRole$`; compares against `route.data.roles`; if no match, redirects to `/auth/login` |
+| `firstLoginGuard` | `core/guards/first-login.guard.ts` | Reads `AuthStateService.currentUser$`; if `user.isFirstLogin === true`, redirects to `/auth/set-password` |
+
+**Guard combinations by route:**
+
+| Route prefix | Guards applied |
+|---|---|
+| `/admin/*` | `authGuard`, `roleGuard` (roles: `['Admin']`), `firstLoginGuard` |
+| `/staff/*` | `authGuard`, `roleGuard` (roles: `['Staff']`) |
+| `/doctor/*` | `authGuard`, `roleGuard` (roles: `['Doctor']`) |
+| `/patient/*` | `authGuard`, `roleGuard` (roles: `['Patient']`) |
+| `/auth/set-password` | `authGuard` only |
+| `/auth/privacy-consent` | `authGuard`, `roleGuard` (roles: `['Patient']`) |
+| `/public/*` | None |
+| `/dev/*` | None |
+
+Note: Staff portal does **not** apply `firstLoginGuard` at the route level (unlike Admin). Doctor portal does not apply `firstLoginGuard` at the child route level (only on the parent layout route).
+
+### Token Storage
+
+| Token | Key | Storage |
+|---|---|---|
+| Access token | `clinic.auth.access-token` | `localStorage` |
+| Refresh token | `clinic.auth.refresh-token` | `localStorage` |
+| User object | `clinic.auth.user` | `localStorage` |
+
+Tokens are also held in-memory in `TokenService` private fields for fast synchronous access without repeated `localStorage` reads.
+
+**Security note:** Storing JWT in `localStorage` is susceptible to XSS. There is no `httpOnly` cookie strategy.
+
+### Token Refresh Strategy
+
+- Handled by `authInterceptor` (functional interceptor, registered via `provideHttpClient(withInterceptors([authInterceptor]))`).
+- On 401 response for non-public, non-already-retried requests: `POST /auth/refresh-token` with `{ refreshToken }`.
+- On success: stores new tokens, retries original request exactly once (via `AUTH_RETRY_ATTEMPTED` context token to prevent infinite loops).
+- On failure: clears session, navigates to login.
+
+### Session Expiry
+
+- No client-side JWT expiry checks (no `exp` claim parsing for proactive refresh).
+- Expiry is handled reactively: any protected API call that returns 401 triggers the refresh flow.
+- If refresh also fails, user is logged out.
+
+### Public Endpoints (no auth header attached)
+
+Defined in `authInterceptor`'s `isPublicAuthEndpoint()`:
+- `/auth/login`
+- `/auth/register`
+- `/auth/register-patient`
+- `/auth/google`
+- `/auth/refresh`
+- `/auth/logout`
+
+---
+
+## 14. Error Handling Strategy
+
+### HTTP Error Handling
+
+**Global interceptor:** `authInterceptor` handles only `401` errors for token refresh. All other errors are passed through via `throwError(() => error)`.
+
+**Per-service / per-page:** Most API calls use per-call `catchError()` operators. The pattern:
+
+```typescript
+this.apiService.get<T>('endpoint').pipe(
+  catchError((error: unknown) => {
+    // Either return of([]) / of(null) as safe fallback
+    // Or throwError(() => new Error(extractApiErrorMessage(error, 'Fallback message')))
+  }),
+  finalize(() => this.isLoading = false)
+).subscribe({ error: () => undefined });
+```
+
+**`extractApiErrorMessage()` function** (duplicated in `BookingService` and `LoginPage`): Extracts user-readable message from `HttpErrorResponse` by checking `error.message`, then `error.errors` (validation errors dict), then `err.message`, then returns the provided fallback string.
+
+**`ApiService.handleError()`:** Logs to `console.error` and re-throws. No global interception.
+
+### Error Display to User
+
+| Mechanism | Component / Context | Usage |
+|---|---|---|
+| `ToastController` | All portals, via `BaseComponent.showToast()` or direct injection | Action feedback (success green, error danger/red), 1800ms duration, position: top |
+| `app-banner` | Login page, Patient dashboard, Set-Password page | Inline persistent error (can be dismissed) |
+| `app-empty-state` | All pages when lists are empty | Zero-data state with optional retry button |
+| Inline error div | Individual forms | Simple `*ngIf="error"` text blocks |
+| `app-skeleton` + retry button | Pages that fail to load | Shown during loading; error state replaces skeleton with retry |
+
+**Toast configuration:** 1800ms duration by default (`BaseComponent.showToast()`); some pages use 3000ms.
+
+### Global Error Handling
+
+There is **no `ErrorHandler` override** and no global `catchError` at the `HttpClient` level beyond the auth interceptor. Error handling is per-component/per-service.
+
+---
+
+## 15. Coding Standards & Conventions
+
+### File Naming
+
+| Pattern | Examples |
+|---|---|
+| Pages | `{name}.page.ts`, `{name}.page.html`, `{name}.page.scss` |
+| Components | `{name}.component.ts`, `{name}.component.html`, `{name}.component.scss` |
+| Services | `{name}.service.ts` |
+| Guards | `{name}.guard.ts` |
+| Models | `{name}.models.ts` |
+| Routes | `{name}.routes.ts` |
+| Pipes | `{name}.pipe.ts` |
+
+### Component Architecture
+
+- **All components are standalone** (`standalone: true`). No `NgModule` files exist.
+- Components declare their own imports array.
+- Lazy loading via `loadComponent: () => import(...).then(m => m.ComponentClass)`.
+
+### Folder Structure
+
+```
+src/app/
+  app.component.ts          ← Root component
+  app.config.ts             ← Application providers (no AppModule)
+  app.routes.ts             ← Top-level routes
+  auth/                     ← Authentication pages + auth layout
+  core/
+    base/                   ← BaseComponent (toast helper, ngUnsubscribe)
+    guards/                 ← authGuard, roleGuard, firstLoginGuard
+    interceptors/           ← authInterceptor, auth-http.tokens
+    mock-data/              ← Mock data (unused in current config)
+    models/                 ← All TypeScript interfaces and type aliases
+    services/               ← All singleton services
+    utils/                  ← Utilities
+    version.ts              ← Auto-generated git hash
+  dev/                      ← Design system gallery (dev only)
+  layouts/                  ← Layout shell components per role (legacy; actual layouts are in shared/)
+  portals/
+    admin/                  ← Admin portal: pages + components + services
+    doctor/                 ← Doctor portal: pages + components
+    patient/                ← Patient portal: pages + components
+    public/                 ← Public portal: pages + components + services
+    staff/                  ← Staff portal: pages + components
+  shared/
+    components/             ← Shared reusable UI components
+    pages/                  ← Shared pages (NotFoundPage)
+    pipes/                  ← PesoPipe, TimeSlotPipe, PatientCodePipe
+    validators/             ← passwordStrengthValidator
+```
+
+### Service Structure
+
+Services are `@Injectable({ providedIn: 'root' })`. API calls are made through the central `ApiService` (never direct `HttpClient` injection). Services use `inject()` (not constructor injection) consistently.
+
+### Routing
+
+- Top-level `app.routes.ts` with `loadChildren` for portal sub-modules.
+- Portal routes are constants (`ADMIN_ROUTES`, `DOCTOR_ROUTES`, etc.) in each portal's `*.routes.ts`.
+- Navigation items (`ADMIN_NAV_ITEMS`, etc.) are exported constants from routes files and passed as `data` props to the layout component.
+- Route parameters: always `id` for resource IDs (e.g. `:id`, `:bookingId`).
+
+### Observable / Promise Patterns
+
+- **RxJS Observables** are the primary async pattern for HTTP calls and state streams.
+- `async/await` with `firstValueFrom()` is used for imperative sequences (form submissions, multi-step operations in wizard components).
+- `takeUntilDestroyed(this.destroyRef)` (preferred) or `takeUntil(this.ngUnsubscribe)` (via `BaseComponent`) for subscription cleanup.
+- `forkJoin()` for parallel requests (dashboard pages, consultation page load).
+- `combineLatest()` for streams that depend on multiple sources.
+- `switchMap()` for dependent sequential requests.
+
+### Form Handling
+
+**Reactive Forms only.** No template-driven forms. All forms use `FormBuilder.nonNullable.group()` or `FormBuilder.group()`. Validator composition uses `Validators` from `@angular/forms` plus custom `passwordStrengthValidator`. Form group validators used for cross-field validation (password match).
+
+### Pipes (Custom)
+
+| Pipe | Purpose |
+|---|---|
+| `PesoPipe` (name: `peso`) | Formats number as PHP currency (`en-PH` locale) |
+| `TimeSlotPipe` (name: inferred) | Formats time slot for display |
+| `PatientCodePipe` (name: inferred) | Formats patient code |
+
+### Linting / Formatting
+
+**No ESLint or Prettier config files found** in the repository root. No `.eslintrc`, `eslint.config.js`, or `.prettierrc` files are present.
+
+---
+
+## 16. Design & UI Conventions
+
+### Color Theme & Branding
+
+Defined in `src/styles.scss` as CSS custom properties:
+
+| Token | Value | Meaning |
+|---|---|---|
+| `--ion-color-primary` | `#5d3e8e` | Brand purple |
+| `--ion-color-secondary` | `#2563eb` | Medical blue |
+| `--ion-color-success` | `#16a34a` | Green |
+| `--ion-color-warning` | `#d97706` | Amber |
+| `--ion-color-danger` | `#dc2626` | Red |
+| `--clinic-bg` | `#f8fafc` | Page background |
+| `--clinic-bg-elevated` | `#ffffff` | Card background |
+| `--clinic-border` | `#e2e8f0` | Standard border |
+| `--clinic-text-primary` | `#0f172a` | Main text |
+| `--clinic-text-secondary` | `#475569` | Subtitle/meta text |
+| `--gradient-hero` | Purple gradient | Hero sections |
+
+Typography: `Inter` (body) and `JetBrains Mono` (code, data IDs). Loaded from Google Fonts.
+
+### Navigation Pattern Per Role
+
+| Role | Layout | Navigation |
+|---|---|---|
+| Admin | `PortalLayoutComponent` | Left sidebar (collapsible) + top bar |
+| Doctor | `PortalLayoutComponent` | Left sidebar (collapsible) + top bar |
+| Staff | `PortalLayoutComponent` | Left sidebar (collapsible) + top bar |
+| Patient | `PatientLayoutComponent` | Left sidebar (collapsible) + top bar (uses same `SidebarComponent` / `TopbarComponent`) |
+| Public | `PublicLayoutComponent` | Top navbar + footer |
+
+The sidebar is toggled by a hamburger menu in the topbar (`menuToggle` event). On mobile, the sidebar overlays the content with a backdrop. On larger screens it is persistent (responsive via CSS, not JS breakpoints).
+
+### Modal and Popover Usage
+
+- Ionic `IonModal` is used for: receipt viewing, payment confirmation (in some contexts), booking print document.
+- Custom `app-confirm-modal` is used for all destructive action confirmations (cancel, delete, waive, refund) — it is an inline div with a CSS backdrop, **not** an `IonModal`.
+- No `IonPopover` usage confirmed.
+
+### Loading and Skeleton Patterns
+
+- `app-skeleton` component with `variant="card"`, `variant="row"`, `variant="stat"` used on most list pages while data loads.
+- `IonSpinner` (name: `crescent`) used on smaller inline loading states and dashboard pages.
+- `isLoading: boolean` component property controlled by `finalize()` operator.
+
+### Toast, Alert, and Notification Patterns
+
+- **Success feedback:** `ToastController.create({ color: 'success', duration: 1800, position: 'top' })`.
+- **Error feedback:** `ToastController.create({ color: 'danger', duration: 1800, position: 'top' })`.
+- No `AlertController` usage confirmed.
+- In-app notifications via `NotificationPanelComponent` in the topbar.
+- Web push via Firebase FCM (background) and SignalR (foreground).
+
+### Error and Empty State UI
+
+- `app-empty-state` for zero-data states: shows an `IonIcon`, title, description, and optional CTA.
+- Inline `<div class="notice notice--error">` with retry button for page-level load failures (Admin staff page).
+- `app-banner variant="danger"` for sticky/persistent form-level errors (login, register, set-password).
+
+---
+
+## 17. Known Gaps, Bugs & Incomplete Features
+
+### Confirmed Incomplete Features
+
+**1. Patient Vaccinations — Not functional**
+`PatientVaccinationsService` explicitly stubs all methods:
+> "not available yet — patient_vaccinations table not deployed"
+
+`getPatientVaccinations()` returns `of([])`. Create/update/delete throw `Error`. The `/patient/vaccinations` page renders but is always empty with no user-visible error message.
+
+**2. Rescheduling — Not implemented**
+`BookingService.rescheduleBooking()` is marked `@deprecated`:
+> "rescheduleBooking() is deprecated (no API call yet)."
+
+The method logs a warning and does nothing. There is no reschedule UI visible in any portal.
+
+**3. Staff firstLoginGuard — Missing**
+`/staff/*` routes apply `authGuard` + `roleGuard` but **not** `firstLoginGuard` at the parent route level (unlike `/admin/*`). Staff users with `isFirstLogin: true` can access the staff portal without being forced to set a password first.
+
+**4. Doctor portal firstLoginGuard — Partially applied**
+The doctor portal `PortalLayoutComponent` route has `canActivate: [authGuard, roleGuard]` but not `firstLoginGuard` in `doctor.routes.ts`. The guard is applied only at the root app routes (`app.routes.ts`), not at the child layout route level.
+
+**5. Admin Settings Load Endpoint — Unclear**
+The `ClinicSettingsService` initialises with hardcoded defaults. No `GET /settings` call is confirmed to populate it on app startup or on settings page load. The portal layout component (`PortalLayoutComponent`) may load settings but the exact flow is not fully confirmed. The Settings page reads from `ClinicSettingsService.load()` (sync snapshot). [NEEDS CLARIFICATION: When and where `GET /settings` is called to hydrate `ClinicSettingsService`.]
+
+**6. Bulk Booking Actions — UI without backend**
+Admin Bookings page has a bulk-select checkbox column but no confirmed `POST /bookings/bulk-*` or similar endpoint call in the page's source.
+
+**7. Attending Physician Request — Beta/Unclear**
+`POST /consultation-requests/request-attending-physician` exists in the Doctor Consultation page. This feature is not documented and may be a partial or planned feature. [NEEDS CLARIFICATION: Intended UX and backend support.]
+
+**8. Doctor Profile Photo Upload Endpoint Inconsistency**
+`DoctorFormPage` (admin) uses `POST /doctors/{id}/photo`. `DoctorProfilePage` (doctor self-edit) uses `PUT /doctors/me` but `postFormData` is not clearly confirmed for the self-edit photo upload — only the admin form clearly calls `postFormData`. [NEEDS CLARIFICATION: Whether `/doctors/me` supports photo upload directly or uses a separate endpoint.]
+
+**9. Two Firebase VAPID Keys**
+`environment.ts` contains both `firebaseVapidKey` and `vapidKey` with different values. [NEEDS CLARIFICATION: Which one is active? `PushNotificationService` should use one of them to register the service worker token.]
+
+**10. Auth Callback Page — Legacy/OAuth Redirect**
+`/auth/callback` reads tokens from URL hash fragments, suggesting it supports OAuth redirect flows. However, the login page uses popup flows only. [NEEDS CLARIFICATION: When is `/auth/callback` actually used? Is it for a future mobile/native OAuth redirect or a legacy flow?]
+
+**11. `GET /auth/logout` — Not called from frontend**
+The `isPublicAuthEndpoint` whitelist includes `/auth/logout`, but no component or service in the frontend calls this endpoint on logout. Server-side token revocation on logout is not guaranteed.
+
+**12. `PatientDocumentsService.getDownloadUrl()` — Unused in UI**
+`PatientDocumentsService` exposes a `getDownloadUrl()` helper, but the actual download in `PatientMediaPanelComponent` uses `ApiService.getBlob()` directly. The service method appears unused.
+
+**13. `ClinicalRole` — Not populated**
+`AuthUser.clinicalRole` field exists in the model (`physician | nurse | medical_assistant | admin | receptionist`) but is never set from any confirmed API response. The `toAuthUser()` method does not map it from `AuthUserDto`.
+
+**14. `BaseComponent.ngUnsubscribe` vs `takeUntilDestroyed`**
+Two different subscription cleanup patterns coexist: `takeUntilDestroyed(this.destroyRef)` (newer, idiomatic Angular 17) and `takeUntil(this.ngUnsubscribe)` from `BaseComponent` (older pattern). Some admin pages still extend `BaseComponent` while most new pages use `DestroyRef`.
+
+**15. No `POST /auth/logout` server-side revocation**
+Frontend logout clears tokens locally but does not call the server, meaning refresh tokens remain valid on the server until they naturally expire. [NEEDS CLARIFICATION: Backend TTL for refresh tokens.]
+
+**16. `OfflineConsultationQueueService`**
+A service named `offline-consultation-queue.service.ts` exists in `core/services/` but was not fully scanned. [NEEDS CLARIFICATION: Purpose, whether it is integrated into any page, and whether it connects to a backend queue or is local-only.]
+
+**17. `DrugInteractionService`**
+`drug-interaction.service.ts` exists in `core/services/`. [NEEDS CLARIFICATION: Whether this is wired into the prescription builder or is a stub.]
+
+**18. `PatientClinicalHistoryService`**
+`patient-clinical-history.service.ts` exists in `core/services/`. [NEEDS CLARIFICATION: Whether this replaces the per-endpoint medical records calls on some pages or is used separately for the `PatientClinicalHistoryDto` aggregate endpoint.]
+
+**19. Public Booking — No Proof Upload for Screenshot Mode**
+The `step-proof` component shows a "screenshot upload zone" UI (`upload-zone` div) and `screenshotFileName` tracking, but the `submitBookingRequest()` only calls `POST /bookings` with standard booking fields — no FormData or proof image upload. [NEEDS CLARIFICATION: Is the screenshot proof submitted as a separate `PATCH /bookings/{id}/proof` call, or is this feature visually present but not wired to an upload endpoint?]
+
+**20. `/dev/gallery` — Design System Gallery**
+`/dev/gallery` → `DesignSystemGalleryPage` is accessible without authentication (no guards). This exposes internal design system components in production. [NEEDS CLARIFICATION: Should this route be removed or guarded in production builds?]
+
+---
+
+*End of PROJECT_BLUEPRINT.md*

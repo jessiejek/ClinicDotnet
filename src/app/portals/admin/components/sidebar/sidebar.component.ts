@@ -64,7 +64,7 @@ import { AuthUser, NavItem, Role } from '../../../../core/models';
           [disabled]="!profileRoute"
           (click)="goToProfile()"
         >
-          <app-avatar [name]="currentUser.fullName" size="md"></app-avatar>
+          <app-avatar [name]="currentUser.fullName" [imageUrl]="currentUser.avatarUrl" size="md"></app-avatar>
           <div class="sidebar__user-meta">
             <div class="sidebar__user-name">{{ currentUser.fullName }}</div>
             <div class="sidebar__user-role">{{ currentUser.role }} Account</div>

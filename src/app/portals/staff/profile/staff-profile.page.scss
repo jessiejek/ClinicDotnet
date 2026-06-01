@@ -59,6 +59,12 @@
   color: var(--clinic-text-secondary);
 }
 
+.profile-avatar-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
 @media (max-width: 900px) {
   .profile-grid {
     grid-template-columns: 1fr;

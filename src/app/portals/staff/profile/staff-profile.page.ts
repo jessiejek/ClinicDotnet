@@ -10,6 +10,7 @@ import { AuthStateService } from '../../../core/services/auth-state.service';
 import { AuthUserDto } from '../../../core/services/auth.service';
 import { passwordStrengthValidator, getPasswordStrength } from '../../../shared/validators/password-strength.validator';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 
 function passwordMatchValidator(group: AbstractControl): ValidationErrors | null {
   const pw = group.get('newPassword')?.value;
@@ -20,12 +21,26 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
 @Component({
   selector: 'app-staff-profile-page',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, ReactiveFormsModule, PageHeaderComponent],
+  imports: [NgIf, NgFor, NgClass, ReactiveFormsModule, PageHeaderComponent, AvatarComponent],
   template: `
     <section class="page-shell">
       <app-page-header title="My Profile" subtitle="Update your name and change your password"></app-page-header>
 
       <div class="profile-grid">
+        <div class="clinic-card">
+          <div class="section-heading">Profile Photo</div>
+          <div class="profile-avatar-section">
+            <app-avatar [name]="currentUser()?.fullName ?? 'User'" [imageUrl]="previewUrl ?? currentUser()?.avatarUrl" size="2xl"></app-avatar>
+            <div>
+              <input #fileInput type="file" accept="image/jpeg,image/png,image/gif,image/webp" (change)="onFileSelected($event)" hidden />
+              <button type="button" class="btn-primary" (click)="fileInput.click()" [disabled]="isUploading">
+                {{ isUploading ? 'Uploading...' : 'Upload Photo' }}
+              </button>
+              <p *ngIf="uploadError" class="form-error-message">{{ uploadError }}</p>
+            </div>
+          </div>
+        </div>
+
         <div class="clinic-card">
           <div class="section-heading">Personal Info</div>
           <form class="profile-form" [formGroup]="personalForm" (ngSubmit)="saveProfile()">
@@ -122,6 +137,50 @@ export class StaffProfilePage implements OnInit {
 
   currentUser(): AuthUser | null {
     return this.currentUserSignal();
+  }
+
+  previewUrl: string | null = null;
+  isUploading = false;
+  uploadError = '';
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    // Preview locally
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.previewUrl = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+
+    this.uploadAvatar(file);
+  }
+
+  uploadAvatar(file: File): void {
+    this.isUploading = true;
+    this.uploadError = '';
+    const formData = new FormData();
+    formData.append('file', file);
+
+    this.apiService.postFormData<{ avatarUrl: string }>('auth/avatar', formData).subscribe({
+      next: (result) => {
+        this.isUploading = false;
+        this.previewUrl = result.avatarUrl;
+        // Update the auth state with new avatar URL
+        const user = this.currentUser();
+        if (user) {
+          this.authState.setUser({ ...user, avatarUrl: result.avatarUrl });
+        }
+        void this.presentToast('Profile photo updated.', 'success');
+      },
+      error: (err) => {
+        this.isUploading = false;
+        this.uploadError = err.error?.message || err.message || 'Failed to upload photo.';
+        this.previewUrl = null;
+      }
+    });
   }
 
   get strengthLabel(): string {
