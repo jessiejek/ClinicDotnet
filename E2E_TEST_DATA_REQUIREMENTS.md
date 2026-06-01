@@ -38,8 +38,15 @@ Retrieved from `GET /api/bookings/me` (patient@gavino.clinic).
 
 ### Staff Check-In
 - Requirement: Confirmed booking
-- ✅ **UNBLOCKED** — `a460ac09-c795-4e44-b0d4-09e51f4837dd` and others exist
-- Test uses real booking rows → clicks Check In button → verifies PATCH API
+- ✅ **UNBLOCKED** — 4 Confirmed bookings exist
+- Test uses `findStaffBookingByStatus()` API lookup + `staff-bookings-checkin-button-{id}` data-testid selector
+- ✅ **Verified**: found `85948875-b2cc-464a-bfec-da0799f7a2c8` → PATCH 200
+
+### Staff Undo Check-In
+- Requirement: CheckedIn booking
+- ✅ **UNBLOCKED** — 4 CheckedIn bookings exist
+- Test uses `findStaffBookingByStatus('CheckedIn')` + `staff-bookings-undo-checkin-button-{id}` data-testid
+- ✅ **Verified**: found `3b883c89-9a6b-4506-a192-2ed5b76af97a` → PATCH 200
 
 ### Patient Cancel
 - Requirement: Confirmed booking (non-checked-in)
@@ -71,15 +78,17 @@ Retrieved from `GET /api/bookings/me` (patient@gavino.clinic).
 
 | Booking | Goal | Result |
 |---|---|---|
-| A: Confirmed | Staff check-in | ✅ **Created** — `a460ac09-c795-4e44-b0d4-09e51f4837dd` |
-| B: Confirmed | Patient cancel | ✅ **Created** — `a5980402-ce0e-4ca0-87a6-f1d557b88f2a` |
-| C: CheckedIn | Doctor consultation | ✅ **Created** — `dc1de3a3-2ac2-4c36-ad00-dae97cb5e869` |
-| D: Completed | Staff payment | ❌ **Slot exhaustion** — no more slots today |
-| E: Completed | Receipt | ❌ **Slot exhaustion** — no more slots today |
+| A: Confirmed | Staff check-in | ✅ **Created and used** — PATCH check-in 200 ✅ |
+| B: Confirmed | Patient cancel | ✅ **Created** — available for cancel test |
+| C: CheckedIn | Doctor consultation | ✅ **Created** — undo check-in PATCH 200 ✅ |
+| D: Completed | Staff payment | ❌ **Slot exhaustion** |
+| E: Completed | Receipt | ❌ **Slot exhaustion** |
 
-**Note:** The producer test passes when the database is fresh or slots are available.
-Once confirmed bookings exist, the producer's role is cosmetic — downstream
-tests use seed data lookup helpers, not the producer's output.
+**Staff phase updated check-in/undo flow:**
+Both tests now use `findStaffBookingByStatus()` API lookup + data-testid
+selectors. When a matching booking exists, the test clicks the specific
+button and verifies the PATCH API response. When no booking exists in the
+required state, the test skips gracefully with `[NEEDS TEST DATA]`.
 
 ---
 

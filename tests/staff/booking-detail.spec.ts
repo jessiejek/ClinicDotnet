@@ -9,7 +9,6 @@ test.describe('Staff Booking Detail', () => {
     // First find a booking ID from the bookings page
     await page.goto(ROUTES.bookings);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
     const bookingRows = page.locator('.booking-row, tr[role="button"]');
     const rowCount = await bookingRows.count();
@@ -19,7 +18,6 @@ test.describe('Staff Booking Detail', () => {
       await page.waitForURL(/\/staff\/bookings\//, { timeout: 10000 });
       expect(page.url()).toContain('/staff/bookings/');
       await expect(page.locator(SELECTORS.pageTitle)).toContainText('Booking Details', { timeout: 10000 });
-      // VERIFY CONTENT IS VISIBLE — catches CSS display:none bugs
       await expectPageVisible(page);
     } else {
       console.log('ℹ️ No bookings available on current date — cannot test booking detail.');
@@ -31,7 +29,6 @@ test.describe('Staff Booking Detail', () => {
     await loginAsStaff(page);
     await page.goto(ROUTES.bookings);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
     const row = page.locator('.booking-row, tr[role="button"]').first();
     if (!(await row.isVisible({ timeout: 3000 }).catch(() => false))) {
@@ -43,7 +40,6 @@ test.describe('Staff Booking Detail', () => {
     await row.click();
     await page.waitForURL(/\/staff\/bookings\//, { timeout: 10000 });
 
-    // The sidebar exists in the DOM; action buttons may be hidden depending on booking status
     const sidebarExists = await page.locator(SELECTORS.actionSidebar).count();
     if (sidebarExists > 0) {
       console.log('✅ Action sidebar element found in DOM.');
@@ -61,7 +57,6 @@ test.describe('Staff Booking Detail', () => {
     await loginAsStaff(page);
     await page.goto(ROUTES.bookings);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
     const row = page.locator('.booking-row, tr[role="button"]').first();
     if (!(await row.isVisible({ timeout: 3000 }).catch(() => false))) {
@@ -83,8 +78,7 @@ test.describe('Staff Booking Detail', () => {
     await loginAsStaff(page);
     await page.goto('/staff/bookings/unknown-id');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('body')).toBeVisible({ timeout: 10_000 });
   });
 });
