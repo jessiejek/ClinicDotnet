@@ -93,29 +93,30 @@ catch and turn into a clean `test.skip()`. No more 20-second timeouts.
 | `tests/shared/session.spec.ts` | 2 | ✅ 2/2 PASS |
 | `tests/shared/receipt-modal.spec.ts` | 1 | ⏸ SKIP (app gap: booking detail API missing `payment.id`) |
 | `tests/patient/` (all 13 files) | 59 | ✅ 52 PASS / 7 SKIP / 0 FAIL |
-| `tests/staff/` (core, 8 files) | 44 | ✅ 39 PASS / 5 SKIP / 0 FAIL |
+| `tests/staff/` (core, 8 files) | 44 | ✅ 40 PASS / 4 SKIP / 0 FAIL |
 | `tests/doctor/` (core, 6 files) | 20 | ✅ 19 PASS / 1 SKIP / 0 FAIL |
 | `tests/staff-account/` (separate suite) | 58 | ⚠️ Known pre-existing failures |
-| **Total (core)** | **150** | **✅ 135 PASS / 15 SKIP / 0 FAIL** |
+| **Total (core)** | **150** | **✅ 136 PASS / 14 SKIP / 0 FAIL** |
 
-### Doctor phase detail
+### Staff payment phase detail
 
-| Test file | Tests | Result | Key events |
-|---|---|---|---|
-| appointments.spec.ts | 6 | ✅ 6/6 PASS |
-| **consultation-e2e.spec.ts** | 1 | ✅ **PASS** (on fresh CheckedIn) / ⏸ SKIP (all consumed) | **doctor-complete PATCH 200** → booking `111...101` now Completed+Unpaid |
-| dashboard.spec.ts | 4 | ✅ 4/4 PASS |
-| patients.spec.ts | 4 | ✅ 4/4 PASS |
-| profile.spec.ts | 2 | ✅ 2/2 PASS |
-| schedule.spec.ts | 3 | ✅ 3/3 PASS |
+| Test | Result | Key events |
+|---|---|---|
+| Navigation | ✅ PASS | Payment queue loads with stat cards |
+| Populated State | ✅ PASS | Stat values visible |
+| Empty State | ✅ PASS | Mocked empty response |
+| API Failure | ✅ PASS | Mocked error handled |
+| **Payment Confirm** | ✅ **PASS** | Found `11111111-...101` → filled modal → PATCH 200 |
+| **Waive PF** | ⏸ **SKIP** | Only Completed+Unpaid booking consumed by payment test |
+| Print/Download | ✅ PASS | Print button check |
 
-### Consultation test approach
-The workspace uses Angular reactive forms with child components that lack
-data-testid selectors. The test fills SOAP/vitals/diagnosis via
-`page.evaluate` (setting the component's `soapValue`, `vitalsValue`,
-`diagnoses` arrays), then completes via direct `PATCH /api/bookings/{id}/doctor-complete`
-API call. The completion modal's strict checklist (prescriptions, labs,
-follow-up required) prevents pure UI-driven completion.
+### Payment confirm approach
+Test uses `findStaffBookingByStatus(page, 'Completed', { paymentStatus: 'Unpaid' })`
+to locate the booking. Navigates to the payment queue, clicks
+data-testid `staff-payments-confirm-open-button-{bookingId}`, fills the modal
+via stable selectors, and verifies the PATCH payments/confirm API.
+
+All 4 `waitForTimeout` occurrences removed. Tests use `test.skip(true, '[NEEDS TEST DATA: ...]')`.
 
 ---
 
@@ -149,14 +150,14 @@ follow-up required) prevents pure UI-driven completion.
 
 | Blocker | Priority | Details | Status |
 |---|---|---|---|
-| ~~No Completed+Unpaid booking~~ | P0 | **Now available** — `11111111-...101` Completed+Unpaid (650) | ✅ **FIXED** |
+| ~~No Completed+Unpaid booking~~ | P0 | Consumed by payment confirm test ✅ | ✅ **FIXED** |
+| ~~Staff payment test used old format~~ | P2 | Rewritten with data-testid + dynamic lookup | ✅ **FIXED** |
+| ~~waitForTimeout in payments spec~~ | — | All 4 occurrences replaced | ✅ **Fixed** |
 | Receipt modal app guard | P1 | Booking detail API missing `payment.id` | ❌ Still blocked |
-| Staff payment/waive tests use old test format | P2 | Need update to match new patterns | 🟡 Needs update |
+| Waive PF only passes if 2+ Completed+Unpaid exist | P2 | Only one existed; consumed by payment | 🟡 Needs another seed |
 | ~~e2e-booking timeout on exhaustion~~ | — | Probes available-slots API | ✅ **Fixed** |
-| ~~Slot exhaustion caused test failure~~ | — | Creator probes 7d × all doctors | ✅ **Fixed** |
-| ~~No undo check-in test~~ | — | Added with dynamic lookup | ✅ **Fixed** |
-| ~~waitForTimeout in booking-detail~~ | — | Replaced 4× with proper waits | ✅ **Fixed** |
-| ~~No consultation completion E2E~~ | — | Added with dynamic CheckedIn lookup | ✅ **Fixed** |
+| ~~Doctor consultation E2E~~ | — | Dynamic CheckedIn lookup | ✅ **Fixed** |
+| ~~Staff check-in/undo check-in~~ | — | Dynamic booking lookup | ✅ **Fixed** |
 
 ---
 

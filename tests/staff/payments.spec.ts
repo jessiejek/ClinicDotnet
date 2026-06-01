@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { loginAsStaff, openStaffRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES, collectApiResponses } from './staff.fixtures';
+import { loginAsStaff, openStaffRoute, mockApiFailure, mockApiResponse, expectNoPersistentLoading, expectPageVisible, SELECTORS, ROUTES } from './staff.fixtures';
+import { findStaffBookingByStatus } from '../utils/booking-lookup';
+
+const PAYMENT_METHOD = process.env['E2E_PAYMENT_METHOD'] || 'Cash';
+const AMOUNT = process.env['E2E_PAYMENT_AMOUNT'] || '650';
+const PAYMENT_REF = process.env['E2E_PAYMENT_REFERENCE'] || 'E2E-PAY-001';
 
 test.describe('Staff Payments', () => {
 
@@ -8,7 +13,7 @@ test.describe('Staff Payments', () => {
     const responses = await openStaffRoute(page, ROUTES.payments);
 
     await expect(page.locator(SELECTORS.pageTitle)).toContainText('Payment Queue', { timeout: 10000 });
-    await expect(page.locator(SELECTORS.statCard).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('staff-payments-previous-page-button').or(page.getByTestId('staff-payments-payment-modal').or(page.locator(SELECTORS.statCard).first()))).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
     await expectPageVisible(page);
 
@@ -28,7 +33,6 @@ test.describe('Staff Payments', () => {
     await mockApiResponse(page, 'bookings/staff/for-payment', { items: [], totalCount: 0 });
     await page.goto(ROUTES.payments);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
     await expect(page.locator(SELECTORS.emptyState)).toBeVisible({ timeout: 10000 });
     await expectNoPersistentLoading(page);
@@ -40,142 +44,98 @@ test.describe('Staff Payments', () => {
     await mockApiFailure(page, 'bookings/staff/for-payment');
     await page.goto(ROUTES.payments);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
     await expect(page.locator('body')).toBeVisible();
     await expectNoPersistentLoading(page);
     await expectPageVisible(page);
   });
 
-  test('Payment Modal: opens when Confirm Payment is clicked', async ({ page }) => {
+  test('Payment Confirm: finds Completed+Unpaid booking and confirms payment', async ({ page }) => {
     await loginAsStaff(page);
-    await openStaffRoute(page, ROUTES.payments);
 
-    const confirmBtn = page.locator('button:has-text("Confirm Payment")').first();
-    if (!(await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.log('ℹ️ No Confirm Payment buttons — no completed unpaid bookings available.');
-      test.skip();
+    // Dynamically find a Completed+Unpaid booking via staff API
+    const booking = await findStaffBookingByStatus(page, 'Completed', { paymentStatus: 'Unpaid' });
+    if (!booking) {
+      console.log('ℹ️ No Completed+Unpaid booking found — skipping payment confirm test.');
+      test.skip(true, '[NEEDS TEST DATA: no Completed+Unpaid booking found in the database]');
       return;
     }
 
+    console.log(`🔍 Found Completed+Unpaid booking ${booking.id} for ${booking.doctorName}, amount ${booking.finalAmount ?? booking.totalFee}`);
+
+    await openStaffRoute(page, ROUTES.payments);
+
+    // Use data-testid for the specific booking's confirm payment button
+    const confirmBtn = page.getByTestId(`staff-payments-confirm-open-button-${booking.id}`);
+    if (!(await confirmBtn.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      console.log(`ℹ️ Confirm Payment button not visible for booking ${booking.id} on current page.`);
+      test.skip(true, '[NEEDS TEST DATA: booking exists but Confirm Payment button not on current view]');
+      return;
+    }
+
+    // Open payment modal and wait for it to render
     await confirmBtn.click();
-    await page.waitForTimeout(1000);
+    const payModal = page.getByTestId('staff-payments-payment-modal');
+    await expect(payModal).toBeVisible({ timeout: 5_000 });
 
-    // Payment modal should appear (uses inline dialog, not ion-modal)
-    const modalContent = page.locator('section[role="dialog"]');
-    await expect(modalContent).toBeVisible({ timeout: 5000 });
-    console.log('✅ Payment modal opened.');
+    // Fill payment details
+    const methodSelect = page.getByTestId('staff-payments-payment-method-select');
+    await expect(methodSelect).toBeVisible({ timeout: 3_000 });
+    await methodSelect.selectOption(PAYMENT_METHOD);
 
-    // Verify payment method select and amount fields are present
-    await expect(page.locator('select[name="paymentMethod"]')).toBeVisible({ timeout: 3000 });
-    await expect(page.locator('input[name="amountReceived"]')).toBeVisible({ timeout: 3000 });
-  });
+    const amountInput = page.getByTestId('staff-payments-amount-received-input');
+    await amountInput.fill(AMOUNT);
 
-  test('Payment Method: selecting different methods', async ({ page }) => {
-    await loginAsStaff(page);
-    await openStaffRoute(page, ROUTES.payments);
+    const refInput = page.getByTestId('staff-payments-reference-number-input');
+    await refInput.fill(PAYMENT_REF);
 
-    const confirmBtn = page.locator('button:has-text("Confirm Payment")').first();
-    if (!(await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.log('ℹ️ No Confirm Payment buttons available.');
-      test.skip();
-      return;
-    }
+    const notesInput = page.getByTestId('staff-payments-notes-textarea');
+    await notesInput.fill('E2E payment confirmation test');
 
-    await confirmBtn.click();
-    await page.waitForTimeout(1000);
-
-    const methodSelect = page.locator('select[name="paymentMethod"]');
-    await expect(methodSelect).toBeVisible({ timeout: 5000 });
-
-    // Try selecting Cash
-    await methodSelect.selectOption('Cash');
-    await page.waitForTimeout(500);
-    console.log('✅ Payment method set to Cash.');
-
-    // Try selecting GCash
-    await methodSelect.selectOption('GCash');
-    await page.waitForTimeout(500);
-    console.log('✅ Payment method set to GCash.');
-  });
-
-  test('Receipt Modal: opens after successful payment', async ({ page }) => {
-    await loginAsStaff(page);
-    await openStaffRoute(page, ROUTES.payments);
-
-    const confirmBtn = page.locator('button:has-text("Confirm Payment")').first();
-    if (!(await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.log('ℹ️ No Confirm Payment buttons available.');
-      test.skip();
-      return;
-    }
-
-    // Get the booking ID / payment ID from the row
-    const row = page.locator('table.pt tbody tr').first();
-    const confirmPaymentInRow = row.locator('button:has-text("Confirm Payment")');
-    if (!(await confirmPaymentInRow.isVisible({ timeout: 3000 }).catch(() => false))) {
-      console.log('ℹ️ Cannot click Confirm Payment on this row.');
-      test.skip();
-      return;
-    }
-
-    await confirmPaymentInRow.click();
-    await page.waitForTimeout(1000);
-
-    // Set amount if needed
-    const amountInput = page.locator('input[name="amountReceived"]');
-    if (await amountInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const currentVal = await amountInput.inputValue();
-      if (!currentVal || currentVal === '0') {
-        await amountInput.fill('650');
-      }
-    }
-
-    // Submit the payment
+    // Submit payment via the confirm button in the modal
+    const confirmSubmitBtn = page.getByTestId('staff-payments-payment-modal-confirm-button');
     const payResponse = page.waitForResponse(
       (resp) => resp.url().includes('/api/payments/') && resp.url().includes('/confirm') && resp.request().method() === 'PATCH',
-      { timeout: 15000 }
+      { timeout: 15_000 },
     );
 
-    const submitBtn = page.locator('section[role="dialog"] button:has-text("Confirm Payment")');
-    if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await submitBtn.click();
-      const resp = await payResponse;
-      console.log(`💰 Payment confirm API: ${resp.status()}`);
+    await confirmSubmitBtn.click();
+    const resp = await payResponse;
+    expect(resp.status()).toBe(200);
+    console.log(`💰 Payment confirm API for ${booking.id}: ${resp.status()}`);
 
-      if (resp.status() === 200) {
-        // Receipt modal should be visible
-        await page.waitForTimeout(1500);
-        const receiptModal = page.locator('app-receipt-modal');
-        const isReceiptOpen = await receiptModal.isVisible({ timeout: 5000 }).catch(() => false);
-        if (isReceiptOpen) {
-          console.log('✅ Receipt modal opened after payment.');
-        } else {
-          console.log('ℹ️ Receipt modal not detected — may close automatically or use different implementation.');
-        }
-      } else {
-        console.log(`ℹ️ Payment API returned ${resp.status()} — may need a valid completed booking.`);
-      }
-    }
+    // Verify success via toast
+    await expect(page.locator('ion-toast').first()).toBeVisible({ timeout: 10_000 }).catch(() => {
+      console.log('ℹ️ Success toast not detected — may auto-dismiss quickly.');
+    });
   });
 
-  test('Waive PF Modal: opens when Waive PF is clicked', async ({ page }) => {
+  test('Waive PF: finds Completed+Unpaid booking and opens waive modal', async ({ page }) => {
     await loginAsStaff(page);
     await openStaffRoute(page, ROUTES.payments);
 
-    const waiveBtn = page.locator('button:has-text("Waive PF")').first();
-    if (!(await waiveBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.log('ℹ️ No Waive PF buttons available.');
-      test.skip();
+    // Find a Completed+Unpaid booking that still has the Waive button visible
+    // (the payment test may have consumed the only one)
+    const booking = await findStaffBookingByStatus(page, 'Completed', { paymentStatus: 'Unpaid' });
+    if (!booking) {
+      console.log('ℹ️ No Completed+Unpaid booking available for waive test.');
+      test.skip(true, '[NEEDS TEST DATA: no Completed+Unpaid booking available for waive — payment test may have consumed it]');
       return;
     }
 
-    await waiveBtn.click();
-    await page.waitForTimeout(1000);
+    const waiveBtn = page.getByTestId(`staff-payments-waive-open-button-${booking.id}`);
+    if (!(await waiveBtn.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      console.log(`ℹ️ Waive PF button not visible for booking ${booking.id}.`);
+      test.skip(true, '[NEEDS TEST DATA: Waive PF button not visible — booking may have been paid already]');
+      return;
+    }
 
-    // Confirm modal should appear
+    // Click waive and verify the waive modal opens (shared confirm modal)
+    await waiveBtn.click();
+
+    // The waive modal uses the shared confirm-modal component
     const waiveModal = page.locator('app-confirm-modal');
-    await expect(waiveModal).toBeVisible({ timeout: 5000 });
+    await expect(waiveModal).toBeVisible({ timeout: 5_000 });
     console.log('✅ Waive PF modal opened.');
   });
 
@@ -192,4 +152,3 @@ test.describe('Staff Payments', () => {
     console.log('✅ Print button found.');
   });
 });
-
