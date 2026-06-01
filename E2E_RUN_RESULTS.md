@@ -96,7 +96,8 @@ catch and turn into a clean `test.skip()`. No more 20-second timeouts.
 | `tests/staff/` (core, 8 files) | 44 | ✅ 40 PASS / 4 SKIP / 0 FAIL |
 | `tests/doctor/` (core, 6 files) | 20 | ✅ 19 PASS / 1 SKIP / 0 FAIL |
 | `tests/staff-account/` (separate suite) | 58 | ⚠️ Known pre-existing failures |
-| **Total (core)** | **150** | **✅ 136 PASS / 14 SKIP / 0 FAIL** |
+| `tests/admin/` (core, 6 files) | 18 | ✅ 18/18 PASS |
+| **Total (core)** | **168** | **✅ 154 PASS / 14 SKIP / 0 FAIL** |
 
 ### Staff payment phase detail
 
@@ -110,13 +111,31 @@ catch and turn into a clean `test.skip()`. No more 20-second timeouts.
 | **Waive PF** | ⏸ **SKIP** | Only Completed+Unpaid booking consumed by payment test |
 | Print/Download | ✅ PASS | Print button check |
 
-### Payment confirm approach
-Test uses `findStaffBookingByStatus(page, 'Completed', { paymentStatus: 'Unpaid' })`
-to locate the booking. Navigates to the payment queue, clicks
-data-testid `staff-payments-confirm-open-button-{bookingId}`, fills the modal
-via stable selectors, and verifies the PATCH payments/confirm API.
+### Admin phase detail
 
-All 4 `waitForTimeout` occurrences removed. Tests use `test.skip(true, '[NEEDS TEST DATA: ...]')`.
+| Test file | Tests | Result |
+|---|---|---|
+| **bookings.spec.ts** | **6** | ✅ 6/6 PASS — Confirmed, ProofSubmitted, Completed+Paid verified |
+| dashboard.spec.ts | 2 | ✅ 2/2 PASS |
+| doctors.spec.ts | 4 | ✅ 4/4 PASS |
+| patients.spec.ts | 2 | ✅ 2/2 PASS |
+| services.spec.ts | 2 | ✅ 2/2 PASS |
+| staff-accounts.spec.ts | 2 | ✅ 2/2 PASS |
+|---|---|---|
+| **bookings.spec.ts** | **6** | ✅ **6/6 PASS** — Confirmed, ProofSubmitted, Completed+Paid all verified |
+| dashboard.spec.ts | 2 | ✅ 2/2 PASS |
+| doctors.spec.ts | 4 | ✅ 4/4 PASS |
+| patients.spec.ts | 2 | ✅ 2/2 PASS |
+| services.spec.ts | 2 | ✅ 2/2 PASS |
+| staff-accounts.spec.ts | 2 | ✅ 2/2 PASS |
+| **Total** | **18** | **✅ 18/18 PASS** |
+
+### Admin booking approach
+Uses `findStaffBookingByStatus()` to dynamically find bookings by required
+status (Confirmed, ProofSubmitted, Completed+Paid). Navigates to
+`/admin/bookings/{id}` and verifies the appropriate data-testid action
+buttons from SELECTOR_MAP.md are visible. When no booking exists for a
+required status, the test skips gracefully with `[NEEDS TEST DATA]`.
 
 ---
 
@@ -150,14 +169,12 @@ All 4 `waitForTimeout` occurrences removed. Tests use `test.skip(true, '[NEEDS T
 
 | Blocker | Priority | Details | Status |
 |---|---|---|---|
-| ~~No Completed+Unpaid booking~~ | P0 | Consumed by payment confirm test ✅ | ✅ **FIXED** |
-| ~~Staff payment test used old format~~ | P2 | Rewritten with data-testid + dynamic lookup | ✅ **FIXED** |
-| ~~waitForTimeout in payments spec~~ | — | All 4 occurrences replaced | ✅ **Fixed** |
 | Receipt modal app guard | P1 | Booking detail API missing `payment.id` | ❌ Still blocked |
-| Waive PF only passes if 2+ Completed+Unpaid exist | P2 | Only one existed; consumed by payment | 🟡 Needs another seed |
-| ~~e2e-booking timeout on exhaustion~~ | — | Probes available-slots API | ✅ **Fixed** |
-| ~~Doctor consultation E2E~~ | — | Dynamic CheckedIn lookup | ✅ **Fixed** |
-| ~~Staff check-in/undo check-in~~ | — | Dynamic booking lookup | ✅ **Fixed** |
+| Waive PF needs 2nd Completed+Unpaid | P2 | Only one existed; consumed by payment | 🟡 Needs another seed |
+| ~~waitForTimeout in payments spec~~ | — | All 4 occurrences replaced | ✅ **Fixed** |
+| ~~No admin booking detail tests~~ | — | Added 4 new tests with dynamic lookup | ✅ **Fixed** |
+| ~~Admin confirmed booking verification~~ | — | Confirmed, ProofSubmitted, Completed+Paid all pass | ✅ **Fixed** |
+| ~~All core phases (Patient→Admin)~~ | — | All 5 phases complete | ✅ **Done** |
 
 ---
 
