@@ -283,7 +283,7 @@ export async function assertNoBlankWhiteScreen(page: Page): Promise<void> {
 
 export async function waitForStaffLoadingToSettle(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(100);
+  // Wait for loading indicator to detach directly instead of arbitrary sleep
   await page.locator(staffTestData.selectors.loading).first().waitFor({ state: 'detached', timeout: 5000 }).catch(() => undefined);
 }
 

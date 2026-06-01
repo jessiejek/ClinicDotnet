@@ -78,15 +78,12 @@ export const SELECTORS = {
 export async function loginAsDoctor(page: Page) {
   await page.goto('/auth/login');
   await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1500);
-
-  await page.locator('ion-input[formControlName="email"]').waitFor({ state: 'attached', timeout: 10000 });
 
   const emailInput = page.locator('ion-input[formControlName="email"]').locator('input');
+  await emailInput.waitFor({ state: 'visible', timeout: 10000 });
+
   const passwordInput = page.locator('ion-input[formControlName="password"]').locator('input');
   const signInBtn = page.getByRole('button', { name: /sign ?in/i });
-
-  await emailInput.waitFor({ state: 'visible', timeout: 5000 });
   await emailInput.fill(DOCTOR_EMAIL);
   await passwordInput.waitFor({ state: 'visible', timeout: 5000 });
   await passwordInput.fill(DOCTOR_PASSWORD);
@@ -141,6 +138,7 @@ export async function openDoctorRoute(page: Page, route: string) {
   const responses = collectApiResponses(page);
   await page.goto(route);
   await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(2500);
+  // Wait for page content to render instead of arbitrary sleep
+  await page.locator(SELECTORS.pageTitle).or(page.locator(SELECTORS.emptyState)).or(page.locator('ion-content')).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
   return responses;
 }

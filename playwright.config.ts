@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from 'node:path';
 
 const baseURL = process.env['E2E_BASE_URL'] || 'http://localhost:4200';
 
@@ -18,7 +17,7 @@ export default defineConfig({
 
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['html', { outputFolder: 'playwright-report-e2e', open: 'never' }],
   ],
 
   use: {

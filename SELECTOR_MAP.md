@@ -10,6 +10,17 @@ Scope constraints followed:
 - UI layout/design unchanged.
 - Selectors only document stable handles for tests and future AI tasks.
 
+## Auth / Login Page
+
+| Selector | Page / Component | Purpose | Source File |
+|---|---|---|---|
+| `auth-login-email-input` | Login Page | Email input field | `src/app/auth/login/login.page.html` |
+| `auth-login-password-input` | Login Page | Password input field | `src/app/auth/login/login.page.html` |
+| `auth-login-submit-button` | Login Page | Sign In submit button | `src/app/auth/login/login.page.html` |
+| `auth-login-error-message` | Login Page | Banner error message display | `src/app/auth/login/login.page.html` |
+| `auth-login-google-button` | Login Page | Continue with Google button | `src/app/auth/login/login.page.html` |
+| `auth-login-facebook-button` | Login Page | Continue with Facebook button | `src/app/auth/login/login.page.html` |
+
 ## Shared Components
 
 | Selector | Page / Component | Purpose | Source File |

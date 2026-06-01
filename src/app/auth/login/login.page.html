@@ -8,12 +8,13 @@
       variant="danger"
       [message]="err"
       class="login-error-banner"
+      data-testid="auth-login-error-message"
     ></app-banner>
 
     <form [formGroup]="loginForm" (ngSubmit)="onLogin()" novalidate>
       <ion-item class="clinic-input" lines="full">
         <ion-label position="floating">Email Address</ion-label>
-        <ion-input type="email" formControlName="email" autocomplete="email"></ion-input>
+        <ion-input type="email" formControlName="email" autocomplete="email" data-testid="auth-login-email-input"></ion-input>
       </ion-item>
       <div
         class="form-error-message"
@@ -30,6 +31,7 @@
           [type]="showPassword ? 'text' : 'password'"
           formControlName="password"
           autocomplete="current-password"
+          data-testid="auth-login-password-input"
         ></ion-input>
         <ion-button
           slot="end"
@@ -53,7 +55,7 @@
         <a routerLink="/auth/forgot-password" class="link-forgot">Forgot password?</a>
       </div>
 
-      <button class="btn-primary login-submit" type="submit" [disabled]="(isLoading$ | async) === true">
+      <button class="btn-primary login-submit" type="submit" [disabled]="(isLoading$ | async) === true" data-testid="auth-login-submit-button">
         <ion-spinner
           *ngIf="(isLoading$ | async) === true"
           name="crescent"
@@ -75,6 +77,7 @@
         class="btn-social"
         (click)="onGoogleLogin()"
         [disabled]="(isLoading$ | async) === true"
+        data-testid="auth-login-google-button"
       >
         Continue with Google
       </button>
@@ -84,6 +87,7 @@
         class="btn-social btn-social--facebook"
         (click)="onFacebookLogin()"
         [disabled]="(isLoading$ | async) === true"
+        data-testid="auth-login-facebook-button"
       >
         <span class="btn-social__icon" aria-hidden="true">f</span>
         Continue with Facebook

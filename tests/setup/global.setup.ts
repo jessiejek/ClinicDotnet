@@ -34,7 +34,6 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   try {
     await page.goto('/auth/login');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
 
     // Fill email
     const emailInput = page.locator('input[type="email"]').or(
