@@ -137,6 +137,33 @@ export async function findStaffBookingByStatus(
 /**
  * Fetch doctor today bookings and return the first one whose status matches.
  */
+/**
+ * Normalize a raw booking from any API endpoint to a BookingDto with
+ * flat doctorId/doctorName fields.
+ */
+function normalizeBooking(raw: Record<string, unknown>): BookingDto {
+  const doctor = raw.doctor as Record<string, unknown> | undefined;
+  return {
+    id: raw.id as string,
+    status: raw.status as string,
+    patientName: (raw.patientName as string) ?? (raw.patient_name as string),
+    patientId: (raw.patientId as string) ?? (raw.patient_id as string),
+    doctorName: (raw.doctorName as string) ?? doctor?.fullName as string ?? (raw.doctor_name as string),
+    doctorId: (raw.doctorId as string) ?? doctor?.id as string,
+    totalFee: (raw.totalFee as number) ?? (raw.total_fee as number),
+    finalAmount: (raw.finalAmount as number | null) ?? (raw.final_amount as number | null),
+    paymentStatus: (raw.paymentStatus as string) ?? (raw.payment_status as string),
+    bookingDate: (raw.bookingDate as string) ?? (raw.appointmentDate as string) ?? (raw.booking_date as string),
+    slotStartTime: (raw.slotStartTime as string) ?? (raw.slot_start_time as string),
+    slotEndTime: (raw.slotEndTime as string) ?? (raw.slot_end_time as string),
+    queueNumber: (raw.queueNumber as number | null) ?? (raw.queue_number as number | null),
+    paymentMode: (raw.paymentMode as string) ?? (raw.payment_mode as string),
+  };
+}
+
+/**
+ * Fetch doctor's today bookings and return the first one whose status matches.
+ */
 export async function findDoctorBookingByStatus(
   page: Page,
   status: string,
@@ -148,9 +175,15 @@ export async function findDoctorBookingByStatus(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok()) return null;
-  const body = await response.json();
-  const summary = body as { items?: BookingDto[] };
-  const items: BookingDto[] = summary.items ?? body ?? [];
+  const body = (await response.json()) as unknown;
+  // doctor/today returns a flat array: [{...}, ...]
+  // But may also return { value: [...], Count: N } with different credentials
+  const rawItems: Record<string, unknown>[] = Array.isArray(body)
+    ? (body as Record<string, unknown>[])
+    : ((body as Record<string, unknown>).value as Record<string, unknown>[])
+      ?? ((body as Record<string, unknown>).items as Record<string, unknown>[])
+      ?? [];
+  const items = rawItems.map(normalizeBooking);
   return items.find((b) => b.status === status) ?? null;
 }
 
