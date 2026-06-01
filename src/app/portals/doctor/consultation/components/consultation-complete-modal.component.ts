@@ -61,8 +61,8 @@ export interface ConsultationSummaryLine {
           </div>
 
           <div class="wizard-actions wizard-actions--split">
-            <button type="button" class="btn-ghost" [disabled]="isSubmitting" (click)="close()">Cancel</button>
-            <button type="button" class="btn-primary" [disabled]="hasMissingChecklistItems() || isSubmitting" (click)="goToSummary()">
+            <button type="button" class="btn-ghost" data-testid="doctor-consultation-complete-modal-cancel-button" [disabled]="isSubmitting" (click)="close()">Cancel</button>
+            <button type="button" class="btn-primary" data-testid="doctor-consultation-complete-modal-review-summary-button" [disabled]="hasMissingChecklistItems() || isSubmitting" (click)="goToSummary()">
               Review Summary
             </button>
           </div>
@@ -99,8 +99,8 @@ export interface ConsultationSummaryLine {
           </div>
 
           <div class="wizard-actions wizard-actions--split">
-            <button type="button" class="btn-ghost" [disabled]="isSubmitting" (click)="goBack()">Go Back</button>
-            <button type="button" class="btn-primary" [disabled]="isSubmitting" (click)="finalize()">
+            <button type="button" class="btn-ghost" data-testid="doctor-consultation-complete-modal-go-back-button" [disabled]="isSubmitting" (click)="goBack()">Go Back</button>
+            <button type="button" class="btn-primary" data-testid="doctor-consultation-complete-modal-finalize-button" [disabled]="isSubmitting" (click)="finalize()">
               {{ isSubmitting ? 'Finalizing...' : 'Finalize Consultation' }}
             </button>
           </div>

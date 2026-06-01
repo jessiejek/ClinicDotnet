@@ -24,23 +24,24 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
     ></app-page-header>
 
     <section class="filter-bar">
-      <select class="filter-input" [(ngModel)]="doctorFilter" (ngModelChange)="onFiltersChanged()">
+      <select data-testid="staff-bookings-doctor-filter" class="filter-input" [(ngModel)]="doctorFilter" (ngModelChange)="onFiltersChanged()">
         <option value="">All Doctors</option>
         <option *ngFor="let doctor of doctors" [value]="doctor.id">{{ doctor.fullName }}</option>
       </select>
 
-      <select class="filter-input" [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
+      <select data-testid="staff-bookings-status-filter" class="filter-input" [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
         <option *ngFor="let status of statuses" [value]="status.value">{{ status.label }}</option>
       </select>
 
       <input
         type="date"
+        data-testid="staff-bookings-date-filter"
         class="filter-input filter-date"
         [(ngModel)]="dateValue"
         (ngModelChange)="onDateChanged()"
       />
 
-      <button type="button" class="btn-icon" (click)="refresh()" [disabled]="isLoading">
+      <button type="button" data-testid="staff-bookings-refresh-button" class="btn-icon" (click)="refresh()" [disabled]="isLoading">
         <span class="btn-icon__text">⟳</span> Refresh
       </button>
     </section>
@@ -67,6 +68,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
               <tr
                 *ngFor="let booking of bookings"
                 class="booking-row"
+                [attr.data-testid]="'staff-bookings-row-' + booking.id"
                 tabindex="0"
                 role="button"
                 [attr.aria-label]="'Open booking for ' + (booking.patientName || 'patient')"
@@ -74,7 +76,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
                 (keydown.enter)="openBooking(booking.id)"
               >
                 <td>
-                  <button type="button" class="booking-link" (click)="openBooking(booking.id, $event)">
+                  <button type="button" class="booking-link" [attr.data-testid]="'staff-bookings-open-button-' + booking.id" (click)="openBooking(booking.id, $event)">
                     {{ booking.patientName || 'Patient' }}
                   </button>
                 </td>
@@ -101,6 +103,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
                       *ngIf="booking.status === 'Confirmed'"
                       type="button"
                       class="btn-primary"
+                      [attr.data-testid]="'staff-bookings-checkin-button-' + booking.id"
                       (click)="checkIn(booking, $event)"
                       [disabled]="actionBookingId === booking.id"
                     >
@@ -110,6 +113,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
                       *ngIf="booking.status === 'CheckedIn'"
                       type="button"
                       class="btn-outline"
+                      [attr.data-testid]="'staff-bookings-undo-checkin-button-' + booking.id"
                       (click)="undoCheckIn(booking, $event)"
                       [disabled]="actionBookingId === booking.id"
                     >
@@ -123,11 +127,11 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
         </div>
 
         <div class="pagination" *ngIf="totalPages > 1">
-          <button class="btn-ghost pagination__button" type="button" (click)="previousPage()" [disabled]="currentPage <= 1 || isLoading">
+          <button data-testid="staff-bookings-previous-page-button" class="btn-ghost pagination__button" type="button" (click)="previousPage()" [disabled]="currentPage <= 1 || isLoading">
             Previous
           </button>
           <span class="pagination__page">Page {{ currentPage }} of {{ totalPages }}</span>
-          <button class="btn-ghost pagination__button" type="button" (click)="nextPage()" [disabled]="currentPage >= totalPages || isLoading">
+          <button data-testid="staff-bookings-next-page-button" class="btn-ghost pagination__button" type="button" (click)="nextPage()" [disabled]="currentPage >= totalPages || isLoading">
             Next
           </button>
         </div>
@@ -137,6 +141,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
       <section class="mobile-layout" *ngIf="bookings.length > 0">
         <div
           class="mobile-card"
+          [attr.data-testid]="'staff-bookings-mobile-card-' + booking.id"
           *ngFor="let booking of bookings"
           tabindex="0"
           role="button"
@@ -181,6 +186,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
               *ngIf="booking.status === 'Confirmed'"
               type="button"
               class="btn-primary btn-full"
+              [attr.data-testid]="'staff-bookings-mobile-checkin-button-' + booking.id"
               (click)="checkIn(booking, $event)"
               [disabled]="actionBookingId === booking.id"
             >
@@ -190,6 +196,7 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
               *ngIf="booking.status === 'CheckedIn'"
               type="button"
               class="btn-outline btn-full"
+              [attr.data-testid]="'staff-bookings-mobile-undo-checkin-button-' + booking.id"
               (click)="undoCheckIn(booking, $event)"
               [disabled]="actionBookingId === booking.id"
             >
@@ -199,11 +206,11 @@ type StaffTodayStatus = 'all' | 'Confirmed' | 'CheckedIn' | 'Completed' | 'NoSho
         </div>
 
         <div class="pagination" *ngIf="totalPages > 1">
-          <button class="btn-ghost pagination__button" type="button" (click)="previousPage()" [disabled]="currentPage <= 1 || isLoading">
+          <button data-testid="staff-bookings-mobile-previous-page-button" class="btn-ghost pagination__button" type="button" (click)="previousPage()" [disabled]="currentPage <= 1 || isLoading">
             Previous
           </button>
           <span class="pagination__page">Page {{ currentPage }} of {{ totalPages }}</span>
-          <button class="btn-ghost pagination__button" type="button" (click)="nextPage()" [disabled]="currentPage >= totalPages || isLoading">
+          <button data-testid="staff-bookings-mobile-next-page-button" class="btn-ghost pagination__button" type="button" (click)="nextPage()" [disabled]="currentPage >= totalPages || isLoading">
             Next
           </button>
         </div>

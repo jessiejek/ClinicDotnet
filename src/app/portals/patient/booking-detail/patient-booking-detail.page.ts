@@ -30,7 +30,7 @@ import { BookingTimelineComponent } from '../components/booking-timeline/booking
     <section class="page-shell" *ngIf="booking; else emptyTpl">
       <div class="page-shell__header">
         <div>
-          <button type="button" class="btn-ghost" (click)="back()">Back to Bookings</button>
+          <button type="button" class="btn-ghost" data-testid="patient-booking-detail-back-button" (click)="back()">Back to Bookings</button>
           <h2 class="page-title">Booking Detail</h2>
           <p class="page-subtitle data-mono">{{ booking.id }}</p>
         </div>
@@ -84,13 +84,13 @@ import { BookingTimelineComponent } from '../components/booking-timeline/booking
           <div class="clinic-card" *ngIf="canViewReceipt">
             <div class="section-heading">Official Receipt</div>
             <p>Your payment has been recorded. You can open or print the clinic receipt.</p>
-            <button type="button" class="btn-primary" (click)="openReceipt()">View Receipt</button>
+            <button type="button" class="btn-primary" data-testid="patient-booking-detail-view-receipt-button" (click)="openReceipt()">View Receipt</button>
           </div>
 
           <div class="clinic-card cancellation-panel" *ngIf="canCancelOnline; else cannotCancelTpl">
             <div class="section-heading">Cancellation</div>
             <p>This booking can still be cancelled online.</p>
-            <button type="button" class="btn-danger" (click)="openCancelModal()">Cancel Booking</button>
+            <button type="button" class="btn-danger" data-testid="patient-booking-detail-cancel-open-button" (click)="openCancelModal()">Cancel Booking</button>
           </div>
           <ng-template #cannotCancelTpl>
             <div class="clinic-card">
@@ -118,10 +118,10 @@ import { BookingTimelineComponent } from '../components/booking-timeline/booking
           <div class="clinic-card">
             <div class="section-heading">Quick Links</div>
             <div class="action-list">
-              <button type="button" class="btn-ghost" style="width: 100%; text-align: left; padding-left: 0;" (click)="navigateToDocuments()">
+              <button type="button" class="btn-ghost" data-testid="patient-booking-detail-documents-button" style="width: 100%; text-align: left; padding-left: 0;" (click)="navigateToDocuments()">
                 <ion-icon name="document-text-outline" style="margin-right: 8px; vertical-align: middle;"></ion-icon> My Documents
               </button>
-              <button type="button" class="btn-ghost" style="width: 100%; text-align: left; padding-left: 0;" (click)="navigateToLabResults()">
+              <button type="button" class="btn-ghost" data-testid="patient-booking-detail-labs-button" style="width: 100%; text-align: left; padding-left: 0;" (click)="navigateToLabResults()">
                 <ion-icon name="flask-outline" style="margin-right: 8px; vertical-align: middle;"></ion-icon> My Labs
               </button>
             </div>
@@ -136,11 +136,12 @@ import { BookingTimelineComponent } from '../components/booking-timeline/booking
         confirmLabel="Cancel Booking"
         cancelLabel="Keep Booking"
         [isDanger]="true"
+        testIdPrefix="patient-booking-detail-cancel-modal"
         (confirmed)="confirmCancel()"
         (cancelled)="cancelModalOpen = false"
       ></app-confirm-modal>
 
-      <app-receipt-modal [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
+      <app-receipt-modal testIdPrefix="patient-booking-detail-receipt" [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
     </section>
 
     <ng-template #emptyTpl>

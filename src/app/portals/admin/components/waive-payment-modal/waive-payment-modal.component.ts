@@ -30,13 +30,13 @@ import { Booking } from '../../../../core/models';
     IonTextarea
   ],
   template: `
-    <ion-modal [isOpen]="isOpen" (didDismiss)="cancelled.emit()">
+    <ion-modal [isOpen]="isOpen" [attr.data-testid]="testIdPrefix + '-modal'" (didDismiss)="cancelled.emit()">
       <ng-template>
         <ion-header>
           <ion-toolbar>
             <ion-title>Waive Payment</ion-title>
             <ion-buttons slot="end">
-              <ion-button fill="clear" (click)="cancelled.emit()">Close</ion-button>
+              <ion-button fill="clear" [attr.data-testid]="testIdPrefix + '-close-button'" (click)="cancelled.emit()">Close</ion-button>
             </ion-buttons>
           </ion-toolbar>
         </ion-header>
@@ -47,6 +47,7 @@ import { Booking } from '../../../../core/models';
           </p>
           <ion-textarea
             name="waiveReason"
+            [attr.data-testid]="testIdPrefix + '-reason-textarea'"
             [(ngModel)]="reason"
             [ngModelOptions]="{ standalone: true }"
             label="Reason"
@@ -55,8 +56,8 @@ import { Booking } from '../../../../core/models';
             [autoGrow]="true"
           ></ion-textarea>
           <div class="modal-actions">
-            <button class="btn-ghost" type="button" (click)="cancelled.emit()">Cancel</button>
-            <button class="btn-danger" type="button" [disabled]="reasonTrimmed.length < 5" (click)="confirm()">
+            <button class="btn-ghost" type="button" [attr.data-testid]="testIdPrefix + '-cancel-button'" (click)="cancelled.emit()">Cancel</button>
+            <button class="btn-danger" type="button" [attr.data-testid]="testIdPrefix + '-confirm-button'" [disabled]="reasonTrimmed.length < 5" (click)="confirm()">
               Waive Payment
             </button>
           </div>
@@ -70,6 +71,7 @@ export class WaivePaymentModalComponent {
   @Input() booking!: Booking;
   @Input() paymentId: string | null = null;
   @Input() isOpen = false;
+  @Input() testIdPrefix = 'waive-payment';
   @Output() confirmed = new EventEmitter<{ bookingId: string; paymentId?: string | null; reason: string }>();
   @Output() cancelled = new EventEmitter<void>();
 

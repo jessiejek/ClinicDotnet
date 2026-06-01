@@ -278,25 +278,26 @@ type ProgressSectionId =
                   <button *ngIf="isAmendMode" class="cr-btn cr-btn--primary" (click)="saveAmendment(vm)" [disabled]="isSavingAmendment">
                     {{ isSavingAmendment ? 'Saving...' : 'Save Changes' }}
                   </button>
-                  <button *ngIf="isAmendMode" class="cr-btn cr-btn--outline" type="button" (click)="cancelAmendMode()">
+                  <button *ngIf="isAmendMode" class="cr-btn cr-btn--outline" type="button" data-testid="doctor-consultation-cancel-amend-button" (click)="cancelAmendMode()">
                     Cancel
                   </button>
                   <div class="cr-cancel-prompt" *ngIf="editCancelPromptOpen">
                     <span>Discard unsaved changes?</span>
                     <div class="cr-cancel-prompt__actions">
-                      <button type="button" class="cr-btn cr-btn--secondary" (click)="keepEditing()">Keep Editing</button>
-                      <button type="button" class="cr-btn cr-btn--outline" (click)="discardEditChanges(vm)">Discard Changes</button>
+                      <button type="button" class="cr-btn cr-btn--secondary" data-testid="doctor-consultation-keep-editing-button" (click)="keepEditing()">Keep Editing</button>
+                      <button type="button" class="cr-btn cr-btn--outline" data-testid="doctor-consultation-discard-changes-button" (click)="discardEditChanges(vm)">Discard Changes</button>
                     </div>
                   </div>
                 </ng-container>
                 <ng-template #activeActions>
                   <app-status-badge [status]="vm.booking.status"></app-status-badge>
-                  <a class="cr-btn" routerLink="/doctor/appointments">Back to Appointments</a>
-                  <button class="cr-btn cr-btn--primary" (click)="saveDraft(vm)" [disabled]="isWorkspaceLocked(vm) || isSavingDraft || isAutosaving">{{ getDraftButtonLabel() }}</button>
+                  <a class="cr-btn" data-testid="doctor-consultation-back-to-appointments-link" routerLink="/doctor/appointments">Back to Appointments</a>
+                  <button class="cr-btn cr-btn--primary" data-testid="doctor-consultation-save-draft-button" (click)="saveDraft(vm)" [disabled]="isWorkspaceLocked(vm) || isSavingDraft || isAutosaving">{{ getDraftButtonLabel() }}</button>
                   <span class="cr-complete-wrap" [attr.title]="getCompleteTooltip(vm)">
                     <button
                       *ngIf="currentClinicalRole === 'physician'"
                       class="cr-btn cr-btn--complete"
+                      data-testid="doctor-consultation-complete-button"
                       [class.cr-btn--complete--ready]="!isCompleteActionDisabled(vm)"
                       (click)="requestCompletion(vm)"
                       [disabled]="isCompleteActionDisabled(vm)"

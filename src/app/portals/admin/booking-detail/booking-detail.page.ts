@@ -138,25 +138,25 @@ interface PatientDetails {
 
             <ng-container [ngSwitch]="booking.status">
               <div *ngSwitchCase="'Pending'" class="action-stack">
-                <button class="btn-primary" type="button" (click)="openConfirm('confirm')">Confirm Booking</button>
-                <button class="btn-danger" type="button" (click)="openConfirm('reject', true)">Reject Booking</button>
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-confirm-booking-button" (click)="openConfirm('confirm')">Confirm Booking</button>
+                <button class="btn-danger" type="button" data-testid="admin-booking-detail-reject-booking-button" (click)="openConfirm('reject', true)">Reject Booking</button>
               </div>
 
               <div *ngSwitchCase="'ProofSubmitted'" class="action-stack">
-                <button class="btn-primary" type="button" (click)="openConfirm('confirm-payment')">Confirm Payment</button>
-                <button class="btn-danger" type="button" (click)="openConfirm('reject', true)">Reject Proof</button>
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-confirm-payment-button" (click)="openConfirm('confirm-payment')">Confirm Payment</button>
+                <button class="btn-danger" type="button" data-testid="admin-booking-detail-reject-proof-button" (click)="openConfirm('reject', true)">Reject Proof</button>
               </div>
 
               <div *ngSwitchCase="'Confirmed'" class="action-stack">
-                <button class="btn-primary" type="button" (click)="openConfirm('mark-complete')">Mark Complete</button>
-                <button class="btn-ghost" type="button" (click)="openConfirm('mark-no-show')">Mark No Show</button>
-                <button class="btn-outline" type="button" (click)="reschedule()">Reschedule</button>
-                <button class="btn-danger" type="button" (click)="openConfirm('cancel', true)">Cancel Booking</button>
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-mark-complete-button" (click)="openConfirm('mark-complete')">Mark Complete</button>
+                <button class="btn-ghost" type="button" data-testid="admin-booking-detail-mark-no-show-button" (click)="openConfirm('mark-no-show')">Mark No Show</button>
+                <button class="btn-outline" type="button" data-testid="admin-booking-detail-reschedule-button" (click)="reschedule()">Reschedule</button>
+                <button class="btn-danger" type="button" data-testid="admin-booking-detail-cancel-booking-button" (click)="openConfirm('cancel', true)">Cancel Booking</button>
               </div>
 
               <div *ngSwitchCase="'Completed'" class="action-stack">
-                <button class="btn-primary" type="button" (click)="openReceipt(booking)">Print Receipt</button>
-                <button class="btn-outline" type="button" disabled (click)="soon('Visit Summary')">Download Visit Summary</button>
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-print-receipt-button" (click)="openReceipt(booking)">Print Receipt</button>
+                <button class="btn-outline" type="button" data-testid="admin-booking-detail-download-visit-summary-button" disabled (click)="soon('Visit Summary')">Download Visit Summary</button>
               </div>
 
               <div *ngSwitchDefault class="action-stack">
@@ -165,10 +165,10 @@ interface PatientDetails {
             </ng-container>
 
             <div class="action-stack payment-actions" *ngIf="canWaive || canRefund">
-              <button *ngIf="canWaive" class="btn-ghost" type="button" (click)="waiveModalOpen = true">
+              <button *ngIf="canWaive" class="btn-ghost" type="button" data-testid="admin-booking-detail-waive-payment-open-button" (click)="waiveModalOpen = true">
                 Waive Payment
               </button>
-              <button *ngIf="canRefund" class="btn-ghost" type="button" (click)="refundModalOpen = true">
+              <button *ngIf="canRefund" class="btn-ghost" type="button" data-testid="admin-booking-detail-refund-payment-open-button" (click)="refundModalOpen = true">
                 Refund Payment
               </button>
             </div>
@@ -195,6 +195,7 @@ interface PatientDetails {
       [confirmLabel]="modalConfirmLabel"
       [isDanger]="modalDanger"
       [requireReason]="modalReasonRequired"
+      testIdPrefix="admin-booking-detail-action-modal"
       (confirmed)="runAction($event)"
       (cancelled)="closeConfirmModal()"
     ></app-confirm-modal>
@@ -203,6 +204,7 @@ interface PatientDetails {
       *ngIf="booking"
       [booking]="booking"
       [isOpen]="waiveModalOpen"
+      testIdPrefix="admin-booking-detail-waive-modal"
       (confirmed)="waivePayment($event.bookingId, $event.reason)"
       (cancelled)="waiveModalOpen = false"
     ></app-waive-payment-modal>
@@ -211,11 +213,12 @@ interface PatientDetails {
       *ngIf="booking"
       [booking]="booking"
       [isOpen]="refundModalOpen"
+      testIdPrefix="admin-booking-detail-refund-modal"
       (confirmed)="refundPaymentAction($event.bookingId, $event.reason)"
       (cancelled)="refundModalOpen = false"
     ></app-refund-payment-modal>
 
-    <app-receipt-modal [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
+    <app-receipt-modal testIdPrefix="admin-booking-detail-receipt" [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
   `,
   styleUrl: './booking-detail.page.scss'
 })

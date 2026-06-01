@@ -98,7 +98,7 @@ interface CollectPaymentMethodOption {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let item of items">
+              <tr *ngFor="let item of items" [attr.data-testid]="'staff-payments-row-' + item.bookingId">
                 <td><strong>{{ patientLabel(item) }}</strong></td>
                 <td>
                   <div class="cd"><span class="cn">{{ doctorLabel(item) }}</span><span class="cs">{{ servicesLabel(item) }}</span></div>
@@ -121,8 +121,8 @@ interface CollectPaymentMethodOption {
                 <td class="ac">
                   <ng-container *ngIf="canTakePaymentAction(item); else noDesktopAction">
                     <div class="ar">
-                      <button type="button" class="btn-primary" (click)="openPaymentModal(item)">Confirm Payment</button>
-                      <button type="button" class="btn-outline" (click)="openWaiveModal(item)">Waive PF</button>
+                      <button type="button" class="btn-primary" [attr.data-testid]="'staff-payments-confirm-open-button-' + item.bookingId" (click)="openPaymentModal(item)">Confirm Payment</button>
+                      <button type="button" class="btn-outline" [attr.data-testid]="'staff-payments-waive-open-button-' + item.bookingId" (click)="openWaiveModal(item)">Waive PF</button>
                     </div>
                   </ng-container>
                   <ng-template #noDesktopAction>&mdash;</ng-template>
@@ -133,7 +133,7 @@ interface CollectPaymentMethodOption {
         </div>
 
         <div class="ml">
-          <div class="mc" *ngFor="let item of items">
+          <div class="mc" *ngFor="let item of items" [attr.data-testid]="'staff-payments-mobile-card-' + item.bookingId">
             <div class="mch">
               <div class="mci">
                 <strong>{{ patientLabel(item) }}</strong>
@@ -152,8 +152,8 @@ interface CollectPaymentMethodOption {
             </dl>
             <div class="mca">
               <ng-container *ngIf="canTakePaymentAction(item); else noMobileAction">
-                <button type="button" class="btn-primary" (click)="openPaymentModal(item)">Confirm Payment</button>
-                <button type="button" class="btn-outline" (click)="openWaiveModal(item)">Waive PF</button>
+                <button type="button" class="btn-primary" [attr.data-testid]="'staff-payments-mobile-confirm-open-button-' + item.bookingId" (click)="openPaymentModal(item)">Confirm Payment</button>
+                <button type="button" class="btn-outline" [attr.data-testid]="'staff-payments-mobile-waive-open-button-' + item.bookingId" (click)="openWaiveModal(item)">Waive PF</button>
               </ng-container>
               <ng-template #noMobileAction>&mdash;</ng-template>
             </div>
@@ -161,9 +161,9 @@ interface CollectPaymentMethodOption {
         </div>
 
         <div class="pg" *ngIf="totalPages > 1">
-          <button type="button" class="btn-ghost" (click)="previousPage()" [disabled]="currentPage <= 1 || isLoading">Previous</button>
+          <button type="button" data-testid="staff-payments-previous-page-button" class="btn-ghost" (click)="previousPage()" [disabled]="currentPage <= 1 || isLoading">Previous</button>
           <span>Page {{ currentPage }} of {{ totalPages }}</span>
-          <button type="button" class="btn-ghost" (click)="nextPage()" [disabled]="currentPage >= totalPages || isLoading">Next</button>
+          <button type="button" data-testid="staff-payments-next-page-button" class="btn-ghost" (click)="nextPage()" [disabled]="currentPage >= totalPages || isLoading">Next</button>
         </div>
       </section>
       </ng-container>
@@ -176,11 +176,11 @@ interface CollectPaymentMethodOption {
         ></app-empty-state>
       </ng-template>
 
-      <div *ngIf="paymentModalOpen" class="pb" (click)="closePaymentModal()">
-        <section class="pw" role="dialog" aria-modal="true" aria-labelledby="collect-payment-title" (click)="$event.stopPropagation()">
+      <div *ngIf="paymentModalOpen" data-testid="staff-payments-payment-modal-backdrop" class="pb" (click)="closePaymentModal()">
+        <section class="pw" role="dialog" aria-modal="true" aria-labelledby="collect-payment-title" data-testid="staff-payments-payment-modal" (click)="$event.stopPropagation()">
           <div class="ph">
             <h3 class="section-heading" id="collect-payment-title" style="margin-bottom:0">Collect Payment</h3>
-            <button type="button" class="btn-ghost" (click)="closePaymentModal()">&times;</button>
+            <button type="button" class="btn-ghost" data-testid="staff-payments-payment-modal-close-button" (click)="closePaymentModal()">&times;</button>
           </div>
           <div class="ps" *ngIf="selectedItem as item">
             <div><small>Patient</small><strong>{{ item.patientName || 'Unknown Patient' }}</strong></div>
@@ -190,14 +190,14 @@ interface CollectPaymentMethodOption {
             <div><small>Queue</small><strong>{{ queueLabel(item) }}</strong></div>
           </div>
           <div class="pf">
-            <div class="pd"><label>Payment Method</label><select class="filter-input" name="paymentMethod" [(ngModel)]="paymentMethod" [ngModelOptions]="{ standalone: true }"><option *ngFor="let method of paymentMethods" [value]="method.value">{{ method.label }}</option></select></div>
-            <div class="pd"><label>Amount Received</label><input class="filter-input" type="number" min="0" name="amountReceived" [(ngModel)]="amountReceived" [ngModelOptions]="{ standalone: true }" /></div>
-            <div class="pd"><label>Reference Number <span style="color:#94a3b8;font-weight:400">(optional)</span></label><input class="filter-input" type="text" name="referenceNumber" [(ngModel)]="referenceNumber" [ngModelOptions]="{ standalone: true }" /></div>
-            <div class="pd" style="grid-column:1/-1"><label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label><textarea class="filter-input" rows="3" name="paymentNotes" [(ngModel)]="notes" [ngModelOptions]="{ standalone: true }"></textarea></div>
+            <div class="pd"><label>Payment Method</label><select class="filter-input" data-testid="staff-payments-payment-method-select" name="paymentMethod" [(ngModel)]="paymentMethod" [ngModelOptions]="{ standalone: true }"><option *ngFor="let method of paymentMethods" [value]="method.value">{{ method.label }}</option></select></div>
+            <div class="pd"><label>Amount Received</label><input class="filter-input" data-testid="staff-payments-amount-received-input" type="number" min="0" name="amountReceived" [(ngModel)]="amountReceived" [ngModelOptions]="{ standalone: true }" /></div>
+            <div class="pd"><label>Reference Number <span style="color:#94a3b8;font-weight:400">(optional)</span></label><input class="filter-input" data-testid="staff-payments-reference-number-input" type="text" name="referenceNumber" [(ngModel)]="referenceNumber" [ngModelOptions]="{ standalone: true }" /></div>
+            <div class="pd" style="grid-column:1/-1"><label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label><textarea class="filter-input" data-testid="staff-payments-notes-textarea" rows="3" name="paymentNotes" [(ngModel)]="notes" [ngModelOptions]="{ standalone: true }"></textarea></div>
           </div>
           <div class="flex" style="display:flex;gap:var(--space-3);margin-top:var(--space-6);justify-content:space-between">
-            <button type="button" class="btn-outline" (click)="closePaymentModal()">Cancel</button>
-            <button type="button" class="btn-primary" [disabled]="isSubmitting" (click)="confirmPayment()">{{ isSubmitting ? 'Confirming...' : 'Confirm Payment' }}</button>
+            <button type="button" class="btn-outline" data-testid="staff-payments-payment-modal-cancel-button" (click)="closePaymentModal()">Cancel</button>
+            <button type="button" class="btn-primary" data-testid="staff-payments-payment-modal-confirm-button" [disabled]="isSubmitting" (click)="confirmPayment()">{{ isSubmitting ? 'Confirming...' : 'Confirm Payment' }}</button>
           </div>
         </section>
       </div>
@@ -212,11 +212,12 @@ interface CollectPaymentMethodOption {
         [requireReason]="true"
         [reasonMinLength]="waiverReasonMinLength"
         reasonLabel="Waive reason"
+        testIdPrefix="staff-payments-waive-modal"
         (confirmed)="confirmWaive($event)"
         (cancelled)="closeWaiveModal()"
       ></app-confirm-modal>
 
-      <app-receipt-modal [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
+      <app-receipt-modal testIdPrefix="staff-payments-receipt" [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
     </section>
   `,
   styleUrl: './staff-payments.page.scss'

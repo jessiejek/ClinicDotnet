@@ -8,7 +8,7 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
   standalone: true,
   imports: [NgIf, DatePipe, StatusBadgeComponent],
   template: `
-    <article class="booking-card clinic-card">
+    <article class="booking-card clinic-card" [attr.data-testid]="'patient-bookings-mobile-card-' + booking.id">
       <div class="booking-card__header">
         <div>
           <div class="booking-card__id data-mono">{{ booking.id }}</div>
@@ -41,10 +41,10 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
       </div>
 
       <div class="booking-card__actions">
-        <button type="button" class="btn-outline" (click)="viewDetails.emit(booking.id)">
+        <button type="button" class="btn-outline" [attr.data-testid]="'patient-bookings-mobile-view-details-button-' + booking.id" (click)="viewDetails.emit(booking.id)">
           View Details
         </button>
-        <button *ngIf="canCancel" type="button" class="btn-ghost" (click)="cancelBooking.emit(booking.id)">
+        <button *ngIf="canCancel" type="button" class="btn-ghost" [attr.data-testid]="'patient-bookings-mobile-cancel-open-button-' + booking.id" (click)="cancelBooking.emit(booking.id)">
           Cancel
         </button>
       </div>

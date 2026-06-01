@@ -41,6 +41,7 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
           *ngFor="let filter of filters"
           type="button"
           class="booking-filter"
+          [attr.data-testid]="'patient-bookings-filter-' + filter.value"
           [class.active]="selectedFilter === filter.value"
           (click)="setFilter(filter.value)"
         >
@@ -51,11 +52,11 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
       <div class="bookings-meta" *ngIf="!isLoading && !loadError">
         <span>{{ countLabel }}</span>
         <div class="bookings-pagination" *ngIf="totalPages > 1">
-          <button class="btn-ghost bookings-pagination__button" type="button" (click)="previousPage()" [disabled]="!canPreviousPage">
+          <button class="btn-ghost bookings-pagination__button" data-testid="patient-bookings-previous-page-button" type="button" (click)="previousPage()" [disabled]="!canPreviousPage">
             Previous
           </button>
           <span class="bookings-pagination__page">Page {{ currentPage }} of {{ totalPages }}</span>
-          <button class="btn-ghost bookings-pagination__button" type="button" (click)="nextPage()" [disabled]="!canNextPage">
+          <button class="btn-ghost bookings-pagination__button" data-testid="patient-bookings-next-page-button" type="button" (click)="nextPage()" [disabled]="!canNextPage">
             Next
           </button>
         </div>
@@ -80,7 +81,7 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let booking of filteredBookings">
+              <tr *ngFor="let booking of filteredBookings" [attr.data-testid]="'patient-bookings-row-' + booking.id">
                 <td>{{ doctorName(booking) }}</td>
                 <td>{{ servicesLabel(booking) }}</td>
                 <td>
@@ -92,10 +93,10 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
                 <td><app-status-badge [status]="displayPaymentStatus(booking)"></app-status-badge></td>
                 <td>
                   <div class="table-actions">
-                    <button type="button" class="btn-outline" (click)="openBooking(booking.id)">
+                    <button type="button" class="btn-outline" [attr.data-testid]="'patient-bookings-view-details-button-' + booking.id" (click)="openBooking(booking.id)">
                       View Details
                     </button>
-                    <button *ngIf="canCancelBooking(booking)" type="button" class="btn-ghost" (click)="promptCancel(booking)">
+                    <button *ngIf="canCancelBooking(booking)" type="button" class="btn-ghost" [attr.data-testid]="'patient-bookings-cancel-open-button-' + booking.id" (click)="promptCancel(booking)">
                       Cancel
                     </button>
                   </div>
@@ -142,6 +143,7 @@ type BookingFilter = 'all' | 'upcoming' | 'for-payment' | 'completed' | 'cancell
         confirmLabel="Cancel Booking"
         cancelLabel="Keep Booking"
         [isDanger]="true"
+        testIdPrefix="patient-bookings-cancel-modal"
         (confirmed)="confirmCancel()"
         (cancelled)="closeCancelModal()"
       ></app-confirm-modal>

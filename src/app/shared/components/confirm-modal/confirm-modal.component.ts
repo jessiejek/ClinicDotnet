@@ -7,11 +7,22 @@ import { NgIf } from '@angular/common';
   standalone: true,
   imports: [NgIf, FormsModule],
   template: `
-    <div class="confirm-modal__backdrop" *ngIf="isOpen" (click)="cancel()">
-      <section class="confirm-modal clinic-card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div
+      class="confirm-modal__backdrop"
+      *ngIf="isOpen"
+      [attr.data-testid]="testIdPrefix + '-backdrop'"
+      (click)="cancel()"
+    >
+      <section
+        class="confirm-modal clinic-card"
+        role="dialog"
+        aria-modal="true"
+        [attr.data-testid]="testIdPrefix + '-dialog'"
+        (click)="$event.stopPropagation()"
+      >
         <div class="confirm-modal__header">
           <h3 class="confirm-modal__title">{{ title }}</h3>
-          <button class="btn-ghost" type="button" (click)="cancel()">Close</button>
+          <button class="btn-ghost" type="button" [attr.data-testid]="testIdPrefix + '-close-button'" (click)="cancel()">Close</button>
         </div>
         <p class="confirm-modal__message">{{ message }}</p>
         <div *ngIf="requireReason" class="confirm-modal__field">
@@ -20,6 +31,7 @@ import { NgIf } from '@angular/common';
             class="filter-input confirm-modal__textarea"
             rows="4"
             name="confirmModalReason"
+            [attr.data-testid]="testIdPrefix + '-reason-textarea'"
             [(ngModel)]="reason"
             [ngModelOptions]="{ standalone: true }"
             [placeholder]="reasonLabel"
@@ -29,13 +41,14 @@ import { NgIf } from '@angular/common';
           </p>
         </div>
         <div class="confirm-modal__actions">
-          <button class="btn-ghost" type="button" (click)="cancel()">
+          <button class="btn-ghost" type="button" [attr.data-testid]="testIdPrefix + '-cancel-button'" (click)="cancel()">
             {{ cancelLabel }}
           </button>
           <button
             [class.btn-danger]="isDanger"
             [class.btn-primary]="!isDanger"
             type="button"
+            [attr.data-testid]="testIdPrefix + '-confirm-button'"
             [disabled]="requireReason && reasonTrimmed.length < reasonMinLength"
             (click)="onConfirm()"
           >
@@ -57,6 +70,7 @@ export class ConfirmModalComponent {
   @Input() requireReason = false;
   @Input() reasonLabel = 'Reason (required)';
   @Input() reasonMinLength = 10;
+  @Input() testIdPrefix = 'confirm-modal';
 
   @Output() confirmed = new EventEmitter<string | undefined>();
   @Output() cancelled = new EventEmitter<void>();

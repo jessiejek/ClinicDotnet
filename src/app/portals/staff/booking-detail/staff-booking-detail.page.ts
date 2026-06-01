@@ -154,6 +154,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
                   *ngIf="canCheckIn"
                   class="btn-primary"
                   type="button"
+                  data-testid="staff-booking-detail-checkin-button"
                   [disabled]="isActing"
                   (click)="checkIn()"
                 >
@@ -164,6 +165,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
                   *ngIf="canUndoCheckIn"
                   class="btn-outline"
                   type="button"
+                  data-testid="staff-booking-detail-undo-checkin-button"
                   [disabled]="isActing"
                   (click)="undoCheckIn()"
                 >
@@ -174,6 +176,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
                   *ngIf="canConfirmPayment"
                   class="btn-primary"
                   type="button"
+                  data-testid="staff-booking-detail-confirm-payment-open-button"
                   [disabled]="isActing"
                   (click)="openPaymentModal()"
                 >
@@ -184,6 +187,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
                   *ngIf="canWaivePf"
                   class="btn-outline"
                   type="button"
+                  data-testid="staff-booking-detail-waive-pf-open-button"
                   [disabled]="isActing"
                   (click)="openWaiveModal()"
                 >
@@ -194,6 +198,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
                   *ngIf="canPrintDocument"
                   class="btn-ghost"
                   type="button"
+                  data-testid="staff-booking-detail-print-document-button"
                   [disabled]="isActing"
                   (click)="printBookingDocument()"
                 >
@@ -220,13 +225,13 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
       </section>
     </ng-template>
 
-    <ion-modal class="no-print" [isOpen]="paymentModalOpen" (didDismiss)="closePaymentModal()">
+    <ion-modal class="no-print" data-testid="staff-booking-detail-payment-modal" [isOpen]="paymentModalOpen" (didDismiss)="closePaymentModal()">
       <ng-template>
         <ion-header>
           <ion-toolbar>
             <ion-title>Confirm Payment</ion-title>
             <ion-buttons slot="end">
-              <ion-button fill="clear" (click)="closePaymentModal()">Close</ion-button>
+              <ion-button fill="clear" data-testid="staff-booking-detail-payment-modal-close-button" (click)="closePaymentModal()">Close</ion-button>
             </ion-buttons>
           </ion-toolbar>
         </ion-header>
@@ -242,6 +247,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
             <label class="form-label">Payment Method</label>
             <select
               class="filter-input"
+              data-testid="staff-booking-detail-payment-method-select"
               name="paymentMethod"
               [(ngModel)]="paymentMethod"
               [ngModelOptions]="{ standalone: true }"
@@ -254,6 +260,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
             <label class="form-label">Amount Received</label>
             <input
               class="filter-input"
+              data-testid="staff-booking-detail-amount-received-input"
               type="number"
               min="0"
               name="amountReceived"
@@ -266,6 +273,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
             <label class="form-label">Reference Number</label>
             <input
               class="filter-input"
+              data-testid="staff-booking-detail-reference-number-input"
               type="text"
               name="referenceNumber"
               [(ngModel)]="referenceNumber"
@@ -277,6 +285,7 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
             <label class="form-label">Notes</label>
             <textarea
               class="filter-input"
+              data-testid="staff-booking-detail-payment-notes-textarea"
               rows="3"
               name="paymentNotes"
               [(ngModel)]="notes"
@@ -285,8 +294,8 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
           </div>
 
           <div class="wizard-actions wizard-actions--split">
-            <button type="button" class="btn-outline" (click)="closePaymentModal()">Cancel</button>
-            <button type="button" class="btn-primary" [disabled]="isActing" (click)="confirmPayment()">
+            <button type="button" class="btn-outline" data-testid="staff-booking-detail-payment-modal-cancel-button" (click)="closePaymentModal()">Cancel</button>
+            <button type="button" class="btn-primary" data-testid="staff-booking-detail-payment-modal-confirm-button" [disabled]="isActing" (click)="confirmPayment()">
               {{ isActing ? 'Confirming...' : 'Confirm Payment' }}
             </button>
           </div>
@@ -304,12 +313,14 @@ type CollectPaymentMethod = 'Cash' | 'GCash' | 'Maya' | 'BankTransfer';
       [requireReason]="true"
       [reasonMinLength]="waiverReasonMinLength"
       reasonLabel="Waive reason"
+      testIdPrefix="staff-booking-detail-waive-modal"
       (confirmed)="confirmWaive($event)"
       (cancelled)="closeWaiveModal()"
     ></app-confirm-modal>
 
     <app-receipt-modal
       class="no-print"
+      testIdPrefix="staff-booking-detail-receipt"
       [isOpen]="receiptModalOpen"
       [data]="receiptData"
       (closed)="receiptModalOpen = false"
