@@ -26,6 +26,13 @@ Scope constraints followed:
 | Selector | Page / Component | Purpose | Source File |
 |---|---|---|---|
 | `{prefix}-backdrop` | Confirm modal | Modal backdrop | `src/app/shared/components/confirm-modal/confirm-modal.component.ts` |
+
+### Receipt modal API note
+
+The `openReceipt()` method calls `GET /api/payments/booking/{bookingId}`
+(the booking ID, not the payment ID), because the backend does not expose
+`GET /api/payments/{paymentId}`. The response includes payment details.
+See `patient-booking-detail.page.ts` for the fix applied in Phase 5.
 | `{prefix}-dialog` | Confirm modal | Confirm modal dialog | `src/app/shared/components/confirm-modal/confirm-modal.component.ts` |
 | `{prefix}-close-button` | Confirm modal | Header close button | `src/app/shared/components/confirm-modal/confirm-modal.component.ts` |
 | `{prefix}-reason-textarea` | Confirm modal | Required reason input | `src/app/shared/components/confirm-modal/confirm-modal.component.ts` |

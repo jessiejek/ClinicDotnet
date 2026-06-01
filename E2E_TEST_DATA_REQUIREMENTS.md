@@ -65,8 +65,11 @@ Retrieved from `GET /api/bookings/me` (patient@gavino.clinic).
 
 ### Receipt Modal
 - Requirement: Completed + Paid booking with receipt
-- 🟡 **PARTIALLY BLOCKED** — Paid booking exists (`11111...111103`) but app's booking detail API doesn't include `payment.id`, so `openReceipt()` guard blocks modal
-- Test skips with `[NEEDS APP FIX]`
+- ✅ **UNBLOCKED** — Paid booking exists (`11111...111101` and `11111...111103`)
+- **Fix applied**: `openReceipt()` used to call `GET /api/payments/{paymentId}` (404 — endpoint missing).
+  Changed to `GET /api/payments/booking/{bookingId}` which exists and returns payment data.
+- Test passes and opens the receipt modal successfully.
+- See `src/app/portals/patient/booking-detail/patient-booking-detail.page.ts:335` for the fix.
 
 ### Admin Booking Detail
 - Requirement: Multiple booking statuses
@@ -97,6 +100,6 @@ required state, the test skips gracefully with `[NEEDS TEST DATA]`.
 | Blocker | Priority | Affects | Action Needed |
 |---|---|---|---|
 | No Completed+Unpaid booking | P0 | Staff payment/waive | Run producer with fresh DB or seed a booking through the full clinic workflow |
-| Receipt modal app guard | P1 | Receipt modal test | Backend must include `payment.id` in booking detail response |
+| ~~Receipt modal app guard~~ | P1 | Fixed: `payments/{paymentId}` → `payments/booking/{bookingId}` | ✅ **FIXED** |
 | Slot exhaustion | P2 | Booking creation | Test at start of day or with reset DB |
 | e2e-booking test fails when slots full | P2 | CI stability | Test should skip gracefully when no slots available |

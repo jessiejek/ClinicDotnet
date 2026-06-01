@@ -332,7 +332,8 @@ export class PatientBookingDetailPage implements OnInit {
 
     try {
       this.receiptData = await firstValueFrom(
-        this.apiService.get<any>('payments/' + this.booking.payment.id).pipe(
+        // payments/{id} GET endpoint does not exist; use payments/booking/{bookingId}
+        this.apiService.get<any>('payments/booking/' + this.booking.id).pipe(
           switchMap((paymentData) => {
             const payment = paymentData ? normalizePaymentRow(paymentData as Record<string, unknown>) : undefined;
             if (!payment) {

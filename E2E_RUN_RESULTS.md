@@ -25,6 +25,15 @@ npx playwright test tests/staff        # 44 PASS / 6 SKIP / 0 FAIL
 npx playwright test tests/doctor       # 19 PASS / 1 SKIP / 0 FAIL
 # Result: doctor-complete PATCH 200 → Completed+Unpaid booking
 # Booking 11111111-1111-1111-1111-111111111101 now Completed (finalAmount 650)
+
+# ── RECEIPT MODAL FIX ─────────────────────────────────────────────────
+# Root cause: openReceipt() called `GET /api/payments/{paymentId}`
+# which returns 404 (endpoint does not exist). Changed to:
+#   `GET /api/payments/booking/{bookingId}`
+# Frontend: patient-booking-detail.page.ts:335
+# Rebuilt: npx ng build --configuration=development
+npx playwright test tests/auth tests/security tests/shared
+  # 26 PASS / 0 SKIP / 0 FAIL  — receipt modal no longer skipped! 🎉
 ```
 
 ---
@@ -91,13 +100,13 @@ catch and turn into a clean `test.skip()`. No more 20-second timeouts.
 | `tests/auth/login.spec.ts` | 6 | ✅ 6/6 PASS |
 | `tests/security/permissions.spec.ts` | 18 | ✅ 18/18 PASS |
 | `tests/shared/session.spec.ts` | 2 | ✅ 2/2 PASS |
-| `tests/shared/receipt-modal.spec.ts` | 1 | ⏸ SKIP (app gap: booking detail API missing `payment.id`) |
+| `tests/shared/receipt-modal.spec.ts` | 1 | ✅ **PASS** — app API endpoint fixed `payments/{id}` → `payments/booking/{bookingId}` |
 | `tests/patient/` (all 13 files) | 59 | ✅ 52 PASS / 7 SKIP / 0 FAIL |
 | `tests/staff/` (core, 8 files) | 44 | ✅ 40 PASS / 4 SKIP / 0 FAIL |
 | `tests/doctor/` (core, 6 files) | 20 | ✅ 19 PASS / 1 SKIP / 0 FAIL |
 | `tests/staff-account/` (separate suite) | 58 | ⚠️ Known pre-existing failures |
 | `tests/admin/` (core, 6 files) | 18 | ✅ 18/18 PASS |
-| **Total (core)** | **168** | **✅ 154 PASS / 14 SKIP / 0 FAIL** |
+| **Total (core)** | **168** | **✅ 155 PASS / 13 SKIP / 0 FAIL** |
 
 ### Staff payment phase detail
 
@@ -169,12 +178,10 @@ required status, the test skips gracefully with `[NEEDS TEST DATA]`.
 
 | Blocker | Priority | Details | Status |
 |---|---|---|---|
-| Receipt modal app guard | P1 | Booking detail API missing `payment.id` | ❌ Still blocked |
+| ~~Receipt modal app guard~~ | P1 | Fixed: `payments/{paymentId}` → `payments/booking/{bookingId}` | ✅ **FIXED** |
 | Waive PF needs 2nd Completed+Unpaid | P2 | Only one existed; consumed by payment | 🟡 Needs another seed |
-| ~~waitForTimeout in payments spec~~ | — | All 4 occurrences replaced | ✅ **Fixed** |
-| ~~No admin booking detail tests~~ | — | Added 4 new tests with dynamic lookup | ✅ **Fixed** |
-| ~~Admin confirmed booking verification~~ | — | Confirmed, ProofSubmitted, Completed+Paid all pass | ✅ **Fixed** |
-| ~~All core phases (Patient→Admin)~~ | — | All 5 phases complete | ✅ **Done** |
+| ~~All core phases (Patient→Admin)~~ | — | All phases complete | ✅ **Done** |
+| ~~Receipt modal app guard~~ | P1 | Fixed: `payments/{paymentId}` → `payments/booking/{bookingId}` | ✅ **Fixed** |
 
 ---
 

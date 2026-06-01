@@ -42,22 +42,15 @@ test.describe('Shared — Receipt Modal', () => {
     await viewReceiptButton.waitFor({ state: 'visible', timeout: 10_000 });
     await viewReceiptButton.click();
 
-    // The app's openReceipt() checks `this.booking?.payment?.id`. If the
-    // booking detail API response doesn't include payment.id, the app shows
-    // a brief toast and the modal never opens. This is an app-side data gap.
+    // Wait for receipt modal to open
     const receiptModal = page.getByTestId('patient-booking-detail-receipt-modal');
-    const modalOpened = await receiptModal.waitFor({ state: 'visible', timeout: 6_000 })
-      .then(() => true)
-      .catch(() => false);
+    await expect(receiptModal).toBeVisible({ timeout: 15_000 });
 
-    if (!modalOpened) {
-      test.skip(true, '[NEEDS APP FIX: booking detail GET response must include payment.id for receipt modal to open]');
-      return;
-    }
+    // Verify receipt content — OR number or amount should be visible
+    await expect(page.locator('body')).toContainText(/OR|receipt|paid|payment|amount/i);
 
-    // Verify receipt content and close
-    await expect(page.locator('body')).toContainText(/receipt|paid|payment|amount|OR/i);
-    const closeButton = receiptModal.locator('button, [role="button"], ion-button');
-    await closeButton.first().click();
+    // Close the receipt modal
+    const closeButton = receiptModal.locator('button, [role="button"], ion-button').first();
+    await closeButton.click();
   });
 });
