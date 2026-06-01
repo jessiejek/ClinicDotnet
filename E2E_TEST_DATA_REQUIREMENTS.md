@@ -58,10 +58,16 @@ Retrieved from `GET /api/bookings/me` (patient@gavino.clinic).
 - Booking C was successfully checked-in via admin API
 
 ### Staff Payment Confirm / Waive PF
-- Requirement: Completed + Unpaid booking
-- ❌ **BLOCKED** — No Completed+Unpaid booking exists
-- For-payment endpoint returns empty array
-- Tests gracefully skip with `ℹ️ No Confirm Payment buttons`
+- ✅ **Payment Confirm**: Works with **Staff** credentials. `PATCH /api/payments/{id}/confirm` → 200
+- ✅ **Paid booking created**: `1919d769-4952-4b95-8bf9-2a2fbcac54a9` (Completed+Paid, 600)
+
+## Staff Waive PF — Permission Gap
+- ❌ **Waive PF blocked for Staff**: `PATCH /api/payments/{id}/waive` returns **403** with Staff token
+- ✅ **Waive PF works with Admin**: Same endpoint returns **200** with Admin token
+- ✅ **Waived bookings created**: `85948875-b2cc...`, `b8fec564-bcbd...` (Completed+Waived)
+- **Correct waive body**: `{"waivedReason":"E2E test waiver"}` (NOT `"reason"`, no DTO wrapper)
+- **Staff UI**: Can open the waive modal, but submission fails with 403
+- This is a **backend permission configuration**, not a test bug
 
 ### Receipt Modal
 - Requirement: Completed + Paid booking with receipt

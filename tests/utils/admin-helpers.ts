@@ -110,6 +110,24 @@ export async function doctorCompleteBooking(page: Page, bookingId: string, final
 }
 
 /**
+ * Waive a payment as Admin (Completed+Unpaid → Completed+Waived).
+ * The PATCH /api/payments/{paymentId}/waive endpoint.
+ * ⚠️ PERMISSION: Requires **Admin** credentials. Staff receives 403.
+ * Correct body: { waivedReason: "..." } (NOT "reason", no DTO wrapper).
+ */
+export async function waivePayment(page: Page, paymentId: string, reason?: string): Promise<void> {
+  const token = await adminToken(page);
+  const resp = await page.request.patch(`${API_BASE}/payments/${paymentId}/waive`, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    data: { waivedReason: reason ?? 'E2E test waiver' },
+  });
+  if (!resp.ok()) {
+    const text = await resp.text();
+    throw new Error(`[admin-helpers] waivePayment(${paymentId}) failed: ${resp.status()} ${text}`);
+  }
+}
+
+/**
  * Cancel a booking (any cancellable status → Cancelled).
  * The PATCH /api/bookings/{id}/cancel endpoint.
  */

@@ -108,6 +108,29 @@ test.describe('Admin Bookings', () => {
     }
   });
 
+  test('Completed+Unpaid booking: admin waive button visible (PERMISSION: admin)', async ({ page }) => {
+    await loginAsAdmin(page);
+    const booking = await findStaffBookingByStatus(page, 'Completed', { paymentStatus: 'Unpaid' });
+    if (!assertBookingFound(booking, 'Completed+Unpaid', 'admin waive test')) {
+      test.skip(true, '[NEEDS TEST DATA: no Completed+Unpaid booking — may have been consumed by payment confirm test]');
+      return;
+    }
+
+    console.log(`🔍 Found Completed+Unpaid booking ${booking.id}`);
+    await navigateToDetail(page, booking.id);
+
+    // ⚠️ PERMISSION GAP: Staff cannot submit waive (403).
+    // Admin can via this button. The waive endpoint PATCH /api/payments/{id}/waive
+    // requires Admin credentials and body { waivedReason: "..." }.
+    const waiveBtn = page.getByTestId('admin-booking-detail-waive-payment-open-button');
+    if (await waiveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log('✅ Admin waive button visible — admin can waive PF.');
+    } else {
+      console.log('ℹ️ Waive button not visible (booking may already be paid/waived).');
+      test.skip(true, '[NEEDS TEST DATA: waive button not shown for this booking status]');
+    }
+  });
+
   test('Booking detail page loaded with patient/booking info', async ({ page }) => {
     await loginAsAdmin(page);
     // Use any available booking

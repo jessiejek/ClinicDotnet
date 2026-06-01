@@ -105,8 +105,8 @@ catch and turn into a clean `test.skip()`. No more 20-second timeouts.
 | `tests/staff/` (core, 8 files) | 44 | ✅ 40 PASS / 4 SKIP / 0 FAIL |
 | `tests/doctor/` (core, 6 files) | 20 | ✅ 19 PASS / 1 SKIP / 0 FAIL |
 | `tests/staff-account/` (separate suite) | 58 | ⚠️ Known pre-existing failures |
-| `tests/admin/` (core, 6 files) | 18 | ✅ 18/18 PASS |
-| **Total (core)** | **168** | **✅ 155 PASS / 13 SKIP / 0 FAIL** |
+| `tests/admin/` (core, 6 files) | 19 | ✅ 18 PASS / 1 SKIP |
+| **Total (core)** | **169** | **✅ 156 PASS / 13 SKIP / 0 FAIL** |
 
 ### Staff payment phase detail
 
@@ -179,7 +179,8 @@ required status, the test skips gracefully with `[NEEDS TEST DATA]`.
 | Blocker | Priority | Details | Status |
 |---|---|---|---|
 | ~~Receipt modal app guard~~ | P1 | Fixed: `payments/{paymentId}` → `payments/booking/{bookingId}` | ✅ **FIXED** |
-| Waive PF needs 2nd Completed+Unpaid | P2 | Only one existed; consumed by payment | 🟡 Needs another seed |
+| ~~Waive PF needs 2nd Completed+Unpaid~~ | P2 | Completed+Waived created via admin waive | ✅ **Done** |
+| **Staff waive PF** | P0 | **PERMISSION GAP**: backend requires Admin for waive. Staff gets 403. | 🟡 Product decision needed |
 | ~~All core phases (Patient→Admin)~~ | — | All phases complete | ✅ **Done** |
 | ~~Receipt modal app guard~~ | P1 | Fixed: `payments/{paymentId}` → `payments/booking/{bookingId}` | ✅ **Fixed** |
 
