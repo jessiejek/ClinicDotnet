@@ -12,46 +12,7 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
   selector: 'app-doctors-page',
   standalone: true,
   imports: [NgIf, NgFor, IonSpinner, DoctorCardComponent, EmptyStateComponent],
-  template: `
-    <div class="page-wrap">
-      <div class="content-container">
-        <header class="page-header">
-          <h1 class="page-title">Our Doctors</h1>
-          <p class="page-subtitle">Find the right specialist for you</p>
-        </header>
-
-        <div class="filter-row" *ngIf="specializations.length > 1">
-          <button
-            type="button"
-            *ngFor="let spec of specializations"
-            class="filter-pill"
-            [class.filter-pill--active]="spec === selectedSpecialization"
-            (click)="selectedSpecialization = spec"
-          >
-            {{ spec }}
-          </button>
-        </div>
-
-        <div class="page-loading" *ngIf="isLoading">
-          <ion-spinner name="crescent"></ion-spinner>
-        </div>
-
-        <ng-container *ngIf="!isLoading">
-          <div class="empty-hint" *ngIf="!filteredDoctors.length">
-            <app-empty-state
-              icon="medical-outline"
-              title="No data found"
-              description="There are no doctors available for the selected filter."
-            ></app-empty-state>
-          </div>
-
-          <div class="doctors-grid" *ngIf="filteredDoctors.length">
-            <app-doctor-card *ngFor="let doc of filteredDoctors" [doctor]="doc" />
-          </div>
-        </ng-container>
-      </div>
-    </div>
-  `,
+  templateUrl: './doctors.page.html',
   styleUrl: './doctors.page.scss'
 })
 export class DoctorsPage implements OnInit {

@@ -1,0 +1,126 @@
+
+    <section class="clinic-card section-card" [class.section-card--locked]="locked" aria-labelledby="vital-signs-heading">
+      <div class="critical-banner" *ngIf="visibleCriticalAlerts.length > 0" aria-live="polite">
+        <div class="critical-banner__copy">
+          <strong>⚠ Critical vital sign detected</strong>
+          <span *ngFor="let alert of visibleCriticalAlerts">{{ alert.label }}: {{ alert.value }}</span>
+        </div>
+        <button type="button" class="critical-banner__button" (click)="acknowledgeCriticalAlerts()">Acknowledged</button>
+      </div>
+
+      <div class="section-card__head">
+        <h3 id="vital-signs-heading">Vital Signs <i *ngIf="locked" class="ti ti-lock section-card__lock"></i></h3>
+        <p>Capture the latest measurements for this visit.</p>
+      </div>
+
+      <form class="form-grid" [formGroup]="form">
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Blood Pressure Systolic</ion-label>
+              <ion-input type="number" formControlName="bloodPressureSystolic" placeholder="e.g. 120" (ionBlur)="markTouched('bloodPressureSystolic')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('bloodPressureSystolic') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('bloodPressureSystolic', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: &lt;120 mmHg</div>
+          <div class="field-error" *ngIf="validationRequested && !hasValue('bloodPressureSystolic')">Blood pressure systolic is required.</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Blood Pressure Diastolic</ion-label>
+              <ion-input type="number" formControlName="bloodPressureDiastolic" placeholder="e.g. 80" (ionBlur)="markTouched('bloodPressureDiastolic')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('bloodPressureDiastolic') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('bloodPressureDiastolic', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: &lt;80 mmHg</div>
+          <div class="field-error" *ngIf="validationRequested && !hasValue('bloodPressureDiastolic')">Blood pressure diastolic is required.</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Heart Rate</ion-label>
+              <ion-input type="number" formControlName="heartRate" placeholder="bpm" (ionBlur)="markTouched('heartRate')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('heartRate') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('heartRate', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: 60-100 bpm</div>
+          <div class="field-error" *ngIf="validationRequested && !hasValue('heartRate')">Heart rate is required.</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Respiratory Rate</ion-label>
+              <ion-input type="number" formControlName="respiratoryRate" placeholder="breaths/min" (ionBlur)="markTouched('respiratoryRate')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('respiratoryRate') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('respiratoryRate', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: 12-20 breaths/min</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Pain Score</ion-label>
+              <ion-input type="number" formControlName="painScore" placeholder="0 - 10" (ionBlur)="markTouched('painScore')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('painScore') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('painScore', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: 0-3</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Temperature Celsius</ion-label>
+              <ion-input type="number" formControlName="temperatureCelsius" placeholder="e.g. 36.8" (ionBlur)="markTouched('temperatureCelsius')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('temperatureCelsius') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('temperatureCelsius', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: 36.1-37.2°C</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Oxygen Saturation</ion-label>
+              <ion-input type="number" formControlName="oxygenSaturation" placeholder="0 - 100" (ionBlur)="markTouched('oxygenSaturation')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('oxygenSaturation') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('oxygenSaturation', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: 95-100%</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Weight Kg</ion-label>
+              <ion-input type="number" formControlName="weightKg" placeholder="kg" (ionBlur)="markTouched('weightKg')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('weightKg') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('weightKg', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: positive number</div>
+        </div>
+
+        <div class="field-wrap">
+          <div class="field-row">
+            <ion-item class="field" [disabled]="locked">
+              <ion-label position="stacked">Height Cm</ion-label>
+              <ion-input type="number" formControlName="heightCm" placeholder="cm" (ionBlur)="markTouched('heightCm')"></ion-input>
+            </ion-item>
+            <span class="status-badge" *ngIf="getDisplayStatus('heightCm') as status" [class.status-badge--normal]="status === 'Normal'" [class.status-badge--borderline]="status === 'Borderline'" [class.status-badge--critical]="status === 'Critical'" [attr.aria-label]="getStatusAriaLabel('heightCm', status)">{{ status }}</span>
+          </div>
+          <div class="field-hint">Normal: positive number</div>
+        </div>
+
+        <ion-item class="field field--readonly">
+          <ion-label position="stacked">BMI</ion-label>
+          <ion-input [value]="bmiDisplay" readonly="true"></ion-input>
+          <ion-note slot="helper">Auto-calculated from weight and height.</ion-note>
+        </ion-item>
+      </form>
+    </section>
+  

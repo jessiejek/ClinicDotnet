@@ -14,35 +14,7 @@ import { ClinicSettingsService } from '../../../core/services/clinic-settings.se
   selector: 'app-patient-privacy-consent-page',
   standalone: true,
   imports: [NgIf, DatePipe, FormsModule, IonItem, IonLabel, IonCheckbox, IonButton],
-  template: `
-    <section class="page-shell" *ngIf="currentPatient && settings">
-      <div class="page-shell__header">
-        <div>
-          <h2 class="page-title">Privacy Consent</h2>
-          <p class="page-subtitle">Review the clinic's privacy policy and accept the latest version.</p>
-        </div>
-      </div>
-
-      <div class="clinic-card consent-card">
-        <div class="section-heading">Clinic Privacy Policy</div>
-        <p class="consent-text">{{ settings.privacyPolicyText }}</p>
-
-        <div class="consent-meta">
-          <div><span>Consent Version</span><strong>{{ settings.consentVersion }}</strong></div>
-          <div><span>Last Updated</span><strong>{{ currentPatient.consentedAt ? (currentPatient.consentedAt | date : 'MMMM d, y (EEE)') : 'Not yet accepted' }}</strong></div>
-        </div>
-
-        <ion-item class="consent-checkbox" lines="none">
-          <ion-checkbox slot="start" [(ngModel)]="accepted"></ion-checkbox>
-          <ion-label>I have read and accept the clinic privacy consent.</ion-label>
-        </ion-item>
-
-        <ion-button type="button" expand="block" color="primary" [disabled]="!accepted" (click)="acceptConsent()">
-          Accept Consent
-        </ion-button>
-      </div>
-    </section>
-  `,
+  templateUrl: './patient-privacy-consent.page.html',
   styleUrl: './patient-privacy-consent.page.scss'
 })
 export class PatientPrivacyConsentPage implements OnInit {

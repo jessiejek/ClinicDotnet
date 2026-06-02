@@ -6,28 +6,7 @@ import { AvatarComponent } from '../../../../shared/components/avatar/avatar.com
   selector: 'app-doctor-patient-card',
   standalone: true,
   imports: [AvatarComponent],
-  template: `
-    <article class="clinic-card patient-card">
-      <app-avatar [name]="fullName" size="lg"></app-avatar>
-
-      <div class="patient-card__content">
-        <div class="patient-card__head">
-          <div>
-            <div class="patient-card__name">{{ fullName }}</div>
-            <div class="patient-card__code">{{ patient.patientCode }}</div>
-          </div>
-          <button type="button" class="btn-ghost" (click)="viewPatient.emit(patient.id)">View</button>
-        </div>
-
-        <div class="patient-card__meta">
-          <span>{{ ageLabel }}</span>
-          <span>{{ patient.sex }}</span>
-          <span>Last visit: {{ lastVisit || 'No prior visit' }}</span>
-          <span>Upcoming: {{ upcomingAppointmentsCount }}</span>
-        </div>
-      </div>
-    </article>
-  `,
+  templateUrl: './doctor-patient-card.component.html',
   styleUrl: './doctor-patient-card.component.scss'
 })
 export class DoctorPatientCardComponent {

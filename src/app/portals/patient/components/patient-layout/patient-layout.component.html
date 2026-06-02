@@ -1,0 +1,59 @@
+
+    <div class="portal-layout">
+      <app-admin-sidebar
+          class="portal-layout__sidebar"
+          [class.is-open]="sidebarOpen"
+          [navItems]="navItems"
+          [portalLabel]="portalLabel"
+          [clinicName]="clinicName"
+          [currentUser]="currentUser()"
+          [isOpen]="sidebarOpen"
+          (navClick)="handleSidebarNavClick()"
+          (logout)="logout()"
+      ></app-admin-sidebar>
+
+      <div class="main-content">
+        <app-admin-topbar
+          [title]="pageTitle"
+          [portalLabel]="portalLabel"
+          [currentUser]="currentUser()"
+          [unreadCount]="unreadCount()"
+          [sidebarOpen]="sidebarOpen"
+          (menuToggle)="toggleSidebar()"
+          (logout)="logout()"
+        ></app-admin-topbar>
+
+        <main class="page-content">
+          <div class="patient-quick-action">
+            <div>
+              <div class="patient-quick-action__eyebrow">Patient Documents</div>
+              <div class="patient-quick-action__title">Download all clinical records</div>
+              <div class="patient-quick-action__subtitle">
+                One PDF with completed consultations, prescriptions, and follow-up notes.
+              </div>
+              <div class="patient-quick-action__links">
+                <a routerLink="/patient/documents" class="btn-ghost">My Documents</a>
+                <a routerLink="/patient/lab-results" class="btn-ghost">My Lab Results</a>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn-primary patient-quick-action__button"
+              [disabled]="downloadingClinicalRecords"
+              (click)="downloadAllClinicalRecords()"
+            >
+              {{ downloadingClinicalRecords ? 'Preparing PDF...' : 'Download All Clinical Records' }}
+            </button>
+          </div>
+          <router-outlet></router-outlet>
+        </main>
+      </div>
+
+      <div
+        class="sidebar-overlay"
+        [class.is-visible]="sidebarOpen"
+        (click)="closeSidebar()"
+        aria-hidden="true"
+      ></div>
+    </div>
+  

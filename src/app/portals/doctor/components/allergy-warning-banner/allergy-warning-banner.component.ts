@@ -7,15 +7,7 @@ import { BannerComponent } from '../../../../shared/components/banner/banner.com
   selector: 'app-allergy-warning-banner',
   standalone: true,
   imports: [NgIf, BannerComponent],
-  template: `
-    <app-banner
-      *ngIf="visible && warningMessage"
-      variant="warning"
-      [message]="warningMessage"
-      [dismissible]="true"
-      (dismissed)="dismiss()"
-    ></app-banner>
-  `,
+  templateUrl: './allergy-warning-banner.component.html',
   styleUrl: './allergy-warning-banner.component.scss'
 })
 export class AllergyWarningBannerComponent implements OnChanges {

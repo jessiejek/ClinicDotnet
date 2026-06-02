@@ -1,0 +1,82 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Dashboard</h2>
+          <p class="page-subtitle">Track today's queue and resolve booking actions quickly.</p>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <article class="stat-card stat-card--green">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__body">
+            <p class="stat-card__label">Today's Appointments</p>
+            <div class="stat-card__value">{{ todaysAppointmentsCount }}</div>
+            <p class="stat-card__desc">Scheduled for today</p>
+          </div>
+        </article>
+
+        <article class="stat-card stat-card--red">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__body">
+            <p class="stat-card__label">Ready for Payment</p>
+            <div class="stat-card__value">{{ completedUnpaidCount }}</div>
+            <p class="stat-card__badge" *ngIf="completedUnpaidCount > 0; else noPayment">Collect Now</p>
+            <ng-template #noPayment><p class="stat-card__desc">All payments collected</p></ng-template>
+          </div>
+        </article>
+
+        <article class="stat-card stat-card--blue">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__body">
+            <p class="stat-card__label">Walk-Ins Today</p>
+            <div class="stat-card__value">{{ walkInsTodayCount }}</div>
+            <p class="stat-card__desc">Unscheduled arrivals</p>
+          </div>
+        </article>
+
+        <article class="stat-card stat-card--neutral">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__body">
+            <p class="stat-card__label">Confirmed Today</p>
+            <div class="stat-card__value">{{ confirmedTodayCount }}</div>
+            <p class="stat-card__desc">Checked in to clinic</p>
+          </div>
+        </article>
+      </div>
+
+      <div
+        class="banner banner--danger"
+        *ngIf="completedUnpaidCount > 0"
+        (click)="goToPaymentQueue()"
+      >
+        <ion-icon name="cash-outline"></ion-icon>
+        <span>
+          {{ completedUnpaidCount }} completed consultation(s) are ready for payment collection.
+          <strong>Go to Payment Queue &rarr;</strong>
+        </span>
+      </div>
+
+      <div class="clinic-card queue-card">
+        <div class="queue-card__header">
+          <div>
+            <div class="section-heading">Today's Queue</div>
+            <p class="queue-card__subtitle">Booked and confirmed patients waiting for staff actions.</p>
+          </div>
+          <div class="queue-card__meta">
+            <span>{{ walkInsTodayCount }} walk-ins</span>
+            <span>{{ confirmedTodayCount }} confirmed</span>
+          </div>
+        </div>
+        <app-queue-table
+          [bookings]="todaysBookings"
+          [doctors]="doctors"
+          [patients]="patients"
+          [isLoading]="isLoading"
+          (rowClicked)="openBooking($event)"
+          (actionTaken)="onQueueAction($event)"
+        ></app-queue-table>
+      </div>
+    </section>
+  

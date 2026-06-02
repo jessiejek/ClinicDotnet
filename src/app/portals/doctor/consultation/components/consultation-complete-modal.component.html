@@ -1,0 +1,83 @@
+
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Complete Consultation</ion-title>
+        <ion-buttons slot="end">
+          <ion-button fill="clear" [disabled]="isSubmitting" (click)="close()">Close</ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="ion-padding">
+      <div class="completion-wizard">
+        <div class="completion-wizard__stepper">
+          <span class="completion-wizard__step" [class.is-active]="step === 1">1. Checklist</span>
+          <span class="completion-wizard__step" [class.is-active]="step === 2">2. Summary</span>
+        </div>
+
+        <section class="clinic-card completion-panel" *ngIf="step === 1">
+          <div class="completion-panel__head">
+            <div class="section-heading">Completion Checklist</div>
+            <p>Review every required item before moving to the summary.</p>
+          </div>
+
+          <div class="checklist">
+            <div class="checklist__item" *ngFor="let item of checklistItems">
+              <span class="checklist__icon" [class.checklist__icon--complete]="item.complete" [class.checklist__icon--missing]="!item.complete">
+                {{ item.complete ? '✓' : '✕' }}
+              </span>
+              <div class="checklist__body">
+                <strong>{{ item.label }}</strong>
+                <span *ngIf="item.detail">{{ item.detail }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="wizard-actions wizard-actions--split">
+            <button type="button" class="btn-ghost" data-testid="doctor-consultation-complete-modal-cancel-button" [disabled]="isSubmitting" (click)="close()">Cancel</button>
+            <button type="button" class="btn-primary" data-testid="doctor-consultation-complete-modal-review-summary-button" [disabled]="hasMissingChecklistItems() || isSubmitting" (click)="goToSummary()">
+              Review Summary
+            </button>
+          </div>
+        </section>
+
+        <section class="clinic-card completion-panel" *ngIf="step === 2">
+          <div class="completion-panel__head">
+            <div class="section-heading">Consultation Summary</div>
+            <p>Read-only review before finalizing the consultation record.</p>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <span class="summary-card__label">Patient</span>
+              <strong>{{ patientName }}</strong>
+              <span>{{ patientDob }}</span>
+              <span>{{ patientMrn }}</span>
+            </div>
+
+            <div class="summary-card">
+              <span class="summary-card__label">Visit date and time</span>
+              <strong>{{ visitDateTime }}</strong>
+            </div>
+
+            <div class="summary-card summary-card--wide" *ngFor="let line of summaryLines">
+              <span class="summary-card__label">{{ line.label }}</span>
+              <strong *ngIf="!isArrayValue(line.value); else listTpl">{{ line.value }}</strong>
+              <ng-template #listTpl>
+                <div class="summary-list">
+                  <span *ngFor="let item of toArrayValue(line.value)">{{ item }}</span>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+
+          <div class="wizard-actions wizard-actions--split">
+            <button type="button" class="btn-ghost" data-testid="doctor-consultation-complete-modal-go-back-button" [disabled]="isSubmitting" (click)="goBack()">Go Back</button>
+            <button type="button" class="btn-primary" data-testid="doctor-consultation-complete-modal-finalize-button" [disabled]="isSubmitting" (click)="finalize()">
+              {{ isSubmitting ? 'Finalizing...' : 'Finalize Consultation' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </ion-content>
+  

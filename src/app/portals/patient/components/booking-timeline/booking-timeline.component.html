@@ -1,0 +1,22 @@
+
+    <div class="timeline clinic-card">
+      <div class="section-heading">Booking Timeline</div>
+      <div class="timeline__track">
+        <div
+          *ngFor="let step of steps; let index = index"
+          class="timeline__step"
+          [ngClass]="stateClass(index)"
+        >
+          <div class="timeline__marker"></div>
+          <div class="timeline__content">
+            <div class="timeline__label">{{ step.label }}</div>
+            <div class="timeline__description">{{ step.description }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="timeline__footer">
+        <app-status-badge [status]="displayStatus"></app-status-badge>
+        <app-status-badge [status]="displayPaymentStatus"></app-status-badge>
+      </div>
+    </div>
+  

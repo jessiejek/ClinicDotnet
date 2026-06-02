@@ -7,21 +7,7 @@ import { formatClinicOperatingLines } from '../../utils/time-format';
   selector: 'app-operating-hours-bar',
   standalone: true,
   imports: [NgIf],
-  template: `
-    <div class="hours-bar" *ngIf="settings">
-      <div class="hours-item">
-        <span>{{ lines[0] }}</span>
-      </div>
-      <span class="hours-divider">|</span>
-      <div class="hours-item">
-        <span>{{ lines[1] }}</span>
-      </div>
-      <span class="hours-divider">|</span>
-      <div class="hours-item">
-        <span>{{ lines[2] }}</span>
-      </div>
-    </div>
-  `,
+  templateUrl: './operating-hours-bar.component.html',
   styleUrl: './operating-hours-bar.component.scss'
 })
 export class OperatingHoursBarComponent {

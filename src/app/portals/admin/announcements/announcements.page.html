@@ -1,0 +1,74 @@
+<section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Announcements</h2>
+          <p class="page-subtitle">Create and manage clinic announcements.</p>
+        </div>
+        <button class="btn-primary" type="button" (click)="openModal()">Add Announcement</button>
+      </div>
+
+      <div class="clinic-card" *ngIf="announcements.length > 0">
+        <div class="table-scroll-wrap">
+        <table class="clinic-table">
+          <thead><tr><th>Title</th><th>Status</th><th>Created Date</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let ann of announcements">
+              <td>{{ ann.title }}</td>
+              <td><app-status-badge [status]="ann.isActive ? 'Active' : 'Inactive'"></app-status-badge></td>
+              <td>{{ ann.createdAt | date:'mediumDate' }}</td>
+              <td>
+                <button class="btn-ghost" type="button" (click)="edit(ann)">Edit</button>
+                <button class="btn-ghost" type="button" (click)="toggle(ann.id)">{{ ann.isActive ? 'Deactivate' : 'Activate' }}</button>
+                <button class="btn-ghost" type="button" (click)="askDelete(ann.id)">Delete</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <app-empty-state *ngIf="announcements.length === 0 && !isLoading && !loadError" icon="megaphone-outline" title="No announcements" description="Create your first announcement."></app-empty-state>
+
+      <app-empty-state *ngIf="loadError" icon="cloud-offline-outline" title="Announcements unavailable" [description]="loadErrorDescription"></app-empty-state>
+
+      <p *ngIf="announcements.length === 0 && isLoading" class="muted" style="text-align:center;padding:var(--space-8)">Loading announcements…</p>
+    </section>
+
+    <ion-modal [isOpen]="modalOpen" (didDismiss)="closeModal()">
+      <ng-template>
+        <div class="modal-shell">
+          <div class="modal-header">
+            <h2 class="modal-title">{{ editingId ? 'Edit Announcement' : 'New Announcement' }}</h2>
+            <button class="btn-ghost" type="button" (click)="closeModal()">Cancel</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="ann-title">Title</label>
+              <input id="ann-title" class="form-input" [(ngModel)]="draft.title" placeholder="Announcement title" />
+            </div>
+            <div class="form-group">
+              <label for="ann-body">Body</label>
+              <textarea id="ann-body" class="form-input form-textarea" [(ngModel)]="draft.body" placeholder="Announcement content"></textarea>
+            </div>
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="draft.isActive" /> Active
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-primary" type="button" (click)="save()">{{ editingId ? 'Update' : 'Create' }}</button>
+          </div>
+        </div>
+      </ng-template>
+    </ion-modal>
+
+    <ion-modal [isOpen]="!!deletingId" (didDismiss)="closeDeleteModal()">
+      <ng-template>
+        <app-confirm-modal
+          title="Delete Announcement"
+          message="Are you sure you want to delete this announcement?"
+          confirmLabel="Delete"
+          (confirm)="confirmDelete()"
+          (cancel)="closeDeleteModal()"
+        ></app-confirm-modal>
+      </ng-template>
+    </ion-modal>

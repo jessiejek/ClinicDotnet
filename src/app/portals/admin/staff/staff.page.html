@@ -1,0 +1,70 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Staff Accounts</h2>
+          <p class="page-subtitle">Manage front desk accounts. Use "Invite Staff" to let them activate via Google/Facebook.</p>
+        </div>
+        <button class="btn-primary" type="button" (click)="openAddStaffForm()">Invite Staff</button>
+      </div>
+
+      <!-- Loading state -->
+      <app-skeleton variant="row" [count]="5" *ngIf="loading"></app-skeleton>
+
+      <!-- Error state -->
+      <div class="notice notice--error" *ngIf="error && !loading">
+        <p>{{ error }}</p>
+        <button class="btn-ghost" type="button" (click)="ngOnInit()">Try again</button>
+      </div>
+
+      <!-- Staff table -->
+      <div class="clinic-card" *ngIf="!loading && !error && staff.length > 0">
+        <div class="table-scroll-wrap">
+        <table class="clinic-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let member of staff">
+              <td>{{ member.fullName }}</td>
+              <td>{{ member.email }}</td>
+              <td>{{ member.role }}</td>
+              <td><app-status-badge [status]="member.status"></app-status-badge></td>
+              <td>
+                <ng-container *ngIf="!member.isInvite">
+                  <button class="btn-ghost" type="button" (click)="toggle(member.id)" [disabled]="toggleBusy.has(member.id)">
+                    {{ toggleBusy.has(member.id) ? '\u2026' : (member.status === 'Active' ? 'Deactivate' : 'Reactivate') }}
+                  </button>
+                </ng-container>
+                <ng-container *ngIf="member.isInvite">
+                  <button class="btn-ghost" type="button" (click)="revokeInvite(member.id)" [disabled]="busyRevoke">
+                    {{ busyRevoke ? '\u2026' : 'Revoke' }}
+                  </button>
+                </ng-container>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <app-empty-state *ngIf="!loading && !error && staff.length === 0" icon="person-add-outline" title="No staff accounts" description="Invite the first front desk staff member." ctaLabel="Invite Staff" (ctaClick)="openAddStaffForm()"></app-empty-state>
+
+      <!-- Inline Invite Staff form -->
+      <section *ngIf="showAddStaffForm" class="add-staff-panel">
+        <h3>Invite Staff</h3>
+        <p class="text-sm text-muted">The staff member will use this email to sign in with Google or Facebook. No password needed.</p>
+        <form class="add-staff-form" (ngSubmit)="save()">
+          <input class="filter-input" name="fullName" [(ngModel)]="draft.fullName" placeholder="Full Name" required />
+          <input class="filter-input" name="email" type="email" [(ngModel)]="draft.email" placeholder="Email" required />
+          <input class="filter-input" name="phone" [(ngModel)]="draft.phone" placeholder="Phone (optional)" />
+          <p class="text-sm text-muted" *ngIf="addError">{{ addError }}</p>
+          <div class="add-staff-actions">
+            <button type="button" class="btn-ghost" (click)="closeAddStaffForm()">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="addSubmitting">
+              {{ addSubmitting ? 'Sending invite\u2026' : 'Send Invite' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </section>
+  

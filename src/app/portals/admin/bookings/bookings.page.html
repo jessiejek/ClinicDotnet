@@ -1,0 +1,155 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Bookings</h2>
+          <p class="page-subtitle">Manage all scheduled and walk-in bookings.</p>
+        </div>
+        <button type="button" class="btn-primary" routerLink="/admin/walk-in">New Walk-In</button>
+      </div>
+
+      <div class="filter-bar clinic-card">
+        <select class="filter-input" [(ngModel)]="doctorFilter">
+          <option value="all">All Doctors</option>
+          <option *ngFor="let doctor of doctors" [value]="doctor.id">{{ doctor.fullName }}</option>
+        </select>
+        <select class="filter-input" [(ngModel)]="statusFilter">
+          <option value="all">All Statuses</option>
+          <option *ngFor="let status of filterStatuses" [value]="status">{{ statusLabel(status) }}</option>
+        </select>
+        <input class="filter-input" type="date" [(ngModel)]="dateFilter" />
+        <input class="filter-input" type="search" placeholder="Search patient or booking ID" [(ngModel)]="searchQuery" />
+        <button type="button" class="btn-ghost" (click)="clearFilters()">Clear Filters</button>
+      </div>
+
+      <div class="clinic-card" *ngIf="!isLoading && filteredBookings.length > 0">
+        <div class="table-desktop">
+          <div class="table-scroll-wrap">
+            <table class="clinic-table">
+              <thead>
+                <tr>
+                                    <th class="col-check"><input type="checkbox" [checked]="selectAll" (change)="toggleSelectAll($event)" /></th>
+                  <th class="col-queue">#</th>
+                  <th class="col-patient">Patient</th>
+                  <th class="col-doctor">Doctor / Service</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-payment">Payment</th>
+                  <th class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let booking of filteredBookings"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="'Open booking for ' + displayPatientName(booking)"
+                  (click)="openBooking(booking.id)"
+                  (keydown.enter)="openBooking(booking.id)"
+                >
+                                    <td class="col-check" (click)="$event.stopPropagation()">
+                    <input
+                      type="checkbox"
+                      [checked]="selectedIds.has(booking.id)"
+                      (change)="toggleSelect(booking.id, $event)"
+                    />
+                  </td>
+                  <td class="col-queue"><span class="data-mono">{{ booking.queueNumber ?? '-' }}</span></td>
+                  <td class="col-patient">
+                    <div class="cell-patient">
+                      <span class="cell-patient__name">{{ displayPatientName(booking) }}</span>
+                      <span *ngIf="booking.patient?.patientCode" class="cell-patient__code">{{ booking.patient!.patientCode }}</span>
+                      <span class="cell-patient__time">{{ formatDateTime(booking.appointmentDate, booking.slotStartTime) }}</span>
+                    </div>
+                  </td>
+                  <td class="col-doctor">
+                    <div class="cell-doctor">
+                      <span class="cell-doctor__name">{{ displayDoctorName(booking) }}</span>
+                      <span *ngIf="booking.doctor?.specialization" class="cell-doctor__spec">{{ booking.doctor!.specialization }}</span>
+                      <span class="cell-doctor__service">{{ displayServiceNames(booking).join(', ') }}</span>
+                    </div>
+                  </td>
+                  <td class="col-status"><app-status-badge [status]="booking.status"></app-status-badge></td>
+                  <td class="col-payment"><app-status-badge [status]="booking.paymentStatus"></app-status-badge></td>
+                  <td class="col-actions" (click)="$event.stopPropagation()">
+                    <button type="button" class="btn-ghost btn-sm" (click)="openBooking(booking.id)">View</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" *ngIf="totalPages > 1">
+          <div class="pagination__info">
+            Showing page {{ currentPage }} of {{ totalPages }} ({{ totalBookings }} total)
+          </div>
+          <div class="pagination__controls">
+            <button type="button" class="btn-ghost btn-sm" [disabled]="currentPage <= 1" (click)="goToPage(currentPage - 1)">Previous</button>
+            <span class="pagination__pages">
+              <button *ngFor="let p of paginationPages" type="button" class="btn-sm" [class.btn-primary]="p === currentPage" [class.btn-ghost]="p !== currentPage" (click)="goToPage(p)">{{ p }}</button>
+            </span>
+            <button type="button" class="btn-ghost btn-sm" [disabled]="currentPage >= totalPages" (click)="goToPage(currentPage + 1)">Next</button>
+          </div>
+        </div>
+
+        <div class="table-mobile">
+          <article
+            *ngFor="let booking of filteredBookings"
+            class="mobile-card"
+            tabindex="0"
+            role="button"
+            [attr.aria-label]="'Open booking for ' + displayPatientName(booking)"
+            (click)="openBooking(booking.id)"
+            (keydown.enter)="openBooking(booking.id)"
+          >
+                        <div class="mobile-card__header">
+              <div>
+                <div class="mobile-card__name">{{ displayPatientName(booking) }}</div>
+                <div class="mobile-card__code">{{ booking.patient?.patientCode || 'Queue #' + (booking.queueNumber ?? '-') }}</div>
+                <div class="mobile-card__meta">{{ formatDateTime(booking.appointmentDate, booking.slotStartTime) }}</div>
+              </div>
+              <app-status-badge [status]="booking.status"></app-status-badge>
+            </div>
+
+            <div class="mobile-card__row">
+              <span class="mobile-card__label">Queue</span>
+              <span class="data-mono">{{ booking.queueNumber ?? '-' }}</span>
+            </div>
+
+            <div class="mobile-card__row">
+              <span class="mobile-card__label">Doctor</span>
+              <span>{{ displayDoctorName(booking) }} · {{ displayServiceNames(booking).join(', ') }}</span>
+            </div>
+
+            <div class="mobile-card__row">
+              <span class="mobile-card__label">Payment</span>
+              <app-status-badge [status]="booking.paymentStatus"></app-status-badge>
+            </div>
+
+            <div class="mobile-card__actions" (click)="$event.stopPropagation()">
+              <button type="button" class="btn-ghost btn-sm" (click)="openBooking(booking.id)">View Details</button>
+            </div>
+          </article>
+
+          <!-- Mobile Pagination -->
+          <div class="pagination" *ngIf="totalPages > 1">
+            <div class="pagination__info">Page {{ currentPage }} of {{ totalPages }}</div>
+            <div class="pagination__controls">
+              <button type="button" class="btn-ghost btn-sm" [disabled]="currentPage <= 1" (click)="goToPage(currentPage - 1)">Prev</button>
+              <button type="button" class="btn-ghost btn-sm" [disabled]="currentPage >= totalPages" (click)="goToPage(currentPage + 1)">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <app-skeleton *ngIf="isLoading" variant="row" [count]="5"></app-skeleton>
+
+      <app-empty-state
+        *ngIf="!isLoading && filteredBookings.length === 0"
+        icon="calendar-outline"
+        title="No bookings found"
+        description="Try adjusting the filters or create a new walk-in booking."
+      ></app-empty-state>
+    </section>
+  

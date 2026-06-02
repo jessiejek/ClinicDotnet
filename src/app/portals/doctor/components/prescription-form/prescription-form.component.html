@@ -1,0 +1,180 @@
+
+    <section class="clinic-card section-card" [class.section-card--locked]="locked || actionMode === 'request'" aria-labelledby="prescription-heading">
+      <div class="section-card__head">
+        <h3 id="prescription-heading">Prescription <i *ngIf="locked || actionMode === 'request'" class="ti ti-lock section-card__lock"></i></h3>
+        <p>Add medicines for this consultation using the searchable fields below.</p>
+      </div>
+
+      <div class="pf-banner pf-banner--warn" *ngIf="interactionCheckUnavailable" aria-live="polite">
+        <strong>Interaction check unavailable</strong>
+        <span class="pf-banner__copy">Drug-interaction checks could not reach the backend. Review manually before prescribing.</span>
+      </div>
+
+      <div class="pf-banner pf-banner--danger" *ngIf="activeAllergyConflict as conflict" aria-live="assertive">
+        <strong>⚠ Allergy Alert</strong>
+        <span class="pf-banner__copy">{{ conflict.message || buildAllergyMessage(conflict) }}</span>
+        <div class="pf-banner__reason" *ngIf="awaitingOverrideReason">
+          <label for="overrideReason">Reason for override *</label>
+          <textarea id="overrideReason" [(ngModel)]="overrideReason" [ngModelOptions]="{ standalone: true }" rows="2" placeholder="Clinical justification required"></textarea>
+        </div>
+        <div class="pf-banner__actions">
+          <button type="button" class="btn-outline" (click)="cancelConflict()">Cancel</button>
+          <button type="button" class="btn-primary" (click)="prepareOverride()" *ngIf="!awaitingOverrideReason">Add Anyway (with reason)</button>
+          <button type="button" class="btn-primary" (click)="confirmOverride()" *ngIf="awaitingOverrideReason" [disabled]="!overrideReason.trim()">Confirm Override</button>
+        </div>
+      </div>
+
+      <form class="pf" [formGroup]="form">
+        <div class="pf-grid">
+          <div class="pf-f pf-full">
+            <label for="rx-medicine">Medicine Name *</label>
+            <input
+              id="rx-medicine"
+              formControlName="medicineName"
+              placeholder="Start typing drug name..."
+              (focus)="showDrugSuggestions=true"
+              (blur)="hideDrugSuggestions()"
+              (input)="filterDrugs()"
+              autocomplete="off"
+              [readonly]="isReadOnlyFields"
+            />
+            <div class="pf-suggest" *ngIf="showDrugSuggestions && filteredDrugs.length > 0">
+              <button type="button" *ngFor="let d of filteredDrugs" (mousedown)="selectDrug(d)">
+                <strong>{{ d.medicineName }}</strong>
+                <span>{{ d.genericName }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pf-f">
+            <label for="rx-strength">Strength</label>
+            <input id="rx-strength" formControlName="strength" placeholder="e.g. 500mg" [readonly]="isReadOnlyFields" />
+          </div>
+
+          <div class="pf-f">
+            <label for="rx-dosage">Dosage Form</label>
+            <input
+              id="rx-dosage"
+              formControlName="dosage"
+              placeholder="e.g. Tablet"
+              (focus)="showDosage=true"
+              (blur)="hideDosage()"
+              (input)="dosageFilter = form.get('dosage')?.value || ''"
+              autocomplete="off"
+              [readonly]="isReadOnlyFields"
+            />
+            <div class="pf-suggest" *ngIf="showDosage && dosageOptionsFiltered.length > 0">
+              <button type="button" *ngFor="let d of dosageOptionsFiltered" (mousedown)="selectDosage(d)">{{ d }}</button>
+            </div>
+          </div>
+
+          <div class="pf-f">
+            <label for="rx-route">Route</label>
+            <input
+              id="rx-route"
+              formControlName="route"
+              placeholder="e.g. Oral"
+              (focus)="showRoute=true"
+              (blur)="hideRoute()"
+              (input)="routeFilter = form.get('route')?.value || ''"
+              autocomplete="off"
+              [readonly]="isReadOnlyFields"
+            />
+            <div class="pf-suggest" *ngIf="showRoute && routeOptionsFiltered.length > 0">
+              <button type="button" *ngFor="let r of routeOptionsFiltered" (mousedown)="selectRoute(r)">{{ r.label }}</button>
+            </div>
+          </div>
+
+          <div class="pf-f">
+            <label for="rx-frequency">Frequency</label>
+            <input
+              id="rx-frequency"
+              formControlName="frequency"
+              placeholder="e.g. TID"
+              (focus)="showFreq=true"
+              (blur)="hideFreq()"
+              (input)="freqFilter = form.get('frequency')?.value || ''"
+              autocomplete="off"
+              [readonly]="isReadOnlyFields"
+            />
+            <div class="pf-suggest" *ngIf="showFreq && freqOptionsFiltered.length > 0">
+              <button type="button" *ngFor="let f of freqOptionsFiltered" (mousedown)="selectFreq(f)">{{ f.label }}</button>
+            </div>
+          </div>
+
+          <div class="pf-f">
+            <label for="rx-duration">Duration</label>
+            <input id="rx-duration" formControlName="duration" placeholder="e.g. 7 days" [readonly]="isReadOnlyFields" />
+          </div>
+
+          <div class="pf-f">
+            <label for="rx-quantity">Quantity</label>
+            <input id="rx-quantity" type="number" min="1" formControlName="quantity" [readonly]="isReadOnlyFields" />
+          </div>
+
+          <div class="pf-f pf-full">
+            <label for="rx-instructions">Instructions</label>
+            <input
+              id="rx-instructions"
+              formControlName="instructions"
+              placeholder="e.g. Take after meals"
+              (focus)="showInst=true"
+              (blur)="hideInst()"
+              (input)="instFilter = form.get('instructions')?.value || ''"
+              autocomplete="off"
+              [readonly]="isReadOnlyFields"
+            />
+            <div class="pf-suggest" *ngIf="showInst && instOptionsFiltered.length > 0">
+              <button type="button" *ngFor="let i of instOptionsFiltered" (mousedown)="selectInst(i)">{{ i }}</button>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          [ngClass]="actionMode === 'request' ? 'btn-outline' : 'btn-primary'"
+          [disabled]="locked || (actionMode === 'edit' && !form.get('medicineName')?.value)"
+          (click)="actionMode === 'request' ? requestAttendingPhysician.emit() : attemptSaveMedicine()"
+        >
+          {{ actionMode === 'request' ? 'Request prescription from attending physician' : (editIdx >= 0 ? 'Update Medicine' : 'Add Medicine') }}
+        </button>
+      </form>
+
+      <div class="pf-added" *ngIf="medicines.length > 0">
+        <div class="pf-item" *ngFor="let med of medicines; let i = index">
+          <div class="pf-item-info">
+            <strong>{{ med.medicineName }}</strong>
+            <span>{{ displayMed(med) }}</span>
+            <span class="pf-item-inst" *ngIf="med.instructions">{{ med.instructions }}</span>
+            <span class="pf-item-warning" *ngIf="interactionWarnings[med.id] as warning">
+              ⚠ Interaction with {{ warning.existingDrugName }}
+              <button type="button" class="pf-item-warning__link" (click)="openInteractionDetails(warning)">View details</button>
+            </span>
+          </div>
+          <div class="pf-item-acts">
+            <button type="button" (click)="editMedicine(i)" [disabled]="isReadOnlyFields">Edit</button>
+            <button type="button" class="pf-remove" (click)="removeMedicine(i)" [disabled]="isReadOnlyFields">Remove</button>
+          </div>
+        </div>
+      </div>
+      <p class="pf-empty" *ngIf="medicines.length === 0">No medicines added yet.</p>
+
+      <div class="section-card__footer">
+        <span>{{ auditText }}</span>
+      </div>
+
+      <div class="pf-modal-backdrop" *ngIf="interactionDetailsOpen" (click)="closeInteractionDetails()"></div>
+      <div class="pf-modal" *ngIf="interactionDetailsOpen" role="dialog" aria-modal="true" aria-labelledby="interactionTitle">
+        <div class="pf-modal__card">
+          <div class="pf-modal__head">
+            <h4 id="interactionTitle">Interaction Details</h4>
+            <button type="button" class="pf-modal__close" (click)="closeInteractionDetails()">×</button>
+          </div>
+          <p class="pf-modal__severity" [class.pf-modal__severity--red]="selectedInteraction?.severity === 'red'">
+            {{ selectedInteraction?.summary }}
+          </p>
+          <p class="pf-modal__body">{{ selectedInteraction?.details }}</p>
+        </div>
+      </div>
+    </section>
+  

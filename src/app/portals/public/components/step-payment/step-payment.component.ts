@@ -13,68 +13,7 @@ import { BookingWizardService } from '../../../../core/services/booking-wizard.s
   selector: 'app-step-payment',
   standalone: true,
   imports: [NgIf, NgFor, AsyncPipe, FormsModule],
-  template: `
-    <section class="wizard-panel">
-      <div class="wizard-panel__header">
-        <div>
-          <p class="section-heading">Step 6</p>
-          <h2 class="wizard-title">Confirm your booking</h2>
-          <p class="wizard-subtitle">
-            Payment will be settled at the clinic after consultation.
-          </p>
-        </div>
-      </div>
-
-      <ng-container *ngIf="vm$ | async as vm">
-        <div class="clinic-card clinic-card--accent-green">
-          <p class="section-heading">Clinic Payment Flow</p>
-          <ul class="payment-mode-list">
-            <li>Your appointment will be confirmed immediately after submission.</li>
-            <li>No online payment or proof upload is required.</li>
-            <li>The final amount due will only appear after the doctor completes the consultation.</li>
-          </ul>
-        </div>
-
-        <div class="clinic-card summary-card">
-          <p class="section-heading">Final Check</p>
-          <div class="summary-row">
-            <span>Doctor</span>
-            <strong>{{ vm.doctorName }}</strong>
-          </div>
-          <div class="summary-row">
-            <span>Services</span>
-            <strong>{{ vm.servicesLabel }}</strong>
-          </div>
-          <div class="summary-row">
-            <span>Date</span>
-            <strong>{{ vm.selectedDate }}</strong>
-          </div>
-          <div class="summary-row">
-            <span>Time</span>
-            <strong>{{ vm.selectedSlot }} - {{ vm.selectedSlotEnd }}</strong>
-          </div>
-        </div>
-
-        <div class="clinic-card">
-          <label class="form-label" for="booking-notes">Notes for the clinic (optional)</label>
-          <textarea
-            id="booking-notes"
-            class="filter-input"
-            rows="4"
-            [(ngModel)]="notes"
-            placeholder="Add any visit notes or special instructions."
-          ></textarea>
-        </div>
-      </ng-container>
-
-      <div class="wizard-actions wizard-actions--split">
-        <button type="button" class="btn-outline" (click)="goBack()">Back</button>
-        <button type="button" class="btn-primary" [disabled]="isSubmitting" (click)="submitBooking()">
-          {{ isSubmitting ? 'Submitting...' : 'Confirm Booking' }}
-        </button>
-      </div>
-    </section>
-  `,
+  templateUrl: './step-payment.component.html',
   styleUrl: './step-payment.component.scss'
 })
 export class StepPaymentComponent {

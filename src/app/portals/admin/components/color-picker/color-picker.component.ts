@@ -6,25 +6,7 @@ import { FormsModule } from '@angular/forms';
   selector: 'app-color-picker',
   standalone: true,
   imports: [CommonModule, FormsModule, NgIf],
-  template: `
-    <div class="color-picker">
-      <label class="color-picker__label">{{ label }}</label>
-      <div class="color-picker__controls">
-        <input
-          class="color-picker__text"
-          type="text"
-          [ngModel]="draftValue"
-          (ngModelChange)="onTextChange($event)"
-          placeholder="#1A6B4A"
-        />
-        <input type="color" [ngModel]="resolvedValue" (ngModelChange)="onColorChange($event)" />
-      </div>
-      <div class="color-picker__preview" [style.background]="resolvedValue"></div>
-      <p class="color-picker__error" *ngIf="draftValue && !isValidHex(draftValue)">
-        Enter a valid hex color.
-      </p>
-    </div>
-  `,
+  templateUrl: './color-picker.component.html',
   styleUrl: './color-picker.component.scss'
 })
 export class ColorPickerComponent implements OnChanges {

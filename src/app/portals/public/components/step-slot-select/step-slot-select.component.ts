@@ -15,66 +15,7 @@ import { AvailableSlot } from '../../services/public.service';
   selector: 'app-step-slot-select',
   standalone: true,
   imports: [NgIf, NgFor, AsyncPipe, DatePipe, IonSpinner, TimeSlotPipe, EmptyStateComponent],
-  template: `
-    <section class="wizard-panel">
-      <div class="wizard-panel__header">
-        <div>
-          <p class="section-heading">Step 3</p>
-          <h2 class="wizard-title">Select your preferred time</h2>
-          <p class="wizard-subtitle">Choose an available slot to reserve it for 10 minutes.</p>
-        </div>
-      </div>
-
-      <ng-container *ngIf="selectedDate$ | async as selectedDate; else noDateState">
-        <div class="slot-loading" *ngIf="isLoading">
-          <ion-spinner name="crescent"></ion-spinner>
-        </div>
-
-        <ng-container *ngIf="!isLoading">
-          <h3 class="slot-heading">Available Slots for {{ selectedDate | date : 'MMMM d, y (EEE)' }}</h3>
-
-          <ng-container *ngIf="slots.length > 0; else noSlotsState">
-            <div class="slot-chip-grid">
-              <button
-                *ngFor="let slot of slots"
-                type="button"
-                class="slot-chip"
-                [class.slot-chip--selected]="(slot.slotStartTime ?? '') === latestSelectedSlot"
-                [class.slot-chip--full]="isSlotUnavailable(selectedDate, slot)"
-                [disabled]="isSlotUnavailable(selectedDate, slot)"
-                (click)="selectSlot(slot)"
-              >
-                <span class="slot-chip__time"
-                  >{{ (slot.slotStartTime ?? '') | timeSlot }} - {{ (slot.slotEndTime ?? '') | timeSlot }}</span>
-                <span class="slot-chip__label" *ngIf="isSlotUnavailable(selectedDate, slot)">
-                  {{ getUnavailableLabel(selectedDate, slot) }}
-                </span>
-              </button>
-            </div>
-          </ng-container>
-
-          <ng-template #noSlotsState>
-            <div class="slot-empty">No available slots for this date.</div>
-          </ng-template>
-        </ng-container>
-      </ng-container>
-
-      <div class="wizard-actions wizard-actions--split">
-        <button type="button" class="btn-outline" (click)="goBack()">Back</button>
-        <button type="button" class="btn-primary" [disabled]="!latestSelectedSlot" (click)="goNext()">
-          Continue
-        </button>
-      </div>
-
-      <ng-template #noDateState>
-        <app-empty-state
-          icon="calendar-outline"
-          title="Select a date first"
-          description="Please go back and choose a doctor and appointment date before picking a time."
-        ></app-empty-state>
-      </ng-template>
-    </section>
-  `,
+  templateUrl: './step-slot-select.component.html',
   styleUrl: './step-slot-select.component.scss'
 })
 export class StepSlotSelectComponent implements OnInit {

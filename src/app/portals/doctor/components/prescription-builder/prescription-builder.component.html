@@ -1,0 +1,122 @@
+
+    <section class="clinic-card section-card" [formGroup]="form">
+      <div class="section-card__head">
+        <h3>Prescription</h3>
+        <p>Add one or more medicines for this consultation.</p>
+      </div>
+
+      <div class="prescription-list" formArrayName="items">
+        <article class="prescription-item" *ngFor="let group of itemControls.controls; let i = index" [formGroupName]="i">
+          <div class="prescription-item__head">
+            <strong>Medicine {{ i + 1 }}</strong>
+            <button *ngIf="!locked" type="button" class="btn-ghost" (click)="removeItem(i)">Remove</button>
+          </div>
+
+          <ion-item class="field">
+            <ion-label position="stacked">Drug Name</ion-label>
+            <ion-input
+              formControlName="medicineName"
+              placeholder="Start typing"
+              [disabled]="locked"
+              (ionFocus)="setActiveSuggestion(i)"
+              (ionInput)="updateSuggestions(i, $event.detail.value)"
+            ></ion-input>
+          </ion-item>
+
+          <div class="suggestions" *ngIf="activeSuggestionIndex === i && suggestions.length > 0">
+            <button type="button" class="suggestion" *ngFor="let drug of suggestions" (click)="applySuggestion(i, drug)">
+              <strong>{{ drug.medicineName }}</strong>
+              <span>{{ drug.genericName || drug.medicineName }}</span>
+            </button>
+          </div>
+
+          <div class="item-grid">
+            <ion-item class="field">
+              <ion-label position="stacked">Generic Name</ion-label>
+              <ion-input formControlName="genericName" [disabled]="locked"></ion-input>
+            </ion-item>
+            <div class="field-picker">
+              <label class="field-picker__label">Dosage Form</label>
+              <button
+                type="button"
+                class="picker-trigger field-picker__control"
+                [disabled]="locked"
+                (click)="openPicker(i, 'dosageForm')"
+              >
+                {{ dosageFormLabel(i) }}
+              </button>
+            </div>
+            <ion-item class="field">
+              <ion-label position="stacked">Strength</ion-label>
+              <ion-input formControlName="strength" [disabled]="locked"></ion-input>
+            </ion-item>
+          </div>
+
+          <div class="item-grid item-grid--triple">
+            <div class="field-picker">
+              <label class="field-picker__label">Unit of Measure</label>
+              <button
+                type="button"
+                class="picker-trigger field-picker__control"
+                [disabled]="locked"
+                (click)="openPicker(i, 'unitOfMeasure')"
+              >
+                {{ unitOfMeasureLabel(i) }}
+              </button>
+            </div>
+            <ion-item class="field">
+              <ion-label position="stacked">Quantity</ion-label>
+              <ion-input type="number" formControlName="quantity" [disabled]="locked"></ion-input>
+            </ion-item>
+            <div class="field-picker">
+              <label class="field-picker__label">Frequency</label>
+              <button
+                type="button"
+                class="picker-trigger field-picker__control"
+                [disabled]="locked"
+                (click)="openPicker(i, 'frequencyCode')"
+              >
+                {{ frequencyLabel(i) }}
+              </button>
+            </div>
+          </div>
+
+          <div class="item-grid">
+            <div class="field-picker">
+              <label class="field-picker__label">Route</label>
+              <button
+                type="button"
+                class="picker-trigger field-picker__control"
+                [disabled]="locked"
+                (click)="openPicker(i, 'route')"
+              >
+                {{ routeLabel(i) }}
+              </button>
+            </div>
+            <ion-item class="field">
+              <ion-label position="stacked">Duration</ion-label>
+              <ion-input formControlName="duration" [disabled]="locked"></ion-input>
+            </ion-item>
+          </div>
+
+          <ion-item class="field">
+            <ion-label position="stacked">Sig</ion-label>
+            <ion-textarea formControlName="sig" autoGrow="true" [disabled]="locked"></ion-textarea>
+          </ion-item>
+
+          <ion-item class="field">
+            <ion-label position="stacked">Instructions</ion-label>
+            <ion-textarea formControlName="instructions" autoGrow="true" [disabled]="locked"></ion-textarea>
+          </ion-item>
+
+          <div class="controlled-row">
+            <ion-checkbox formControlName="isControlledSubstance" [disabled]="locked"></ion-checkbox>
+            <span>Controlled substance</span>
+            <ion-badge *ngIf="group.get('isControlledSubstance')?.value" color="warning">Warning</ion-badge>
+          </div>
+        </article>
+      </div>
+
+      <button *ngIf="!locked" type="button" class="btn-outline" (click)="addItem()">Add another drug</button>
+    </section>
+  

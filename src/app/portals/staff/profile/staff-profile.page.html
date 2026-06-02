@@ -1,0 +1,72 @@
+
+    <section class="page-shell">
+      <app-page-header title="My Profile" subtitle="Update your name and change your password"></app-page-header>
+
+      <div class="profile-grid">
+        <div class="clinic-card">
+          <div class="section-heading">Profile Photo</div>
+          <div class="profile-avatar-section">
+            <app-avatar [name]="currentUser()?.fullName ?? 'User'" [imageUrl]="previewUrl ?? currentUser()?.avatarUrl" size="2xl"></app-avatar>
+            <div>
+              <input #fileInput type="file" accept="image/jpeg,image/png,image/gif,image/webp" (change)="onFileSelected($event)" hidden />
+              <button type="button" class="btn-primary" (click)="fileInput.click()" [disabled]="isUploading">
+                {{ isUploading ? 'Uploading...' : 'Upload Photo' }}
+              </button>
+              <p *ngIf="uploadError" class="form-error-message">{{ uploadError }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="clinic-card">
+          <div class="section-heading">Personal Info</div>
+          <form class="profile-form" [formGroup]="personalForm" (ngSubmit)="saveProfile()">
+            <label class="field-label">Full Name</label>
+            <input class="filter-input" formControlName="fullName" />
+
+            <label class="field-label">Contact Number</label>
+            <input class="filter-input" formControlName="contactNumber" />
+
+            <label class="field-label">Email</label>
+            <input class="filter-input filter-input--readonly" [value]="currentUser()?.email ?? ''" readonly />
+
+            <button class="btn-primary" type="submit">Save Changes</button>
+          </form>
+        </div>
+
+        <div class="clinic-card">
+          <div class="section-heading">Change Password</div>
+          <form class="profile-form" [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+            <label class="field-label">Current Password</label>
+            <input class="filter-input" type="password" formControlName="currentPassword" />
+
+            <label class="field-label">New Password</label>
+            <input class="filter-input" type="password" formControlName="newPassword" />
+
+            <div class="strength-meter" aria-label="Password strength">
+              <span
+                *ngFor="let index of strengthIndexes"
+                [class.is-active]="index < passwordStrength"
+                [ngClass]="{
+                  'strength-meter__bar--weak': passwordStrength === 1,
+                  'strength-meter__bar--fair': passwordStrength === 2,
+                  'strength-meter__bar--good': passwordStrength === 3,
+                  'strength-meter__bar--strong': passwordStrength === 4
+                }"
+                class="strength-meter__bar"
+              ></span>
+            </div>
+            <p class="strength-label" *ngIf="strengthLabel">{{ strengthLabel }}</p>
+
+            <label class="field-label">Confirm Password</label>
+            <input class="filter-input" type="password" formControlName="confirmPassword" />
+
+            <div class="form-error-message" *ngIf="passwordForm.touched && passwordForm.hasError('passwordMismatch')">
+              Passwords do not match
+            </div>
+
+            <button class="btn-primary" type="submit" [disabled]="changingPassword">Change Password</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  

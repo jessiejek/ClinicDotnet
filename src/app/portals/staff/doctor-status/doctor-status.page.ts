@@ -22,52 +22,7 @@ import { SkeletonComponent } from '../../../shared/components/skeleton/skeleton.
     PageHeaderComponent,
     SkeletonComponent
   ],
-  template: `
-    <div class="ps">
-      <app-page-header
-        title="Doctor Availability"
-        subtitle="Set running late or unavailable status for today"
-      ></app-page-header>
-
-      <div class="sg" *ngIf="!isLoading && doctors.length > 0">
-        <article class="sc sa1">
-          <div class="sa"></div>
-          <div class="sb"><span class="l">Available</span><strong class="v">{{ availableCount }}</strong></div>
-        </article>
-        <article class="sc sa2">
-          <div class="sa"></div>
-          <div class="sb"><span class="l">Running Late</span><strong class="v">{{ runningLateCount }}</strong></div>
-        </article>
-        <article class="sc sa3">
-          <div class="sa"></div>
-          <div class="sb"><span class="l">Unavailable</span><strong class="v">{{ unavailableCount }}</strong></div>
-        </article>
-      </div>
-
-      <div class="dg" *ngIf="!isLoading && doctors.length > 0">
-        <app-doctor-status-card
-          *ngFor="let doctor of doctors"
-          [doctor]="doctor"
-          [dayStatus]="getDayStatus(doctor.id)"
-          (statusChanged)="onStatusChanged($event)"
-        ></app-doctor-status-card>
-      </div>
-
-      <app-skeleton *ngIf="isLoading" variant="card" [count]="3"></app-skeleton>
-
-      <div *ngIf="error" class="er">
-        <p>Unable to load doctors. Please try again.</p>
-        <button type="button" class="btn-primary" (click)="loadDoctors()">Retry</button>
-      </div>
-
-      <app-empty-state
-        *ngIf="!isLoading && !error && doctors.length === 0"
-        icon="medical-outline"
-        title="No doctors found"
-        description="Load doctor records to manage availability."
-      ></app-empty-state>
-    </div>
-  `,
+  templateUrl: './doctor-status.page.html',
   styleUrl: './doctor-status.page.scss'
 })
 export class DoctorStatusPage implements OnInit {

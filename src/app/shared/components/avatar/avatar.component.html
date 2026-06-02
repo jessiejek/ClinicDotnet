@@ -1,0 +1,13 @@
+
+    <img
+      *ngIf="imageUrl; else initialsTpl"
+      [src]="imageUrl"
+      [alt]="name"
+      [ngClass]="['avatar', avatarClass]"
+    />
+    <ng-template #initialsTpl>
+      <div [ngClass]="['avatar', avatarClass]" [attr.aria-label]="name">
+        {{ initials }}
+      </div>
+    </ng-template>
+  

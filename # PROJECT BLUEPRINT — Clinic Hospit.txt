@@ -2,7 +2,7 @@
 
 > **Document purpose:** Authoritative reverse-engineered reference for Playwright E2E testing, feature development, and onboarding.
 > **Source:** Full static analysis of `/src` as committed. No assumptions have been made; every claim traces directly to source code.
-> **Last scanned:** src as provided (app version token: `54e9c87`)
+> **Last scanned:** Post-template-extraction refactor — June 2, 2026 (app version token: `54e9c87`)
 
 ---
 
@@ -1722,11 +1722,14 @@ There is **no `ErrorHandler` override** and no global `catchError` at the `HttpC
 | Routes | `{name}.routes.ts` |
 | Pipes | `{name}.pipe.ts` |
 
+**Template separation is enforced across the entire codebase.** All page and component templates are external (.html files). Inline `template: \`...\`` is not used anywhere in the codebase. Every `.page.ts` and `.component.ts` has a corresponding `.page.html` / `.component.html` in the same directory. This applies to all portals (admin, doctor, staff, patient, public), all shared components, all auth pages, the root `app.component`, the legacy layouts folder, and the dev gallery page.
+
 ### Component Architecture
 
 - **All components are standalone** (`standalone: true`). No `NgModule` files exist.
 - Components declare their own imports array.
 - Lazy loading via `loadComponent: () => import(...).then(m => m.ComponentClass)`.
+- Templates are always external files (`templateUrl`). The `template` inline property is not used. This enables IDE HTML tooling, independent template diffing, and consistent traceability across all files.
 
 ### Folder Structure
 
@@ -1861,6 +1864,9 @@ The sidebar is toggled by a hamburger menu in the topbar (`menuToggle` event). O
 ---
 
 ## 17. Known Gaps, Bugs & Incomplete Features
+
+**[RESOLVED] Inline templates — violation of Section 15 file naming standard**
+All `.page.ts` and `.component.ts` files that previously used inline `template: \`...\`` have been migrated to external `templateUrl` `.html` files. This affects all portals, shared components, auth pages, consultation sub-components, booking wizard step components, the root app component, legacy layout components, and the dev gallery page. Template logic is now independently traceable, diffable, and toolable in IDEs.
 
 ### Confirmed Incomplete Features
 

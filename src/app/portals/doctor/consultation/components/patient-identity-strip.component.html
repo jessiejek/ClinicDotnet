@@ -1,0 +1,51 @@
+
+    <section
+      class="pis"
+      [class.pis--expanded]="expanded"
+      role="region"
+      aria-label="Patient identity"
+      (click)="toggleExpanded()"
+      (keydown.enter)="toggleExpanded()"
+      (keydown.space)="$event.preventDefault(); toggleExpanded()"
+      tabindex="0"
+      role="button"
+      [attr.aria-expanded]="expanded"
+      [attr.title]="mobileHint"
+    >
+      <div class="pis__avatar" *ngIf="showDetails || isMobileViewport" [ngStyle]="avatarStyle">{{ initials }}</div>
+
+      <div class="pis__main">
+        <strong class="pis__name">{{ fullNameUpper }}</strong>
+      <div class="pis__badges">
+        <app-allergy-badge [allergies]="allergies" [confirmationState]="allergyConfirmationState"></app-allergy-badge>
+        <button
+          *ngIf="showDetails"
+          type="button"
+          class="pis__history"
+          (click)="emitHistoryClick($event)"
+        >
+          <i class="ti ti-history"></i>
+          <span>History</span>
+        </button>
+        <span
+          *ngIf="showDetails"
+          class="pis__payment"
+            [class.pis__payment--paid]="isPaid"
+            [class.pis__payment--unpaid]="!isPaid"
+          >
+            {{ paymentLabel }}
+          </span>
+        </div>
+      </div>
+
+      <div class="pis__details" *ngIf="showDetails">
+        <span>{{ ageSexLabel }}</span>
+        <span>DOB: {{ patient.dateOfBirth | date : 'MM/dd/yyyy' }}</span>
+        <span>MRN: {{ mrnLabel }}</span>
+        <span class="pis__duration" [ngClass]="durationToneClass">
+          <i class="ti ti-clock"></i>
+          Duration: {{ elapsedDuration }}
+        </span>
+      </div>
+    </section>
+  

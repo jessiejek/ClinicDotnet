@@ -1,0 +1,32 @@
+
+    <article class="record-card clinic-card">
+      <div class="record-card__header">
+        <div>
+          <div class="record-card__date">{{ consultation.consultationDate | date : 'MMMM d, y (EEE)' }}</div>
+          <h3>{{ doctor?.fullName || 'Doctor' }}</h3>
+        </div>
+        <app-status-badge [status]="recordStatus"></app-status-badge>
+      </div>
+
+      <div class="record-card__grid">
+        <div>
+          <span>Chief Complaint</span>
+          <p>{{ consultation.chiefComplaint }}</p>
+        </div>
+        <div>
+          <span>Assessment</span>
+          <p>{{ consultation.assessment || 'No assessment recorded.' }}</p>
+        </div>
+        <div>
+          <span>Plan</span>
+          <p>{{ consultation.plan || 'No plan recorded.' }}</p>
+        </div>
+      </div>
+
+      <div class="record-card__actions">
+        <button type="button" class="btn-outline" (click)="viewDetails.emit(consultation.id)">
+          View Details
+        </button>
+      </div>
+    </article>
+  

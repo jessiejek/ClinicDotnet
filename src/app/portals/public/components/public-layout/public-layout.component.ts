@@ -12,15 +12,7 @@ import { PublicFooterComponent } from '../public-footer/public-footer.component'
   selector: 'app-public-layout',
   standalone: true,
   imports: [RouterOutlet, PublicNavbarComponent, PublicFooterComponent],
-  template: `
-    <div class="public-layout">
-      <app-public-navbar [mainScrollTop]="mainScrollTop" />
-      <main class="public-main" (scroll)="onMainScroll($event)">
-        <router-outlet />
-        <app-public-footer />
-      </main>
-    </div>
-  `,
+  templateUrl: './public-layout.component.html',
   styleUrl: './public-layout.component.scss'
 })
 export class PublicLayoutComponent {

@@ -14,43 +14,7 @@ import { TopbarComponent } from '../../portals/admin/components/topbar/topbar.co
 
 @Component({
   selector: 'app-doctor-layout',
-  template: `
-    <div class="portal-layout">
-      <app-admin-sidebar
-        class="portal-layout__sidebar"
-        [class.is-open]="isSidebarOpen"
-        [navItems]="navItems"
-        [portalLabel]="portalLabel"
-        [clinicName]="clinicName"
-        [currentUser]="currentUser()"
-        [isOpen]="isSidebarOpen"
-        (navClick)="closeSidebar()"
-        (logout)="logout()"
-      ></app-admin-sidebar>
-
-      <div class="main-content">
-        <app-admin-topbar
-          [title]="pageTitle"
-          [portalLabel]="portalLabel"
-          [currentUser]="currentUser()"
-          [unreadCount]="unreadCount()"
-          (menuToggle)="isSidebarOpen = !isSidebarOpen"
-          (logout)="logout()"
-        ></app-admin-topbar>
-
-        <main class="page-content">
-          <router-outlet></router-outlet>
-        </main>
-      </div>
-
-      <div
-        class="sidebar-overlay"
-        [class.is-visible]="isSidebarOpen"
-        (click)="closeSidebar()"
-        aria-hidden="true"
-      ></div>
-    </div>
-  `,
+  templateUrl: './doctor-layout.component.html',
   styleUrl: './doctor-layout.component.scss',
   standalone: true,
   imports: [RouterOutlet, SidebarComponent, TopbarComponent]

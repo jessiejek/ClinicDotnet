@@ -1,0 +1,120 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Medical Records</h2>
+          <p class="page-subtitle">Review your completed consultations and clinical notes.</p>
+        </div>
+
+        <button
+          type="button"
+          class="btn-outline page-action"
+          *ngIf="filteredRecords.length > 0 && !loading"
+          (click)="downloadAllRecords()"
+        >
+          Download All PDF
+        </button>
+      </div>
+
+      <ion-searchbar
+        class="page-search"
+        placeholder="Search by doctor, diagnosis, soap notes, or follow-up"
+        [value]="searchTerm"
+        (ionInput)="onSearchChange($event.detail.value ?? '')"
+      ></ion-searchbar>
+
+      <div class="page-summary" *ngIf="!loading && !error">
+        Showing {{ filteredRecords.length }} of {{ records.length }} medical records
+      </div>
+
+      <div class="page-loading" *ngIf="loading">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Loading medical records...</p>
+      </div>
+
+      <div class="page-error" *ngIf="error">
+        <div class="page-error__title">{{ errorTitle }}</div>
+        <p>{{ error }}</p>
+        <button type="button" class="btn-primary" (click)="loadRecords()">Retry</button>
+      </div>
+
+      <ng-container *ngIf="!loading && !error">
+        <ng-container *ngIf="filteredRecords.length > 0; else emptyTpl">
+          <article class="record-card clinic-card" *ngFor="let record of filteredRecords">
+            <div class="record-card__header">
+              <div>
+                <div class="record-card__date">{{ record.appointmentDate | date : 'MMMM d, y (EEE)' }}</div>
+                <h3>{{ record.doctorName }}</h3>
+              </div>
+              <div class="record-card__tag">Completed Consultation</div>
+            </div>
+
+            <div class="record-card__grid">
+              <div>
+                <span>Diagnosis</span>
+                <p>{{ record.diagnosis || 'No diagnosis recorded yet.' }}</p>
+              </div>
+              <div>
+                <span>SOAP Notes</span>
+                <p>{{ record.soapNotes || 'No SOAP notes recorded yet.' }}</p>
+              </div>
+              <div>
+                <span>Doctor Notes</span>
+                <p>{{ record.doctorNotes || 'No doctor notes recorded yet.' }}</p>
+              </div>
+              <div>
+                <span>Follow-up</span>
+                <p>
+                  <ng-container *ngIf="record.followUpDate; else noFollowUpTpl">
+                    {{ record.followUpDate | date : 'MMMM d, y (EEE)' }}
+                    <br />
+                    {{ record.followUpInstructions || 'No instructions recorded.' }}
+                  </ng-container>
+                </p>
+              </div>
+              <div class="record-card__wide">
+                <span>Additional Notes</span>
+                <p>{{ record.notes || 'No additional notes recorded yet.' }}</p>
+              </div>
+            </div>
+
+            <div class="record-card__meta">
+              <span>Created {{ record.createdAt | date : 'MMMM d, y (EEE) h:mm a' }}</span>
+              <span>Updated {{ record.updatedAt | date : 'MMMM d, y (EEE) h:mm a' }}</span>
+            </div>
+
+            <div class="record-card__actions">
+              <button
+                type="button"
+                class="btn-outline"
+                [disabled]="isDownloading(record.id)"
+                (click)="downloadMedicalRecord(record)"
+              >
+                {{ isDownloading(record.id) ? 'Downloading...' : 'Download Medical Record PDF' }}
+              </button>
+              <button
+                type="button"
+                class="btn-primary"
+                [disabled]="isDownloadingSummary(record.bookingId)"
+                (click)="downloadConsultationSummary(record)"
+              >
+                {{ isDownloadingSummary(record.bookingId) ? 'Downloading...' : 'Download Summary PDF' }}
+              </button>
+            </div>
+          </article>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #emptyTpl>
+        <app-empty-state
+          icon="document-text-outline"
+          title="No medical records yet"
+          description="Completed consultations will appear here once your doctor saves clinical notes."
+        ></app-empty-state>
+      </ng-template>
+
+      <ng-template #noFollowUpTpl>
+        <span>No follow-up scheduled.</span>
+      </ng-template>
+    </section>
+  

@@ -7,21 +7,7 @@ import { announcementDisplayDate } from '../../utils/time-format';
   selector: 'app-announcement-card',
   standalone: true,
   imports: [NgIf],
-  template: `
-    <article class="announcement-card">
-      <div class="announcement-card__img">
-        <img *ngIf="announcement.imageUrl" [src]="announcement.imageUrl" [alt]="announcement.title" />
-        <span *ngIf="!announcement.imageUrl" class="announcement-card__img-placeholder" aria-hidden="true"
-          >📢</span
-        >
-      </div>
-      <div class="announcement-card__body">
-        <div class="announcement-card__date">{{ dateLabel }}</div>
-        <h3 class="announcement-card__title">{{ announcement.title }}</h3>
-        <p class="announcement-card__excerpt">{{ announcement.body }}</p>
-      </div>
-    </article>
-  `,
+  templateUrl: './announcement-card.component.html',
   styleUrl: './announcement-card.component.scss'
 })
 export class AnnouncementCardComponent {

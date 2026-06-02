@@ -25,29 +25,7 @@ export interface FollowUpDraftView {
   selector: 'app-follow-up-form',
   standalone: true,
   imports: [NgIf, ReactiveFormsModule, IonCheckbox, IonInput, IonItem, IonLabel],
-  template: `
-    <section class="clinic-card section-card" [class.section-card--locked]="locked" aria-labelledby="followup-heading">
-      <div class="section-card__head">
-        <h3 id="followup-heading">Follow-up <i *ngIf="locked" class="ti ti-lock section-card__lock"></i></h3>
-        <p>Add an optional follow-up appointment and reminder flag.</p>
-      </div>
-
-      <form class="follow-grid" [formGroup]="form">
-        <ion-item class="field">
-          <ion-label position="stacked">Follow-up Date</ion-label>
-          <ion-input type="date" formControlName="followUpDate" [disabled]="locked"></ion-input>
-        </ion-item>
-        <ion-item class="field">
-          <ion-label position="stacked">Reason</ion-label>
-          <ion-input formControlName="reason" [disabled]="locked"></ion-input>
-        </ion-item>
-        <label class="reminder-row">
-          <ion-checkbox formControlName="reminderEnabled" [disabled]="locked"></ion-checkbox>
-          <span>Enable reminder</span>
-        </label>
-      </form>
-    </section>
-  `,
+  templateUrl: './follow-up-form.component.html',
   styleUrl: './follow-up-form.component.scss'
 })
 export class FollowUpFormComponent implements OnChanges {

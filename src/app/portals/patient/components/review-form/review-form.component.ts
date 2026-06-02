@@ -7,36 +7,7 @@ import { IonTextarea } from '@ionic/angular/standalone';
   selector: 'app-review-form',
   standalone: true,
   imports: [CommonModule, FormsModule, NgFor, NgIf, IonTextarea],
-  template: `
-    <div class="review-form">
-      <div class="review-form__stars">
-        <button
-          type="button"
-          class="star-button"
-          *ngFor="let star of stars"
-          [class.is-active]="star <= rating"
-          (click)="setRating(star)"
-          [disabled]="disabled"
-        >
-          ★
-        </button>
-      </div>
-      <p class="review-form__error" *ngIf="touched && rating === 0">Rating is required.</p>
-      <ion-textarea
-        [(ngModel)]="comment"
-        [disabled]="disabled"
-        label="Comment"
-        labelPlacement="stacked"
-        placeholder="Share your experience (optional)"
-        [autoGrow]="true"
-      ></ion-textarea>
-      <div class="review-form__actions">
-        <button class="btn-primary" type="button" [disabled]="disabled || rating === 0" (click)="submit()">
-          Submit Review
-        </button>
-      </div>
-    </div>
-  `,
+  templateUrl: './review-form.component.html',
   styleUrl: './review-form.component.scss'
 })
 export class ReviewFormComponent {

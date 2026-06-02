@@ -8,21 +8,7 @@ export type BannerVariant = 'warning' | 'danger' | 'info' | 'success';
   selector: 'app-banner',
   standalone: true,
   imports: [NgIf, NgClass, IonIcon],
-  template: `
-    <div *ngIf="visible" class="banner" [ngClass]="'banner--' + variant">
-      <ion-icon [name]="iconResolved" aria-hidden="true"></ion-icon>
-      <span class="banner__message">{{ message }}</span>
-      <button
-        *ngIf="dismissible"
-        type="button"
-        class="btn-ghost"
-        style="margin-left: auto; padding: var(--space-1) var(--space-2)"
-        (click)="onDismiss()"
-      >
-        ×
-      </button>
-    </div>
-  `,
+  templateUrl: './banner.component.html',
   styleUrl: './banner.component.scss'
 })
 export class BannerComponent {

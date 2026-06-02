@@ -12,28 +12,7 @@ type MediaKind = 'document' | 'lab-result';
   selector: 'app-secure-image',
   standalone: true,
   imports: [CommonModule, IonSpinner, IonIcon],
-  template: `
-    <div
-      class="secure-image-container"
-      [class.secure-image-container--preview]="fit === 'contain'"
-      [class.loaded]="loaded"
-      [class.error]="error"
-    >
-      <ion-spinner *ngIf="loading" name="crescent"></ion-spinner>
-      <img
-        *ngIf="objectUrl && !error"
-        [src]="objectUrl"
-        [style.object-fit]="fit"
-        (load)="onLoad()"
-        (error)="onImageRenderError()"
-        [attr.alt]="alt"
-      />
-      <div class="secure-image-error" *ngIf="error && !loading">
-        <ion-icon name="image-outline"></ion-icon>
-        <span>Image unavailable</span>
-      </div>
-    </div>
-  `,
+  templateUrl: './secure-image.component.html',
   styles: [
     `
       .secure-image-container {

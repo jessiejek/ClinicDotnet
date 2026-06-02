@@ -15,19 +15,7 @@ import { ServiceCategory } from '../../../../core/models';
   selector: 'app-service-category-card',
   standalone: true,
   imports: [NgClass, IonIcon],
-  template: `
-    <button type="button" class="service-cat-card" [ngClass]="gradientClass" (click)="selected.emit(category)">
-      <div class="service-cat-card__icon">
-        <ion-icon [name]="iconName"></ion-icon>
-      </div>
-      <div class="service-cat-card__name">{{ category }}</div>
-      <div class="service-cat-card__desc">{{ description }}</div>
-      <div class="service-cat-card__count">{{ count }} services</div>
-      <div class="service-cat-card__arrow" aria-hidden="true">
-        <ion-icon name="chevron-forward-outline"></ion-icon>
-      </div>
-    </button>
-  `,
+  templateUrl: './service-category-card.component.html',
   styleUrl: './service-category-card.component.scss'
 })
 export class ServiceCategoryCardComponent {

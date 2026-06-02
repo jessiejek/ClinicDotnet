@@ -10,12 +10,7 @@ import { TokenService } from '../../core/services/token.service';
 @Component({
   selector: 'app-auth-callback',
   standalone: true,
-  template: `
-    <div class="auth-callback">
-      <div class="auth-callback__spinner"></div>
-      <p>{{ statusText }}</p>
-    </div>
-  `,
+  templateUrl: './auth-callback.page.html',
   styles: [`
     .auth-callback { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100dvh; padding: 2rem; text-align: center; color: var(--ion-color-medium); }
     .auth-callback__spinner { width: 32px; height: 32px; border: 3px solid var(--ion-color-light); border-top-color: var(--ion-color-primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 1rem; }

@@ -9,20 +9,7 @@ import { interval, Subscription } from 'rxjs';
   selector: 'app-booking-timer',
   standalone: true,
   imports: [NgIf, IonIcon],
-  template: `
-    <div class="booking-timer banner banner--warning" *ngIf="!isExpired">
-      <ion-icon name="time-outline"></ion-icon>
-      <span
-        >Your slot is reserved for
-        <strong class="timer-countdown">{{ formattedTime }}</strong></span
-      >
-    </div>
-
-    <div class="booking-timer-expired banner banner--danger" *ngIf="isExpired">
-      <ion-icon name="alert-circle-outline"></ion-icon>
-      <span>Your slot reservation has expired. Please select a new time slot.</span>
-    </div>
-  `,
+  templateUrl: './booking-timer.component.html',
   styleUrl: './booking-timer.component.scss'
 })
 export class BookingTimerComponent implements OnInit, OnDestroy {

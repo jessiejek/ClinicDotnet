@@ -12,13 +12,7 @@ import { BookingWizardComponent } from '../components/booking-wizard/booking-wiz
   selector: 'app-booking-page',
   standalone: true,
   imports: [IonContent, BookingWizardComponent],
-  template: `
-    <ion-content #scrollContainer>
-      <div class="booking-page-container page-enter">
-        <app-booking-wizard></app-booking-wizard>
-      </div>
-    </ion-content>
-  `,
+  templateUrl: './booking.page.html',
   styleUrl: './booking.page.scss'
 })
 export class BookingPage implements OnInit {

@@ -1,0 +1,21 @@
+
+    <button [id]="triggerId" type="button" class="actions-menu__button" aria-label="Open booking actions">
+      <ion-icon name="ellipsis-vertical"></ion-icon>
+    </button>
+
+    <ion-popover [trigger]="triggerId" triggerAction="click" side="bottom" alignment="end">
+      <ng-template>
+        <div class="actions-menu">
+          <button
+            *ngFor="let action of actions"
+            type="button"
+            class="actions-menu__item"
+            [class.actions-menu__item--danger]="action.danger"
+            (click)="actionSelected.emit(action.value)"
+          >
+            {{ action.label }}
+          </button>
+        </div>
+      </ng-template>
+    </ion-popover>
+  

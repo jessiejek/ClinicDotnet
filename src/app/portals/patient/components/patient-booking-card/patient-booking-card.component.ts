@@ -7,49 +7,7 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
   selector: 'app-patient-booking-card',
   standalone: true,
   imports: [NgIf, DatePipe, StatusBadgeComponent],
-  template: `
-    <article class="booking-card clinic-card" [attr.data-testid]="'patient-bookings-mobile-card-' + booking.id">
-      <div class="booking-card__header">
-        <div>
-          <div class="booking-card__id data-mono">{{ booking.id }}</div>
-          <h3>{{ doctorDisplayName }}</h3>
-          <p>{{ servicesDisplayName }}</p>
-        </div>
-        <div class="booking-card__badges">
-          <app-status-badge [status]="displayStatus"></app-status-badge>
-          <app-status-badge [status]="displayPaymentStatus"></app-status-badge>
-        </div>
-      </div>
-
-      <div class="booking-card__details">
-        <div>
-          <span>Date</span>
-          <strong>{{ booking.appointmentDate | date : 'MMMM d, y (EEE)' }}</strong>
-        </div>
-        <div>
-          <span>Time</span>
-          <strong>{{ timeRangeLabel }}</strong>
-        </div>
-        <div *ngIf="booking.queueNumber !== null">
-          <span>Queue</span>
-          <strong>#{{ booking.queueNumber }}</strong>
-        </div>
-        <div *ngIf="showAmountDue">
-          <span>Amount Due</span>
-          <strong>PHP {{ booking.finalAmount }}</strong>
-        </div>
-      </div>
-
-      <div class="booking-card__actions">
-        <button type="button" class="btn-outline" [attr.data-testid]="'patient-bookings-mobile-view-details-button-' + booking.id" (click)="viewDetails.emit(booking.id)">
-          View Details
-        </button>
-        <button *ngIf="canCancel" type="button" class="btn-ghost" [attr.data-testid]="'patient-bookings-mobile-cancel-open-button-' + booking.id" (click)="cancelBooking.emit(booking.id)">
-          Cancel
-        </button>
-      </div>
-    </article>
-  `,
+  templateUrl: './patient-booking-card.component.html',
   styleUrl: './patient-booking-card.component.scss'
 })
 export class PatientBookingCardComponent {

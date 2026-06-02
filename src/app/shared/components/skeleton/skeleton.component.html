@@ -1,0 +1,9 @@
+
+    <div
+      *ngFor="let _ of countArray; let i = index"
+      class="skeleton"
+      [ngClass]="variantClass"
+      [ngStyle]="i === 0 && width ? { width: width } : null"
+      aria-hidden="true"
+    ></div>
+  

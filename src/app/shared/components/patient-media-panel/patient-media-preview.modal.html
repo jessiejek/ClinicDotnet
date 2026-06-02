@@ -1,0 +1,78 @@
+
+    <ion-header class="ion-no-border preview-modal-header">
+      <ion-toolbar>
+        <ion-title>{{ activeTitle }}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button fill="clear" class="preview-close-btn" (click)="close()" aria-label="Close preview">
+            <ion-icon name="close-outline" slot="icon-only"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="preview-modal-body">
+      <div class="preview-shell" *ngIf="activeItem">
+        <div class="preview-stage" *ngIf="isImage(activeItem); else filePreviewTpl">
+          <app-secure-image
+            [src]="activeItem.fileUrl"
+            [mediaId]="activeItem.id"
+            [mediaKind]="kind"
+            [patientId]="patientId"
+            fit="contain"
+            [alt]="displayTitle(activeItem)"
+          ></app-secure-image>
+        </div>
+
+        <ng-template #filePreviewTpl>
+          <div class="preview-file-card">
+            <div class="preview-file-card__icon">
+              <ion-icon [name]="kind === 'document' ? 'document-text-outline' : 'flask-outline'"></ion-icon>
+            </div>
+            <h2>{{ displayTitle(activeItem) }}</h2>
+            <p>{{ activeItem.fileName }}</p>
+            <button
+              type="button"
+              class="btn-primary preview-download-btn"
+              [disabled]="isDownloading(activeItem.id)"
+              (click)="download(activeItem)"
+            >
+              <ion-icon name="download-outline"></ion-icon>
+              {{ isDownloading(activeItem.id) ? 'Downloading...' : 'Download File' }}
+            </button>
+          </div>
+        </ng-template>
+
+        <div class="preview-meta-card">
+          <div class="preview-meta-row">
+            <span>Uploaded</span>
+            <strong>{{ activeItem.uploadedAt | date: 'medium' }}</strong>
+          </div>
+          <div class="preview-meta-row" *ngIf="activeItem.bookingId">
+            <span>Booking</span>
+            <strong>{{ formatPreviewBooking(activeItem.bookingId) }}</strong>
+          </div>
+          <div class="preview-meta-row" *ngIf="detailText(activeItem)">
+            <span>Notes</span>
+            <strong>{{ detailText(activeItem) }}</strong>
+          </div>
+        </div>
+
+        <div class="preview-nav" *ngIf="items.length > 1">
+          <button type="button" class="preview-nav-btn" (click)="prev()" [disabled]="activeIndex === 0">
+            <ion-icon name="chevron-back-outline"></ion-icon>
+            Previous
+          </button>
+          <span class="preview-nav-count">{{ activeIndex + 1 }} / {{ items.length }}</span>
+          <button
+            type="button"
+            class="preview-nav-btn"
+            (click)="next()"
+            [disabled]="activeIndex === items.length - 1"
+          >
+            Next
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </button>
+        </div>
+      </div>
+    </ion-content>
+  

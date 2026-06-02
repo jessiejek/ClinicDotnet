@@ -1,0 +1,32 @@
+
+    <div class="booking-wizard">
+      <div class="wizard-steps" *ngIf="currentStep$ | async as currentStep">
+        <div
+          *ngFor="let s of STEPS"
+          class="wizard-step"
+          [class.wizard-step--completed]="currentStep > s.step"
+          [class.wizard-step--active]="currentStep === s.step"
+          [class.wizard-step--upcoming]="currentStep < s.step"
+        >
+          <div class="wizard-step__circle">
+            <ion-icon name="checkmark" *ngIf="currentStep > s.step"></ion-icon>
+            <span *ngIf="currentStep <= s.step">{{ s.step }}</span>
+          </div>
+          <span class="wizard-step__label">{{ s.label }}</span>
+        </div>
+      </div>
+
+      <div class="booking-wizard__body">
+        <ng-container [ngSwitch]="(currentStep$ | async)">
+          <app-step-doctor-service *ngSwitchCase="1"></app-step-doctor-service>
+          <app-step-date-picker *ngSwitchCase="2"></app-step-date-picker>
+          <app-step-slot-select *ngSwitchCase="3"></app-step-slot-select>
+          <app-step-review *ngSwitchCase="4"></app-step-review>
+          <app-step-auth-check *ngSwitchCase="5"></app-step-auth-check>
+          <app-step-payment *ngSwitchCase="6"></app-step-payment>
+        </ng-container>
+      </div>
+
+      <app-booking-summary-bar></app-booking-summary-bar>
+    </div>
+  

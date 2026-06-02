@@ -13,45 +13,7 @@ import { formatDoctorScheduleLines } from '../../public/utils/time-format';
   selector: 'app-patient-doctors-page',
   standalone: true,
   imports: [NgFor, NgIf, DoctorCardComponent, EmptyStateComponent, SkeletonComponent],
-  template: `
-    <section class="page-shell">
-      <div class="page-shell__header">
-        <div>
-          <h2 class="page-title">Doctors</h2>
-          <p class="page-subtitle">Browse active doctors and choose who to book with.</p>
-        </div>
-      </div>
-
-      <div class="page-loading" *ngIf="isLoading">
-        <app-skeleton variant="card" [count]="3"></app-skeleton>
-      </div>
-
-      <ng-container *ngIf="!isLoading">
-        <div class="clinic-card" *ngIf="doctors.length > 0; else emptyState">
-          <div class="doctors-grid">
-            <div class="doctor-tile" *ngFor="let doctor of doctors">
-              <app-doctor-card [doctor]="doctor"></app-doctor-card>
-
-              <div class="doctor-tile__schedule" *ngIf="doctorScheduleSummary(doctor) as schedule">
-                <span>Working Schedule</span>
-                <strong>{{ schedule }}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ng-container>
-
-      <ng-template #emptyState>
-        <app-empty-state
-          icon="medical-outline"
-          [title]="emptyTitle"
-          [description]="emptyDescription"
-          [ctaLabel]="loadError ? 'Retry' : undefined"
-          (ctaClick)="retry()"
-        ></app-empty-state>
-      </ng-template>
-    </section>
-  `,
+  templateUrl: './patient-doctors.page.html',
   styleUrl: './patient-doctors.page.scss'
 })
 export class PatientDoctorsPage implements OnInit {

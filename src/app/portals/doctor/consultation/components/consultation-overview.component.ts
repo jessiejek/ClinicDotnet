@@ -6,46 +6,7 @@ import { Allergy, Consultation, FollowUp, Patient, Prescription } from '../../..
   selector: 'app-consultation-overview',
   standalone: true,
   imports: [NgIf],
-  template: `
-    <article class="clinic-card summary-card summary-card--mobile" [class.is-expanded]="mobileExpanded">
-      <button type="button" class="summary-card__toggle" (click)="mobileExpanded = !mobileExpanded">
-        <div>
-          <h3>Patient Summary</h3>
-          <p class="summary-card__preview">{{ summaryPreview }}</p>
-        </div>
-        <span class="summary-card__chevron">{{ mobileExpanded ? '▴' : '▾' }}</span>
-      </button>
-
-      <div class="summary-card__body" *ngIf="mobileExpanded">
-        <p><strong>Age / Sex:</strong> {{ ageLabel }} / {{ patient.sex }}</p>
-        <p><strong>Allergies:</strong> {{ allergySummary }}</p>
-        <p><strong>Last Visit:</strong> {{ lastVisit }}</p>
-        <p><strong>Existing Conditions:</strong> {{ conditionSummary }}</p>
-        <p><strong>Consultation:</strong> {{ consultation?.status || 'Draft' }}</p>
-        <p><strong>Locked:</strong> {{ consultation?.isLocked ? 'Yes' : 'No' }}</p>
-        <p><strong>Prescriptions:</strong> {{ existingPrescription ? 1 : 0 }}</p>
-        <p><strong>Follow-Ups:</strong> {{ followUps.length }}</p>
-      </div>
-    </article>
-
-    <section class="summary-grid">
-      <article class="clinic-card summary-card">
-        <h3>Patient Summary</h3>
-        <p><strong>Age / Sex:</strong> {{ ageLabel }} / {{ patient.sex }}</p>
-        <p><strong>Allergies:</strong> {{ allergySummary }}</p>
-        <p><strong>Last Visit:</strong> {{ lastVisit }}</p>
-        <p><strong>Existing Conditions:</strong> {{ conditionSummary }}</p>
-      </article>
-
-      <article class="clinic-card summary-card">
-        <h3>Record Status</h3>
-        <p><strong>Consultation:</strong> {{ consultation?.status || 'Draft' }}</p>
-        <p><strong>Locked:</strong> {{ consultation?.isLocked ? 'Yes' : 'No' }}</p>
-        <p><strong>Prescriptions:</strong> {{ existingPrescription ? 1 : 0 }}</p>
-        <p><strong>Follow-Ups:</strong> {{ followUps.length }}</p>
-      </article>
-    </section>
-  `,
+  templateUrl: './consultation-overview.component.html',
   styles: [
     `
       .summary-card--mobile {

@@ -1,0 +1,143 @@
+
+    <section class="patient-media-panel clinic-card">
+      <div class="patient-media-panel__header">
+        <div>
+          <p class="section-heading">{{ eyebrow }}</p>
+          <h3 class="patient-media-panel__title">
+            <i *ngIf="headingIcon" [class]="headingIcon"></i>
+            <span>{{ heading }}</span>
+          </h3>
+          <p class="patient-media-panel__subtitle">{{ subheading }}</p>
+        </div>
+
+        <div class="patient-media-panel__count" *ngIf="!loading && !error">
+          {{ filteredItems.length }} shown
+        </div>
+      </div>
+
+      <form *ngIf="allowUpload" class="patient-media-panel__upload" [formGroup]="form" (ngSubmit)="upload()">
+        <div class="upload-section-header">
+          <div class="upload-section-header__icon">
+            <ion-icon [name]="kind === 'document' ? 'cloud-upload-outline' : 'flask-outline'"></ion-icon>
+          </div>
+          <div>
+            <h4>{{ kind === 'document' ? 'Upload a document' : 'Upload a lab result' }}</h4>
+            <p>Files should be linked to the correct booking.</p>
+          </div>
+        </div>
+
+        <div class="patient-media-panel__upload-grid">
+          <label class="media-field media-field--full">
+            <span>{{ fileFieldLabel }}</span>
+            <div class="file-picker" (click)="fileInput.click()">
+              <ion-icon [name]="selectedFileName ? 'document-attach-outline' : 'cloud-upload-outline'"></ion-icon>
+              <div class="file-picker__text">
+                <strong>{{ selectedFileName || 'Choose a file' }}</strong>
+                <small>Images and PDF files are recommended.</small>
+              </div>
+            </div>
+            <input #fileInput type="file" class="visually-hidden" (change)="onFileSelected($event)" />
+          </label>
+
+          <label class="media-field">
+            <span>{{ titleFieldLabel }}</span>
+            <input class="filter-input" [formControl]="form.controls.title" [placeholder]="titlePlaceholder" />
+          </label>
+
+          <label class="media-field">
+            <span>{{ notesFieldLabel }}</span>
+            <textarea class="filter-input" rows="3" [formControl]="form.controls.notes"></textarea>
+          </label>
+
+          <label class="media-field media-field--full">
+            <span>Related Booking</span>
+            <ion-select class="filter-input" [interface]="selectInterface" [formControl]="form.controls.bookingId">
+              <ion-select-option value="">Select a booking</ion-select-option>
+              <ion-select-option *ngFor="let booking of bookings" [value]="booking.id">
+                {{ formatBooking(booking) }}
+              </ion-select-option>
+            </ion-select>
+            <div class="booking-helper-row">
+              <small class="booking-helper" *ngIf="fromQueryParam">
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+                Booking preselected from appointment details.
+              </small>
+              <small class="booking-helper">{{ helperText }}</small>
+            </div>
+          </label>
+        </div>
+
+        <div class="patient-media-panel__actions">
+          <button type="submit" class="btn-primary" [disabled]="uploading || !canSubmitUpload">
+            {{ uploading ? uploadButtonLabel + '...' : uploadButtonLabel }}
+          </button>
+          <button type="button" class="btn-outline" (click)="resetUpload()" [disabled]="uploading && !selectedFile">
+            Reset
+          </button>
+        </div>
+      </form>
+
+      <ion-searchbar
+        *ngIf="allowUpload"
+        class="patient-media-panel__search"
+        placeholder="Search by file name, title, notes, or linked IDs"
+        [value]="searchTerm"
+        (ionInput)="onSearchChange($event.detail.value ?? '')"
+      ></ion-searchbar>
+
+      <div class="patient-media-panel__loading" *ngIf="loading">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Loading {{ kindLabelLower }}...</p>
+      </div>
+
+      <div class="patient-media-panel__error" *ngIf="error">
+        <div class="patient-media-panel__error-title">{{ errorHeader }}</div>
+        <p>{{ error }}</p>
+        <button type="button" class="btn-primary" (click)="loadRecords()">Retry</button>
+      </div>
+
+      <ng-container *ngIf="!loading && !error">
+        <ng-container *ngIf="filteredItems.length > 0; else emptyTpl">
+          <div class="media-gallery-grid">
+            <article class="gallery-card" *ngFor="let item of filteredItems">
+              <div class="gallery-card__thumb" (click)="openPreview(item)">
+                <app-secure-image
+                  *ngIf="isImage(item)"
+                  [src]="item.fileUrl"
+                  [mediaId]="item.id"
+                  [mediaKind]="kind"
+                  [patientId]="patientId || undefined"
+                  [alt]="displayTitle(item)"
+                ></app-secure-image>
+                <div class="gallery-card__icon" *ngIf="!isImage(item)">
+                  <ion-icon [name]="kind === 'document' ? 'document-text-outline' : 'flask-outline'"></ion-icon>
+                </div>
+                <div class="gallery-card__preview-hint" *ngIf="isImage(item)">
+                  <ion-icon name="eye-outline"></ion-icon>
+                </div>
+              </div>
+              <div class="gallery-card__info" (click)="openPreview(item)">
+                <div class="gallery-card__meta-row">
+                  <span class="gallery-card__date">{{ item.uploadedAt | date : 'MMMM d, y (EEE)' }}</span>
+                  <span class="gallery-card__type-badge">{{ tagLabel(item) }}</span>
+                </div>
+                <h4>{{ displayTitle(item) }}</h4>
+                <div class="gallery-card__booking-row" *ngIf="bookingLabelFor(item)">
+                  <ion-icon name="calendar-outline"></ion-icon>
+                  <span>{{ bookingLabelFor(item) }}</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #emptyTpl>
+        <div class="patient-media-panel__empty">
+          <ion-icon [name]="kind === 'document' ? 'document-text-outline' : 'flask-outline'"></ion-icon>
+          <p class="patient-media-panel__empty-title">{{ emptyTitle }}</p>
+          <p>{{ emptyDescription }}</p>
+        </div>
+      </ng-template>
+    </section>
+  

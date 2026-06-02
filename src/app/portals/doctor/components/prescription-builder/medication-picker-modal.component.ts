@@ -21,35 +21,7 @@ export interface MedicationPickerOption {
   standalone: true,
   selector: 'app-medication-picker-modal',
   imports: [NgFor, NgIf, IonButton, IonButtons, IonContent, IonHeader, IonSearchbar, IonTitle, IonToolbar],
-  template: `
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>{{ title }}</ion-title>
-        <ion-buttons slot="end">
-          <ion-button fill="clear" (click)="close()">Close</ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-
-    <ion-content class="picker-modal ion-padding">
-      <ion-searchbar
-        placeholder="Search options"
-        [value]="query"
-        (ionInput)="updateQuery($event.detail.value)"
-        (ionClear)="updateQuery('')"
-      ></ion-searchbar>
-
-      <div *ngIf="filteredOptions.length > 0; else emptyState" class="picker-options">
-        <button type="button" class="picker-option" *ngFor="let option of filteredOptions" (click)="select(option)">
-          {{ option.label }}
-        </button>
-      </div>
-
-      <ng-template #emptyState>
-        <div *ngIf="query.trim().length > 0" class="picker-empty">No matching options.</div>
-      </ng-template>
-    </ion-content>
-  `,
+  templateUrl: './medication-picker-modal.component.html',
   styles: [
     `
       .picker-options {

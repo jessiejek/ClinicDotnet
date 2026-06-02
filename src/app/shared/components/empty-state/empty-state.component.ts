@@ -17,26 +17,7 @@ import {
   selector: 'app-empty-state',
   standalone: true,
   imports: [NgIf, IonIcon, RouterLink],
-  template: `
-    <div class="empty-state">
-      <div class="empty-state__icon">
-        <ion-icon [name]="icon"></ion-icon>
-      </div>
-      <h3 class="empty-state__title">{{ title }}</h3>
-      <p class="empty-state__description">{{ description }}</p>
-      <button
-        *ngIf="ctaLabel && ctaRoute"
-        type="button"
-        class="btn-primary"
-        [routerLink]="ctaRoute"
-      >
-        {{ ctaLabel }}
-      </button>
-      <button *ngIf="ctaLabel && !ctaRoute" type="button" class="btn-primary" (click)="ctaClick.emit()">
-        {{ ctaLabel }}
-      </button>
-    </div>
-  `,
+  templateUrl: './empty-state.component.html',
   styleUrl: './empty-state.component.scss'
 })
 export class EmptyStateComponent {

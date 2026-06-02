@@ -9,17 +9,7 @@ export type AllergyConfirmationState = 'confirmed-empty' | 'unconfirmed' | null 
   selector: 'app-allergy-badge',
   standalone: true,
   imports: [NgIf, NgFor],
-  template: `
-    <span
-      class="ab"
-      [class.ab--nkda]="state === 'NKDA'"
-      [class.ab--allergy]="state === 'ALLERGY'"
-      [class.ab--unconfirmed]="state === 'UNCONFIRMED'"
-      [attr.title]="tooltip"
-    >
-      {{ label }}
-    </span>
-  `,
+  templateUrl: './allergy-badge.component.html',
   styles: [
     `
       :host {

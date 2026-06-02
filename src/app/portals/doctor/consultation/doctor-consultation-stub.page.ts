@@ -22,51 +22,7 @@ interface ConsultationVm {
   standalone: true,
   selector: 'app-doctor-consultation-stub-page',
 imports: [AsyncPipe, DatePipe, NgIf, PageHeaderComponent, EmptyStateComponent],
-  template: `
-    <ng-container *ngIf="detail$ | async as detail; else notFound">
-      <app-page-header
-        title="Consultation Form"
-        subtitle="Phase 9 placeholder"
-        [showBackButton]="true"
-        defaultBackHref="/doctor/appointments"
-      ></app-page-header>
-
-      <section class="clinic-card summary-grid">
-        <div>
-          <p class="section-label">Booking Summary</p>
-          <h3>{{ detail.booking.id }}</h3>
-          <p>{{ detail.booking.appointmentDate | date:'MMMM d, y (EEE)' }} {{ detail.booking.slotStartTime }}</p>
-          <p>{{ detail.booking.status }} • {{ detail.booking.paymentStatus }}</p>
-        </div>
-        <div>
-          <p class="section-label">Patient Summary</p>
-          <h3>{{ detail.patient.firstName }} {{ detail.patient.lastName }}</h3>
-          <p>{{ detail.patient.patientCode }}</p>
-          <p>{{ detail.patient.contactNumber || 'No contact number' }}</p>
-        </div>
-      </section>
-
-      <app-empty-state
-        icon="document-text-outline"
-        title="Consultation Form — Phase 9"
-        description="SOAP notes, vital signs, diagnosis, prescriptions, labs, and follow-up scheduling will be implemented in Phase 9."
-      ></app-empty-state>
-
-      <div class="actions">
-        <button type="button" class="btn-primary" (click)="backToAppointment(detail.booking.id)">Back to Appointment</button>
-      </div>
-    </ng-container>
-
-    <ng-template #notFound>
-      <app-empty-state
-        icon="document-text-outline"
-        title="Consultation unavailable"
-        description="This consultation stub is only available for your own appointments."
-        ctaLabel="Back to Appointments"
-        ctaRoute="/doctor/appointments"
-      ></app-empty-state>
-    </ng-template>
-  `,
+  templateUrl: './doctor-consultation-stub.page.html',
   styleUrl: './doctor-consultation-stub.page.scss'
 })
 export class DoctorConsultationStubPage implements OnInit {

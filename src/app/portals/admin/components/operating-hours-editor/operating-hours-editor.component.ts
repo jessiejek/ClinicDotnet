@@ -12,49 +12,7 @@ interface DayRow {
   selector: 'app-operating-hours-editor',
   standalone: true,
   imports: [CommonModule, FormsModule, NgFor, NgIf],
-  template: `
-    <div class="hours-editor">
-      <div class="hours-editor__row hours-editor__header">
-        <span>Day</span>
-        <span>Status</span>
-        <span>Open</span>
-        <span>Close</span>
-      </div>
-
-      <div
-        class="hours-editor__row"
-        *ngFor="let row of dayRows"
-        [class.is-closed]="!hoursSnapshot[row.day].isOpen"
-      >
-        <strong>{{ row.label }}</strong>
-        <label class="toggle-wrap">
-          <input
-            type="checkbox"
-            [ngModel]="hoursSnapshot[row.day].isOpen"
-            (ngModelChange)="setOpen(row.day, $event)"
-          />
-          <span>{{ hoursSnapshot[row.day].isOpen ? 'Open' : 'Closed' }}</span>
-        </label>
-        <input
-          type="time"
-          class="time-input"
-          [ngModel]="hoursSnapshot[row.day].openTime"
-          [disabled]="!hoursSnapshot[row.day].isOpen"
-          (ngModelChange)="setTime(row.day, 'openTime', $event)"
-        />
-        <input
-          type="time"
-          class="time-input"
-          [ngModel]="hoursSnapshot[row.day].closeTime"
-          [disabled]="!hoursSnapshot[row.day].isOpen"
-          (ngModelChange)="setTime(row.day, 'closeTime', $event)"
-        />
-        <small class="hours-editor__error" *ngIf="hoursSnapshot[row.day].isOpen && !isRangeValid(row.day)">
-          Close time must be later than open time.
-        </small>
-      </div>
-    </div>
-  `,
+  templateUrl: './operating-hours-editor.component.html',
   styleUrl: './operating-hours-editor.component.scss'
 })
 export class OperatingHoursEditorComponent implements OnChanges {

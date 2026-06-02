@@ -13,43 +13,7 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
   selector: 'app-patient-reviews-page',
   standalone: true,
   imports: [DatePipe, NgIf, ReviewFormComponent, EmptyStateComponent],
-  template: `
-    <section class="page-shell" *ngIf="booking; else emptyTpl">
-      <div class="page-shell__header">
-        <div>
-          <button type="button" class="btn-ghost" (click)="back()">Back to Booking</button>
-          <h2 class="page-title">Leave a Review</h2>
-          <p class="page-subtitle data-mono">{{ booking.id }}</p>
-        </div>
-      </div>
-
-      <div class="clinic-card review-card" *ngIf="canReview; else blockedTpl">
-        <div class="section-heading">How was your visit?</div>
-        <p *ngIf="submitError" class="error-message" style="color:var(--color-danger);margin-bottom:var(--space-2)">{{ submitError }}</p>
-        <app-review-form (submitted)="submitReview($event.rating, $event.comment)" [disabled]="isSubmitting"></app-review-form>
-      </div>
-
-      <ng-template #blockedTpl>
-        <app-empty-state
-          icon="star-outline"
-          title="Review unavailable"
-          description="Only completed bookings without an existing review can be rated."
-          ctaLabel="Back to Booking"
-          (ctaClick)="back()"
-        ></app-empty-state>
-      </ng-template>
-    </section>
-
-    <ng-template #emptyTpl>
-      <app-empty-state
-        icon="calendar-outline"
-        title="Booking not found"
-        description="We could not load the booking you selected."
-        ctaLabel="Back to Bookings"
-        ctaRoute="/patient/bookings"
-      ></app-empty-state>
-    </ng-template>
-  `,
+  templateUrl: './patient-reviews.page.html',
   styleUrl: './patient-reviews.page.scss'
 })
 export class PatientReviewsPage implements OnInit {

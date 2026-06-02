@@ -1,0 +1,155 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Doctors</h2>
+          <p class="page-subtitle">Manage doctor profiles and availability.</p>
+        </div>
+        <button type="button" class="btn-primary" (click)="addDoctor()">Add Doctor</button>
+      </div>
+
+      <div class="page-loading" *ngIf="isLoading">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+
+      <ng-container *ngIf="!isLoading">
+        <div class="clinic-card" *ngIf="doctors.length > 0; else emptyState">
+          <div class="table-desktop">
+            <table class="clinic-table">
+              <thead>
+                <tr>
+                  <th>Avatar</th>
+                  <th>Name</th>
+                  <th>Specialization</th>
+                  <th>Fee</th>
+                  <th>Working Days</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let doctor of doctors"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="'Edit doctor ' + doctor.fullName"
+                  (click)="!isBusy(doctor.id) && editDoctor(doctor.id)"
+                  (keydown.enter)="!isBusy(doctor.id) && editDoctor(doctor.id)"
+                >
+                  <td><app-avatar [name]="doctor.fullName"></app-avatar></td>
+                  <td>{{ doctor.fullName }}</td>
+                  <td>{{ doctor.specialization }}</td>
+                  <td>PHP {{ doctor.consultationFee }}</td>
+                  <td>{{ workingDays(doctor.id) }}</td>
+                  <td>
+                    <app-status-badge [status]="doctor.status"></app-status-badge>
+                  </td>
+                  <td>
+                    <div class="table-actions">
+                      <button
+                        type="button"
+                        class="btn-icon"
+                        [disabled]="isBusy(doctor.id)"
+                        [attr.aria-label]="'Edit doctor ' + doctor.fullName"
+                        (click)="editDoctor(doctor.id); $event.stopPropagation()"
+                      >
+                        <ion-icon name="edit-outline"></ion-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon"
+                        [disabled]="isBusy(doctor.id)"
+                        [attr.aria-label]="'Deactivate doctor ' + doctor.fullName"
+                        (click)="askDeactivate(doctor.id, $event)"
+                      >
+                        <ion-icon name="trash-outline"></ion-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-mobile">
+            <article
+              *ngFor="let doctor of doctors"
+              class="mobile-card"
+              tabindex="0"
+              role="button"
+              [attr.aria-label]="'Edit doctor ' + doctor.fullName"
+              (click)="!isBusy(doctor.id) && editDoctor(doctor.id)"
+              (keydown.enter)="!isBusy(doctor.id) && editDoctor(doctor.id)"
+            >
+              <div class="mobile-card__header">
+                <div>
+                  <div class="mobile-card__name">{{ doctor.fullName }}</div>
+                  <div class="mobile-card__code">Doctor ID {{ doctor.id }}</div>
+                </div>
+                <app-status-badge [status]="doctor.status"></app-status-badge>
+              </div>
+
+              <div class="mobile-card__row">
+                <span class="mobile-card__label">Specialization</span>
+                <span>{{ doctor.specialization }}</span>
+              </div>
+
+              <div class="mobile-card__row">
+                <span class="mobile-card__label">Fee</span>
+                <span>PHP {{ doctor.consultationFee }}</span>
+              </div>
+
+              <div class="mobile-card__row">
+                <span class="mobile-card__label">Working Days</span>
+                <span>{{ workingDays(doctor.id) }}</span>
+              </div>
+
+              <div class="mobile-card__row">
+                <span class="mobile-card__label">Actions</span>
+                <span class="table-actions">
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    [disabled]="isBusy(doctor.id)"
+                    [attr.aria-label]="'Edit doctor ' + doctor.fullName"
+                    (click)="editDoctor(doctor.id); $event.stopPropagation()"
+                  >
+                    <ion-icon name="edit-outline"></ion-icon>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    [disabled]="isBusy(doctor.id)"
+                    [attr.aria-label]="'Deactivate doctor ' + doctor.fullName"
+                    (click)="askDeactivate(doctor.id, $event)"
+                  >
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </span>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <ng-template #emptyState>
+          <app-empty-state
+            icon="medical-outline"
+            title="No data found"
+            description="Add the first doctor profile to start managing schedules."
+            ctaLabel="Add Doctor"
+            (ctaClick)="addDoctor()"
+          ></app-empty-state>
+        </ng-template>
+      </ng-container>
+
+      <app-confirm-modal
+        [isOpen]="deleteOpen"
+        title="Deactivate doctor?"
+        message="This doctor will no longer appear publicly."
+        confirmLabel="Deactivate"
+        [isDanger]="true"
+        (confirmed)="confirmDeactivate()"
+        (cancelled)="cancelDeactivate()"
+      ></app-confirm-modal>
+    </section>
+  

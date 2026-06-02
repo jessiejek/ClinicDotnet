@@ -1,0 +1,46 @@
+
+    <div class="notification-panel">
+      <div class="notification-panel__header">
+        <div>
+          <h3>Notifications</h3>
+          <p>{{ unreadCount() }} unread</p>
+        </div>
+        <button
+          type="button"
+          class="notification-panel__mark-all"
+          [disabled]="unreadCount() === 0"
+          (click)="markAllRead()"
+        >
+          Mark all read
+        </button>
+      </div>
+
+      <div class="notification-panel__list" *ngIf="notifications().length > 0; else emptyTpl">
+        <button
+          type="button"
+          class="notification-panel__item"
+          *ngFor="let notification of latestNotifications()"
+          [class.is-unread]="!notification.isRead"
+          (click)="openNotification(notification)"
+        >
+          <div class="notification-panel__icon">
+            <ion-icon [name]="iconFor(notification)"></ion-icon>
+          </div>
+          <div class="notification-panel__body">
+            <div class="notification-panel__topline">
+              <strong>{{ notification.title }}</strong>
+              <span>{{ timeAgo(notification.createdAt) }}</span>
+            </div>
+            <p>{{ notification.message }}</p>
+          </div>
+        </button>
+      </div>
+
+      <ng-template #emptyTpl>
+        <div class="notification-panel__empty">
+          <ion-icon name="notifications-outline"></ion-icon>
+          <p>No notifications yet.</p>
+        </div>
+      </ng-template>
+    </div>
+  

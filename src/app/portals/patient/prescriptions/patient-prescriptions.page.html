@@ -1,0 +1,109 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Prescriptions</h2>
+          <p class="page-subtitle">View medicines prescribed during your consultations.</p>
+        </div>
+
+        <button
+          type="button"
+          class="btn-outline page-action"
+          *ngIf="filteredPrescriptions.length > 0 && !loading"
+          (click)="downloadAllRecords()"
+        >
+          Download All PDF
+        </button>
+      </div>
+
+      <ion-searchbar
+        class="page-search"
+        placeholder="Search by doctor, medicine, route, or instructions"
+        [value]="searchTerm"
+        (ionInput)="onSearchChange($event.detail.value ?? '')"
+      ></ion-searchbar>
+
+      <div class="page-summary" *ngIf="!loading && !error">
+        Showing {{ filteredPrescriptions.length }} of {{ prescriptions.length }} prescriptions
+      </div>
+
+      <div class="page-loading" *ngIf="loading">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Loading prescriptions...</p>
+      </div>
+
+      <div class="page-error" *ngIf="error">
+        <div class="page-error__title">{{ errorTitle }}</div>
+        <p>{{ error }}</p>
+        <button type="button" class="btn-primary" (click)="loadPrescriptions()">Retry</button>
+      </div>
+
+      <ng-container *ngIf="!loading && !error">
+        <ng-container *ngIf="filteredPrescriptions.length > 0; else emptyTpl">
+          <article class="prescription-card clinic-card" *ngFor="let prescription of filteredPrescriptions">
+            <div class="prescription-card__header">
+              <div>
+                <div class="prescription-card__date">{{ prescription.appointmentDate | date : 'MMMM d, y (EEE)' }}</div>
+                <h3>{{ prescription.doctorName }}</h3>
+              </div>
+              <div class="prescription-card__tag">{{ prescription.items.length }} medicine(s)</div>
+            </div>
+
+            <div class="prescription-card__items">
+              <div class="prescription-item" *ngFor="let item of prescription.items">
+                <div class="prescription-item__title">{{ item.medicineName }}</div>
+                <div class="prescription-item__meta">
+                  <span *ngIf="item.genericName">{{ item.genericName }}</span>
+                  <span *ngIf="item.strength">{{ item.strength }}</span>
+                  <span *ngIf="item.route">{{ item.route }}</span>
+                  <span *ngIf="item.frequency">{{ item.frequency }}</span>
+                  <span *ngIf="item.duration">{{ item.duration }}</span>
+                </div>
+                <div class="prescription-item__sig" *ngIf="item.sig">{{ item.sig }}</div>
+                <div class="prescription-item__sig" *ngIf="item.instructions">
+                  {{ item.instructions }}
+                </div>
+              </div>
+            </div>
+
+            <div class="prescription-card__summary" *ngIf="prescription.medicineName || prescription.instructions">
+              <span>Primary Medicine</span>
+              <p>{{ prescription.medicineName || (prescription.items.length > 0 ? prescription.items[0].medicineName : '') }}</p>
+              <p>{{ prescription.instructions || 'No extra instructions recorded.' }}</p>
+            </div>
+
+            <div class="prescription-card__meta">
+              <span>Created {{ prescription.createdAt | date : 'MMMM d, y (EEE) h:mm a' }}</span>
+            </div>
+
+            <div class="prescription-card__actions">
+              <button
+                type="button"
+                class="btn-outline"
+                [disabled]="isDownloading(prescription.id)"
+                (click)="downloadPrescription(prescription)"
+              >
+                {{ isDownloading(prescription.id) ? 'Downloading...' : 'Download Prescription PDF' }}
+              </button>
+              <button
+                type="button"
+                class="btn-primary"
+                [disabled]="isDownloadingSummary(prescription.bookingId)"
+                (click)="downloadConsultationSummary(prescription)"
+              >
+                {{ isDownloadingSummary(prescription.bookingId) ? 'Downloading...' : 'Download Summary PDF' }}
+              </button>
+            </div>
+          </article>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #emptyTpl>
+        <app-empty-state
+          icon="medkit-outline"
+          title="No prescriptions yet"
+          description="Prescribed medicines will appear here after your consultation."
+        ></app-empty-state>
+      </ng-template>
+    </section>
+  

@@ -1,0 +1,40 @@
+
+    <section class="page-shell">
+      <div class="page-shell__header">
+        <div>
+          <h2 class="page-title">Calendar</h2>
+          <p class="page-subtitle">Weekly overview of appointments grouped by doctor.</p>
+        </div>
+        <div class="week-nav">
+          <button type="button" class="btn-ghost" (click)="shiftWeek(-1)">&lt; Prev Week</button>
+          <strong>{{ weekLabel }}</strong>
+          <button type="button" class="btn-ghost" (click)="shiftWeek(1)">Next Week &gt;</button>
+        </div>
+      </div>
+
+      <app-skeleton *ngIf="isLoading" variant="card" [count]="2"></app-skeleton>
+
+      <app-empty-state
+        *ngIf="!isLoading && weekBookings.length === 0"
+        icon="calendar-outline"
+        title="No bookings this week"
+        description="There are no appointments in the selected week."
+      ></app-empty-state>
+
+      <div class="calendar" *ngIf="!isLoading && weekBookings.length > 0">
+        <div class="calendar__head">
+          <div>Doctor</div>
+          <div *ngFor="let day of weekDays">{{ day.label }}</div>
+        </div>
+        <div class="calendar__row" *ngFor="let doctor of doctors">
+          <div class="calendar__doctor">{{ doctor.fullName }}</div>
+          <div class="calendar__cell" *ngFor="let day of weekDays">
+            <div class="calendar__booking" *ngFor="let booking of bookingsForCell(doctor.id, day.date)">
+              <strong>{{ booking.patientName }}</strong>
+              <span>{{ booking.slotStartTime }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  

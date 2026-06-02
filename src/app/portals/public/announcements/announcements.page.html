@@ -1,0 +1,22 @@
+
+    <div class="page-wrap">
+      <div class="content-container">
+        <header class="page-header">
+          <h1 class="page-title">Announcements</h1>
+          <p class="page-subtitle">Updates and news from our clinic.</p>
+        </header>
+
+        <div class="skeleton-grid" *ngIf="isLoading">
+          <app-skeleton *ngFor="let _ of skeletonPlaceholders" variant="card" />
+        </div>
+
+        <div *ngIf="!isLoading && !announcements.length" class="empty-hint">
+          No active announcements right now. Check back soon.
+        </div>
+
+        <div class="announcements-grid" *ngIf="!isLoading && announcements.length">
+          <app-announcement-card *ngFor="let ann of announcements" [announcement]="ann" />
+        </div>
+      </div>
+    </div>
+  

@@ -1,0 +1,9 @@
+
+    <app-banner
+      *ngIf="visible && warningMessage"
+      variant="warning"
+      [message]="warningMessage"
+      [dismissible]="true"
+      (dismissed)="dismiss()"
+    ></app-banner>
+  

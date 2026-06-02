@@ -63,45 +63,7 @@ import { TopbarComponent } from '../../../portals/admin/components/topbar/topbar
   selector: 'app-portal-layout',
   standalone: true,
   imports: [AsyncPipe, RouterOutlet, SidebarComponent, TopbarComponent],
-  template: `
-    <div class="portal-layout" [style.--portal-accent]="portalColor">
-      <app-admin-sidebar
-          class="portal-layout__sidebar"
-          [class.is-open]="sidebarOpen"
-          [navItems]="resolvedNavItems"
-          [portalLabel]="portalLabel"
-          [clinicName]="clinicName"
-          [currentUser]="currentUser$ | async"
-          [isOpen]="sidebarOpen"
-          (navClick)="handleSidebarNavClick()"
-          (menuToggle)="toggleSidebar()"
-          (logout)="logout()"
-      ></app-admin-sidebar>
-
-      <div class="portal-layout__main">
-        <app-admin-topbar
-          [title]="pageTitle"
-          [portalLabel]="portalLabel"
-          [currentUser]="currentUser$ | async"
-          [unreadCount]="(unreadCount$ | async) ?? 0"
-          [sidebarOpen]="sidebarOpen"
-          (menuToggle)="toggleSidebar()"
-          (logout)="logout()"
-        ></app-admin-topbar>
-
-        <main class="main-content" [class.main-content--tight-top]="tightTopRoute">
-          <router-outlet></router-outlet>
-        </main>
-      </div>
-
-      <div
-        class="sidebar-overlay"
-        [class.is-visible]="sidebarOpen"
-        (click)="closeSidebar()"
-        aria-hidden="true"
-      ></div>
-    </div>
-  `,
+  templateUrl: './portal-layout.component.html',
   styleUrl: './portal-layout.component.scss'
 })
 export class PortalLayoutComponent implements OnInit {

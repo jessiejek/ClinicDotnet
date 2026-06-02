@@ -7,15 +7,7 @@ export type SkeletonVariant = 'text' | 'title' | 'card' | 'avatar' | 'stat' | 'r
   selector: 'app-skeleton',
   standalone: true,
   imports: [NgClass, NgFor, NgStyle],
-  template: `
-    <div
-      *ngFor="let _ of countArray; let i = index"
-      class="skeleton"
-      [ngClass]="variantClass"
-      [ngStyle]="i === 0 && width ? { width: width } : null"
-      aria-hidden="true"
-    ></div>
-  `,
+  templateUrl: './skeleton.component.html',
   styleUrl: './skeleton.component.scss'
 })
 export class SkeletonComponent {

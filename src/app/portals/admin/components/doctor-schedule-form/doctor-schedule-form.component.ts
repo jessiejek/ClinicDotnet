@@ -13,25 +13,7 @@ export interface DoctorScheduleDraft {
   selector: 'app-doctor-schedule-form',
   standalone: true,
   imports: [NgFor, NgIf],
-  template: `
-    <div class="schedule-form">
-      <div class="schedule-form__row schedule-form__row--header">
-        <div>Day</div>
-        <div>Enabled</div>
-        <div>Start</div>
-        <div>End</div>
-      </div>
-      <div class="schedule-form__row" *ngFor="let row of rows; let i = index">
-        <div class="schedule-form__day">{{ row.dayOfWeek }}</div>
-        <label class="schedule-form__check">
-          <input type="checkbox" [checked]="row.enabled" (change)="toggle(i, $any($event.target).checked)" />
-          <span>Open</span>
-        </label>
-        <input type="time" [value]="row.startTime" [disabled]="!row.enabled" (change)="updateTime(i, 'startTime', $any($event.target).value)" />
-        <input type="time" [value]="row.endTime" [disabled]="!row.enabled" (change)="updateTime(i, 'endTime', $any($event.target).value)" />
-      </div>
-    </div>
-  `,
+  templateUrl: './doctor-schedule-form.component.html',
   styleUrl: './doctor-schedule-form.component.scss'
 })
 export class DoctorScheduleFormComponent {

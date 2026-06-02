@@ -1,0 +1,65 @@
+
+    <div class="page-wrap">
+      <div class="content-container">
+        <header class="page-header">
+          <h1 class="page-title">Our Services</h1>
+          <p class="page-subtitle">Explore consultations, labs, procedures, and diagnostics.</p>
+        </header>
+
+        <div class="filter-row" *ngIf="categories.length">
+          <button
+            type="button"
+            *ngFor="let cat of categories"
+            class="filter-pill"
+            [class.filter-pill--active]="cat === selectedCategory"
+            (click)="selectedCategory = cat"
+          >
+            {{ cat === 'All' ? 'All' : cat }}
+          </button>
+        </div>
+
+        <div class="page-loading" *ngIf="isLoading">
+          <ion-spinner name="crescent"></ion-spinner>
+        </div>
+
+        <ng-container *ngIf="!isLoading">
+          <div class="page-empty" *ngIf="!filteredServices.length">
+            <app-empty-state
+              icon="folder-open-outline"
+              title="No data found"
+              description="There are no services available for the selected filter."
+            ></app-empty-state>
+          </div>
+
+          <ng-container *ngIf="filteredServices.length">
+            <section *ngFor="let block of categoryBlocks" class="category-block">
+              <app-service-category-card
+                [category]="block.key"
+                [count]="block.services.length"
+                [description]="categoryDescription(block.key)"
+                (selected)="selectedCategory = $event"
+              />
+              <div class="service-items">
+                <div
+                  class="service-item clinic-card clinic-card--accent-green"
+                  *ngFor="let service of block.services"
+                >
+                  <div class="service-item__header">
+                    <h4 class="service-item__name">{{ service.name }}</h4>
+                    <span class="badge" [ngClass]="badgeClass(service.category)">{{ service.category }}</span>
+                  </div>
+                  <p class="service-item__desc">{{ service.description || '-' }}</p>
+                  <div class="service-item__meta">
+                    <span>Time: {{ service.estimatedDurationMinutes }} min</span>
+                    <span class="service-item__fee">{{
+                      service.price === 0 ? 'Included in consultation' : (service.price | peso)
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </ng-container>
+        </ng-container>
+      </div>
+    </div>
+  

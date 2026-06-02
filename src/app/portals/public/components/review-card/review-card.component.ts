@@ -10,23 +10,7 @@ import { formatReviewDate } from '../../utils/time-format';
   selector: 'app-review-card',
   standalone: true,
   imports: [NgFor, IonIcon],
-  template: `
-    <article class="review-card">
-      <div class="review-card__header">
-        <div class="review-card__avatar" aria-hidden="true">
-          <ion-icon name="person-outline"></ion-icon>
-        </div>
-        <div>
-          <div class="review-card__name">{{ review.patientName }}</div>
-          <div class="review-card__stars" role="img" [attr.aria-label]="starLabel">
-            <ion-icon *ngFor="let _ of stars" name="star" class="star-icon"></ion-icon>
-          </div>
-        </div>
-      </div>
-      <p class="review-card__text">{{ review.comment || '—' }}</p>
-      <div class="review-card__date">{{ formattedDate }}</div>
-    </article>
-  `,
+  templateUrl: './review-card.component.html',
   styleUrl: './review-card.component.scss'
 })
 export class ReviewCardComponent {

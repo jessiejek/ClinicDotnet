@@ -14,51 +14,7 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
   standalone: true,
   selector: 'app-doctor-patients-page',
   imports: [NgFor, NgIf, FormsModule, RouterLink, EmptyStateComponent, SkeletonComponent, StatusBadgeComponent],
-  template: `
-    <div class="ps">
-      <div class="psh">
-        <div>
-          <h2 class="pt">My Patients</h2>
-          <p class="psub">All patients who have booked appointments with you.</p>
-        </div>
-      </div>
-
-      <div class="search-row">
-        <input class="si" [(ngModel)]="searchQuery" placeholder="Search by patient name..." />
-      </div>
-
-      <app-skeleton *ngIf="loading" variant="card" [count]="5"></app-skeleton>
-
-      <ng-container *ngIf="!loading && filteredPatients.length > 0">
-        <div class="pc">
-          <div class="pi" *ngFor="let p of filteredPatients" tabindex="0" role="button" (click)="openClinicalHistory(p.patientId)" (keydown.enter)="openClinicalHistory(p.patientId)" [attr.aria-label]="'View patient ' + p.patientName">
-            <div class="pih">
-              <div class="pii">
-                <strong class="pin">{{ p.patientName }}</strong>
-                <span class="pis">{{ p.services }}</span>
-              </div>
-              <div class="pib">
-                <app-status-badge [status]="p.status"></app-status-badge>
-                <button class="vb" (click)="openAppointment($event, p.latestBookingId)">View Appointment</button>
-                <button class="vb" (click)="openClinicalHistoryFromButton($event, p.patientId)">Clinical History</button>
-              </div>
-            </div>
-            <div class="pim">
-              <span class="pid">{{ formatLatestVisitDate(p.latestDate) }}</span>
-              <span class="pid pid--time" *ngIf="formatLatestVisitTime(p.latestTime) as latestTime">{{ latestTime }}</span>
-            </div>
-          </div>
-        </div>
-      </ng-container>
-
-      <app-empty-state
-        *ngIf="!loading && filteredPatients.length === 0"
-        icon="people-outline"
-        title="No patients found yet"
-        description="Patients will appear here once they book appointments with you."
-      ></app-empty-state>
-    </div>
-  `,
+  templateUrl: './doctor-patients.page.html',
   styleUrl: './doctor-patients.page.scss'
 })
 export class DoctorPatientsPage implements OnInit {

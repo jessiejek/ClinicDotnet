@@ -1,0 +1,50 @@
+
+    <form class="proof-form clinic-card" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="section-heading">Submit Proof</div>
+      <p class="proof-form__subtitle">
+        Choose a proof type and provide a reference number or placeholder screenshot filename.
+      </p>
+
+      <ion-item class="clinic-input" lines="none">
+        <ion-label position="stacked">Proof Type</ion-label>
+        <ion-select formControlName="proofType" placeholder="Select proof type">
+          <ion-select-option value="ReferenceNumber">Reference Number</ion-select-option>
+          <ion-select-option value="Screenshot">Screenshot</ion-select-option>
+        </ion-select>
+      </ion-item>
+      <div class="form-error-message" *ngIf="form.touched && form.controls.proofType.invalid">
+        Proof type is required.
+      </div>
+
+      <ion-item class="clinic-input" lines="none" *ngIf="form.controls.proofType.value === 'ReferenceNumber'">
+        <ion-label position="stacked">Reference Number</ion-label>
+        <ion-input formControlName="referenceNumber" placeholder="e.g. GCash reference"></ion-input>
+      </ion-item>
+      <div
+        class="form-error-message"
+        *ngIf="form.touched && form.controls.proofType.value === 'ReferenceNumber' && form.controls.referenceNumber.invalid"
+      >
+        Reference number is required.
+      </div>
+
+      <ion-item class="clinic-input" lines="none" *ngIf="form.controls.proofType.value === 'Screenshot'">
+        <ion-label position="stacked">Screenshot Filename</ion-label>
+        <ion-input
+          formControlName="screenshotFilename"
+          placeholder="screenshot-proof.png"
+        ></ion-input>
+      </ion-item>
+      <div
+        class="form-error-message"
+        *ngIf="form.touched && form.controls.proofType.value === 'Screenshot' && form.controls.screenshotFilename.invalid"
+      >
+        Screenshot filename is required.
+      </div>
+
+      <div class="proof-form__actions">
+        <ion-button type="submit" expand="block" color="primary" [disabled]="isSubmitting">
+          {{ isSubmitting ? 'Submitting...' : 'Submit Proof' }}
+        </ion-button>
+      </div>
+    </form>
+  

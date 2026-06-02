@@ -1,0 +1,39 @@
+
+    <section *ngIf="visible" class="clinic-card section-card" [class.section-card--locked]="locked" aria-labelledby="pf-decision-heading">
+      <div class="section-card__head">
+        <h3 id="pf-decision-heading">PF Decision <i *ngIf="locked" class="ti ti-lock section-card__lock"></i></h3>
+        <p>Confirm the professional fee before finalizing the consultation.</p>
+      </div>
+
+      <div class="pfd-summary">
+        <div class="pfd-summary__item">
+          <span class="pfd-summary__label">Current consultation fee</span>
+          <strong>PHP {{ currentConsultationFee | number : '1.0-0' }}</strong>
+        </div>
+      </div>
+
+      <form class="pfd-grid" [formGroup]="form">
+        <ion-item class="field">
+          <ion-label position="stacked">Professional Fee *</ion-label>
+          <ion-input type="number" min="0" formControlName="professionalFee" [disabled]="locked"></ion-input>
+        </ion-item>
+        <ion-item class="field">
+          <ion-label position="stacked">Payment Mode *</ion-label>
+          <ion-select formControlName="paymentMode" [interface]="selectInterface" [disabled]="locked">
+            <ion-select-option *ngFor="let mode of paymentModes" [value]="mode">{{ mode }}</ion-select-option>
+          </ion-select>
+        </ion-item>
+        <ion-item class="field field--full">
+          <ion-label position="stacked">Notes</ion-label>
+          <ion-textarea
+            formControlName="notes"
+            autoGrow="true"
+            [disabled]="locked"
+            placeholder="Fee adjustment reason, if any"
+          ></ion-textarea>
+        </ion-item>
+      </form>
+
+      <p class="pfd-note">This section must be acknowledged before completing the consultation.</p>
+    </section>
+  

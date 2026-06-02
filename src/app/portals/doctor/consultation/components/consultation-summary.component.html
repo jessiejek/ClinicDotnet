@@ -1,0 +1,299 @@
+
+    <div class="cs">
+      <section class="cs-record">
+        <div class="cs-record__header">
+          <div class="cs-record__heading">
+            <span class="cs-record__eyebrow">Clinical Record</span>
+            <h4 class="cs-record__title">Doctor Consultation Summary</h4>
+            <p class="cs-record__sub">Unified SOAP, vitals, diagnosis, and supporting care notes in one chart view.</p>
+          </div>
+          <div class="cs-record__meta">
+            <span class="cs-record__chip cs-record__chip--soft" *ngIf="followUpDate">
+              Follow-up {{ followUpDate | date:'MMMM d, y (EEE)' }}
+            </span>
+            <span class="cs-record__chip" *ngIf="prescriptionItems.length > 0">
+              {{ prescriptionItems.length }} medication{{ prescriptionItems.length === 1 ? '' : 's' }}
+            </span>
+            <span class="cs-record__chip" *ngIf="labRequests.length > 0">
+              {{ labRequests.length }} lab request{{ labRequests.length === 1 ? '' : 's' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="cs-record__body">
+          <section class="cs-panel cs-panel--soap">
+            <div class="cs-panel__head">
+              <div>
+                <h4 class="cs-panel__title">SOAP Notes</h4>
+                <p class="cs-panel__sub">Chronological clinical narrative</p>
+              </div>
+            </div>
+
+            <div class="cs-soap" *ngIf="hasSoap; else noSoap">
+              <div class="cs-soap__block cs-soap__block--cc" *ngIf="vm.consultation?.chiefComplaint">
+                <span class="cs-soap__badge cs-soap__badge--cc">CC</span>
+                <div class="cs-soap__content">
+                  <div class="cs-soap__label">Chief Complaint</div>
+                  <p class="cs-text">{{ vm.consultation?.chiefComplaint }}</p>
+                </div>
+              </div>
+              <div class="cs-soap__block cs-soap__block--s" *ngIf="vm.consultation?.subjective">
+                <span class="cs-soap__badge cs-soap__badge--s">S</span>
+                <div class="cs-soap__content">
+                  <div class="cs-soap__label">Subjective</div>
+                  <p class="cs-text">{{ vm.consultation?.subjective }}</p>
+                </div>
+              </div>
+              <div class="cs-soap__block cs-soap__block--o" *ngIf="vm.consultation?.objective">
+                <span class="cs-soap__badge cs-soap__badge--o">O</span>
+                <div class="cs-soap__content">
+                  <div class="cs-soap__label">Objective</div>
+                  <p class="cs-text">{{ vm.consultation?.objective }}</p>
+                </div>
+              </div>
+              <div class="cs-soap__block cs-soap__block--a" *ngIf="vm.consultation?.assessment">
+                <span class="cs-soap__badge cs-soap__badge--a">A</span>
+                <div class="cs-soap__content">
+                  <div class="cs-soap__label">Assessment</div>
+                  <p class="cs-text">{{ vm.consultation?.assessment }}</p>
+                </div>
+              </div>
+              <div class="cs-soap__block cs-soap__block--p" *ngIf="vm.consultation?.plan">
+                <span class="cs-soap__badge cs-soap__badge--p">P</span>
+                <div class="cs-soap__content">
+                  <div class="cs-soap__label">Plan</div>
+                  <p class="cs-text">{{ vm.consultation?.plan }}</p>
+                </div>
+              </div>
+            </div>
+
+            <ng-template #noSoap>
+              <div class="cs-empty-state">No SOAP notes recorded.</div>
+            </ng-template>
+          </section>
+
+          <aside class="cs-panel cs-panel--rail">
+            <section class="cs-subpanel cs-subpanel--vitals" *ngIf="hasVitals">
+              <div class="cs-panel__head cs-panel__head--tight">
+                <div>
+                  <h4 class="cs-panel__title">Vital Signs</h4>
+                  <p class="cs-panel__sub">Compact metric snapshot</p>
+                </div>
+              </div>
+              <div class="cs-vitals-grid">
+                <div class="cs-vital cs-vital--bp cs-vital--span" [class.cs-vital--alert]="isBloodPressureOutOfRange()" *ngIf="vitals?.bloodPressureSystolic || vitals?.bloodPressureDiastolic">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Blood Pressure</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.bloodPressureSystolic ?? '--' }}/{{ vitals?.bloodPressureDiastolic ?? '--' }}</span>
+                </div>
+                <div class="cs-vital cs-vital--heart" [class.cs-vital--alert]="isHeartRateOutOfRange()" *ngIf="vitals?.heartRate">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Heart Rate</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.heartRate }} <span class="cs-vital__unit">bpm</span></span>
+                </div>
+                <div class="cs-vital cs-vital--resp" [class.cs-vital--alert]="isRespiratoryRateOutOfRange()" *ngIf="vitals?.respiratoryRate">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Resp. Rate</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.respiratoryRate }} <span class="cs-vital__unit">/min</span></span>
+                </div>
+                <div class="cs-vital cs-vital--temp" [class.cs-vital--alert]="isTemperatureOutOfRange()" *ngIf="vitals?.temperatureCelsius">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Temperature</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.temperatureCelsius }}<span class="cs-vital__deg">&deg;</span></span>
+                </div>
+                <div class="cs-vital cs-vital--oxygen" [class.cs-vital--alert]="isOxygenOutOfRange()" *ngIf="vitals?.oxygenSaturation">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">SpO2</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.oxygenSaturation }}<span class="cs-vital__unit">%</span></span>
+                </div>
+                <div class="cs-vital cs-vital--weight" *ngIf="vitals?.weightKg">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Weight</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.weightKg }} <span class="cs-vital__unit">kg</span></span>
+                </div>
+                <div class="cs-vital cs-vital--height" *ngIf="vitals?.heightCm">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Height</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.heightCm }} <span class="cs-vital__unit">cm</span></span>
+                </div>
+                <div class="cs-vital cs-vital--bmi" [class.cs-vital--alert]="isBmiOutOfRange()" *ngIf="vitals?.bmi">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">BMI</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.bmi }}</span>
+                </div>
+                <div class="cs-vital cs-vital--pain" *ngIf="vitals?.painScore !== undefined && vitals?.painScore !== null">
+                  <div class="cs-vital__head">
+                    <span class="cs-vital__label">Pain Score</span>
+                    <span class="cs-vital__indicator"></span>
+                  </div>
+                  <span class="cs-vital__value">{{ vitals?.painScore }}<span class="cs-vital__unit">/10</span></span>
+                </div>
+              </div>
+            </section>
+
+            <section class="cs-subpanel cs-subpanel--diagnosis">
+              <div class="cs-panel__head cs-panel__head--tight">
+                <div>
+                  <h4 class="cs-panel__title">Diagnoses</h4>
+                  <p class="cs-panel__sub">Active assessment list</p>
+                </div>
+                <span class="cs-panel__count">{{ diagnoses.length }}</span>
+              </div>
+
+              <div class="cs-dx" *ngIf="diagnoses.length > 0; else noDx">
+                <div class="cs-dx__row" *ngFor="let d of diagnoses">
+                  <div class="cs-dx__code">{{ d.code || 'N/A' }}</div>
+                  <div class="cs-dx__desc">{{ d.description }}</div>
+                  <div class="cs-dx__type">
+                    <span class="cs-badge" [class.cs-badge--primary]="d.type === 'Primary'">{{ d.type || 'Secondary' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <ng-template #noDx>
+                <div class="cs-empty-state cs-empty-state--compact">None recorded.</div>
+              </ng-template>
+            </section>
+
+            <section class="cs-subpanel cs-subpanel--rx" *ngIf="prescriptionItems.length > 0">
+              <div class="cs-panel__head cs-panel__head--tight">
+                <div>
+                  <h4 class="cs-panel__title">Medications</h4>
+                  <p class="cs-panel__sub">Current prescription items</p>
+                </div>
+                <span class="cs-panel__count">{{ prescriptionItems.length }}</span>
+              </div>
+
+              <div class="cs-tbl-wrap">
+                <table class="cs-tbl">
+                  <thead>
+                    <tr>
+                      <th>Medication</th>
+                      <th>Strength</th>
+                      <th>Dosage</th>
+                      <th class="cs-tbl__num">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let item of prescriptionItems">
+                      <td><strong>{{ item.medicineName }}</strong></td>
+                      <td class="cs-tbl__muted">{{ item.strength || 'N/A' }}</td>
+                      <td class="cs-tbl__muted">{{ item.sig || 'N/A' }}</td>
+                      <td class="cs-tbl__num">{{ item.quantity }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="cs-subpanel cs-subpanel--followup">
+              <div class="cs-panel__head cs-panel__head--tight">
+                <div>
+                  <h4 class="cs-panel__title">Follow-Up</h4>
+                  <p class="cs-panel__sub">Return visit planning</p>
+                </div>
+              </div>
+              <div class="cs-follow-up" *ngIf="followUpDate; else noFu">
+                <span class="cs-follow-up__label">Scheduled date</span>
+                <div class="cs-follow-up__date">{{ followUpDate | date:'MMMM d, y (EEE)' }}</div>
+              </div>
+              <ng-template #noFu>
+                <div class="cs-empty-state cs-empty-state--compact">No follow-up date set.</div>
+              </ng-template>
+            </section>
+          </aside>
+        </div>
+
+        <section class="cs-bottom">
+          <section class="cs-subpanel cs-subpanel--table">
+            <div class="cs-panel__head cs-panel__head--tight">
+              <div>
+                <h4 class="cs-panel__title">Lab Requests</h4>
+                <p class="cs-panel__sub">Requested diagnostics</p>
+              </div>
+            </div>
+            <div class="cs-tbl-wrap" *ngIf="labRequests.length > 0; else noLabs">
+              <table class="cs-tbl">
+                <thead><tr><th>Test</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let request of labRequests">
+                    <td>{{ request.testName }}</td>
+                    <td><span class="cs-badge cs-badge--warn">{{ request.status || 'Requested' }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <ng-template #noLabs>
+              <div class="cs-empty-state cs-empty-state--compact">None requested.</div>
+            </ng-template>
+          </section>
+
+          <section class="cs-subpanel cs-subpanel--table">
+            <div class="cs-panel__head cs-panel__head--tight">
+              <div>
+                <h4 class="cs-panel__title">Allergies</h4>
+                <p class="cs-panel__sub">Patient sensitivities</p>
+              </div>
+            </div>
+            <div class="cs-tbl-wrap" *ngIf="vm.allergies.length > 0; else noAllergies">
+              <table class="cs-tbl">
+                <thead><tr><th>Allergen</th><th>Sev</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let allergy of vm.allergies">
+                    <td>{{ allergy.allergen }}</td>
+                    <td>
+                      <span class="cs-badge"
+                            [class.cs-badge--danger]="allergy.severity === 'Severe'"
+                            [class.cs-badge--warn]="allergy.severity === 'Moderate'">{{ allergy.severity || 'N/A' }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <ng-template #noAllergies>
+              <div class="cs-empty-state cs-empty-state--compact">None recorded.</div>
+            </ng-template>
+          </section>
+
+          <section class="cs-subpanel cs-subpanel--table">
+            <div class="cs-panel__head cs-panel__head--tight">
+              <div>
+                <h4 class="cs-panel__title">Vaccines</h4>
+                <p class="cs-panel__sub">Immunization history</p>
+              </div>
+            </div>
+            <div class="cs-tbl-wrap" *ngIf="vm.vaccinations.length > 0; else noVaccines">
+              <table class="cs-tbl">
+                <thead><tr><th>Vaccine</th><th>Date</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let vax of vm.vaccinations">
+                    <td>{{ vax.vaccineName }}</td>
+                    <td class="cs-tbl__muted">{{ vax.dateGiven | date:'MMMM d, y (EEE)' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <ng-template #noVaccines>
+              <div class="cs-empty-state cs-empty-state--compact">None recorded.</div>
+            </ng-template>
+          </section>
+        </section>
+      </section>
+    </div>
+  

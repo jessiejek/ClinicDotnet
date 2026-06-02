@@ -1,0 +1,169 @@
+
+    <section class="page-shell" *ngIf="isLoading; else loadedTpl">
+      <app-skeleton variant="card" [count]="3"></app-skeleton>
+    </section>
+
+    <ng-template #loadedTpl>
+      <section class="page-shell" *ngIf="booking; else emptyTpl">
+      <div class="page-shell__header">
+        <div>
+          <button type="button" class="btn-ghost" (click)="goBack()">Back to Bookings</button>
+          <h2 class="page-title">Booking Details</h2>
+          <div class="page-subtitle data-mono">{{ booking.id }}</div>
+        </div>
+        <app-status-badge [status]="booking.status"></app-status-badge>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-grid__main">
+          <div class="clinic-card">
+            <div class="section-heading">Status Timeline</div>
+            <div class="timeline">
+              <div
+                *ngFor="let step of timelineSteps"
+                class="timeline__step"
+                [class.is-active]="isStepActive(step)"
+                [class.is-complete]="isStepComplete(step)"
+              >
+                <span class="timeline__dot"></span>
+                <span>{{ step }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="clinic-card">
+            <div class="section-heading">Patient Info</div>
+            <div class="profile-card">
+              <app-avatar [name]="patientName" size="lg"></app-avatar>
+              <div>
+                <h3>{{ patientName }}</h3>
+                <p>{{ patientDetails?.patientCode }}</p>
+                <p>{{ patientDetails?.dateOfBirth }} · {{ patientDetails?.contactNumber }}</p>
+                <p>{{ patientDetails?.email }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="clinic-card">
+            <div class="section-heading">Doctor Info</div>
+            <div class="profile-card">
+              <app-avatar [name]="(doctor?.fullName || 'Doctor')" size="lg"></app-avatar>
+              <div>
+                <h3>{{ doctor?.fullName }}</h3>
+                <p>{{ doctor?.specialization }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-card-grid">
+            <div class="clinic-card">
+              <div class="section-heading">Appointment Details</div>
+              <p><strong>Date:</strong> {{ booking.appointmentDate }}</p>
+              <p><strong>Time:</strong> {{ booking.slotStartTime }} - {{ booking.slotEndTime }}</p>
+              <p><strong>Queue#:</strong> {{ booking.queueNumber ?? '—' }}</p>
+              <p><strong>Service:</strong> {{ serviceName }}</p>
+            </div>
+            <div class="clinic-card">
+              <div class="section-heading">Payment Info</div>
+              <p><strong>Mode:</strong> {{ booking.paymentMode }}</p>
+              <p>
+                <strong>Status:</strong>
+                <app-status-badge [status]="booking.paymentStatus"></app-status-badge>
+              </p>
+              <p><strong>Total Fee:</strong> ₱{{ booking.totalFee }}</p>
+              <p><strong>Consultation:</strong> ₱{{ booking.consultationFeeSnapshot }}</p>
+              <p><strong>Service:</strong> ₱{{ booking.serviceFeeSnapshot }}</p>
+              <p *ngIf="booking.proofType === 'ReferenceNumber'">Proof: {{ booking.proofValue }}</p>
+              <p *ngIf="booking.proofType === 'Screenshot'">Screenshot: {{ booking.proofValue }}</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="detail-grid__side">
+          <div class="clinic-card action-sidebar">
+            <div class="section-heading">Actions</div>
+
+            <ng-container [ngSwitch]="booking.status">
+              <div *ngSwitchCase="'Pending'" class="action-stack">
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-confirm-booking-button" (click)="openConfirm('confirm')">Confirm Booking</button>
+                <button class="btn-danger" type="button" data-testid="admin-booking-detail-reject-booking-button" (click)="openConfirm('reject', true)">Reject Booking</button>
+              </div>
+
+              <div *ngSwitchCase="'ProofSubmitted'" class="action-stack">
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-confirm-payment-button" (click)="openConfirm('confirm-payment')">Confirm Payment</button>
+                <button class="btn-danger" type="button" data-testid="admin-booking-detail-reject-proof-button" (click)="openConfirm('reject', true)">Reject Proof</button>
+              </div>
+
+              <div *ngSwitchCase="'Confirmed'" class="action-stack">
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-mark-complete-button" (click)="openConfirm('mark-complete')">Mark Complete</button>
+                <button class="btn-ghost" type="button" data-testid="admin-booking-detail-mark-no-show-button" (click)="openConfirm('mark-no-show')">Mark No Show</button>
+                <button class="btn-outline" type="button" data-testid="admin-booking-detail-reschedule-button" (click)="reschedule()">Reschedule</button>
+                <button class="btn-danger" type="button" data-testid="admin-booking-detail-cancel-booking-button" (click)="openConfirm('cancel', true)">Cancel Booking</button>
+              </div>
+
+              <div *ngSwitchCase="'Completed'" class="action-stack">
+                <button class="btn-primary" type="button" data-testid="admin-booking-detail-print-receipt-button" (click)="openReceipt(booking)">Print Receipt</button>
+                <button class="btn-outline" type="button" data-testid="admin-booking-detail-download-visit-summary-button" disabled (click)="soon('Visit Summary')">Download Visit Summary</button>
+              </div>
+
+              <div *ngSwitchDefault class="action-stack">
+                <button class="btn-ghost" type="button" disabled>No actions available</button>
+              </div>
+            </ng-container>
+
+            <div class="action-stack payment-actions" *ngIf="canWaive || canRefund">
+              <button *ngIf="canWaive" class="btn-ghost" type="button" data-testid="admin-booking-detail-waive-payment-open-button" (click)="waiveModalOpen = true">
+                Waive Payment
+              </button>
+              <button *ngIf="canRefund" class="btn-ghost" type="button" data-testid="admin-booking-detail-refund-payment-open-button" (click)="refundModalOpen = true">
+                Refund Payment
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+    </ng-template>
+
+    <ng-template #emptyTpl>
+      <app-empty-state
+        icon="calendar-outline"
+        title="Booking not found"
+        description="We could not load this booking record."
+        ctaLabel="Back to Bookings"
+        ctaRoute="/admin/bookings"
+      ></app-empty-state>
+    </ng-template>
+
+    <app-confirm-modal
+      [isOpen]="confirmOpen"
+      [title]="modalTitle"
+      [message]="modalMessage"
+      [confirmLabel]="modalConfirmLabel"
+      [isDanger]="modalDanger"
+      [requireReason]="modalReasonRequired"
+      testIdPrefix="admin-booking-detail-action-modal"
+      (confirmed)="runAction($event)"
+      (cancelled)="closeConfirmModal()"
+    ></app-confirm-modal>
+
+    <app-waive-payment-modal
+      *ngIf="booking"
+      [booking]="booking"
+      [isOpen]="waiveModalOpen"
+      testIdPrefix="admin-booking-detail-waive-modal"
+      (confirmed)="waivePayment($event.bookingId, $event.reason)"
+      (cancelled)="waiveModalOpen = false"
+    ></app-waive-payment-modal>
+
+    <app-refund-payment-modal
+      *ngIf="booking"
+      [booking]="booking"
+      [isOpen]="refundModalOpen"
+      testIdPrefix="admin-booking-detail-refund-modal"
+      (confirmed)="refundPaymentAction($event.bookingId, $event.reason)"
+      (cancelled)="refundModalOpen = false"
+    ></app-refund-payment-modal>
+
+    <app-receipt-modal testIdPrefix="admin-booking-detail-receipt" [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
+  

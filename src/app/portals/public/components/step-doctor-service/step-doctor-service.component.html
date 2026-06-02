@@ -1,0 +1,138 @@
+
+    <section class="wizard-panel">
+      <div class="wizard-panel__header">
+        <div>
+          <p class="section-heading">Step 1</p>
+          <h2 class="wizard-title">Choose your doctor and services</h2>
+          <p class="wizard-subtitle">
+            Select the doctor you want to see, then choose one or more services for the visit.
+          </p>
+        </div>
+      </div>
+
+      <div class="wizard-loading" *ngIf="isLoading">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+
+      <ng-container *ngIf="!isLoading">
+        <ng-container *ngIf="selectedDoctorId$ | async as selectedDoctorId; else doctorPhase">
+          <div class="selected-doctor clinic-card clinic-card--accent-blue">
+            <div class="selected-doctor__avatar">
+              <app-avatar [name]="selectedDoctor?.fullName ?? ''" [size]="'lg'"></app-avatar>
+            </div>
+            <div class="selected-doctor__meta">
+              <div class="selected-doctor__name">{{ selectedDoctor?.fullName }}</div>
+              <div class="selected-doctor__spec">{{ selectedDoctor?.specialization }}</div>
+              <app-status-badge [status]="(selectedDoctor?.status ?? '') ?? 'Active'"></app-status-badge>
+            </div>
+            <button type="button" class="btn-ghost" (click)="changeDoctor()">
+              <ion-icon name="arrow-back-outline"></ion-icon>
+              Change Doctor
+            </button>
+          </div>
+
+          <div class="wizard-loading wizard-loading--compact" *ngIf="selectedDoctorLoading">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
+
+          <ng-container *ngIf="!selectedDoctorLoading">
+            <app-empty-state
+              *ngIf="selectedDoctorError; else servicesTpl"
+              icon="medical-outline"
+              title="Unable to load services"
+              [description]="selectedDoctorError || 'Please try again.'"
+            ></app-empty-state>
+
+            <ng-template #servicesTpl>
+              <div class="service-list">
+                <div class="service-list__header">
+                  <div>
+                    <h3>Select one or more services</h3>
+                    <p class="wizard-subtitle">Payment will be settled at the clinic after consultation.</p>
+                    <p class="service-helper" *ngIf="hasNoServicesSelected">
+                      Please select at least one service to proceed.
+                    </p>
+                  </div>
+                </div>
+
+                <ng-container *ngIf="selectedDoctorServices.length > 0; else noServiceState">
+                  <button
+                    *ngFor="let service of selectedDoctorServices"
+                    type="button"
+                    class="service-option"
+                    [class.service-option--selected]="isServiceSelected(service.id)"
+                    (click)="toggleService(service.id)"
+                  >
+                    <div>
+                      <div class="service-option__name">{{ service.name }}</div>
+                      <div class="service-option__desc">
+                        {{ service.description || 'Clinic service available for this doctor.' }}
+                      </div>
+                      <div class="service-option__meta" *ngIf="service.estimatedDurationMinutes">
+                        {{ service.estimatedDurationMinutes }} mins
+                      </div>
+                    </div>
+                    <div class="service-option__right">
+                      <div class="service-option__check">
+                        <ion-icon name="checkmark-circle-outline" *ngIf="isServiceSelected(service.id)"></ion-icon>
+                      </div>
+                    </div>
+                  </button>
+                </ng-container>
+
+                <ng-template #noServiceState>
+                  <app-empty-state
+                    icon="medical-outline"
+                    title="No services available"
+                    description="This doctor currently has no services assigned."
+                  ></app-empty-state>
+                </ng-template>
+              </div>
+            </ng-template>
+          </ng-container>
+        </ng-container>
+
+        <ng-template #doctorPhase>
+          <ng-container *ngIf="doctors.length > 0; else emptyState">
+            <div class="doctor-grid">
+              <button
+                *ngFor="let doctor of doctors"
+                type="button"
+                class="doctor-card clinic-card"
+                [class.doctor-card--selected]="doctor.id === (selectedDoctorId$ | async)"
+                (click)="selectDoctor(doctor)"
+              >
+                <div class="doctor-card__avatar">
+                  <app-avatar [name]="doctor.fullName" [size]="'xl'"></app-avatar>
+                </div>
+                <div class="doctor-card__name">{{ doctor.fullName }}</div>
+                <div class="doctor-card__spec">{{ doctor.specialization }}</div>
+                <app-status-badge [status]='$any(doctor).status'></app-status-badge>
+                <div class="doctor-card__cta">
+                  Select Doctor
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                </div>
+              </button>
+            </div>
+          </ng-container>
+
+          <ng-template #emptyState>
+            <app-empty-state
+              icon="medical-outline"
+              title="No doctors available"
+              description="No doctors are available right now."
+            ></app-empty-state>
+          </ng-template>
+        </ng-template>
+
+        <div class="wizard-actions">
+          <div class="wizard-actions__btn-group">
+            <button type="button" class="btn-primary" [disabled]="!canContinue" (click)="goNext()">
+              Continue
+            </button>
+            <p class="btn-helper" *ngIf="(selectedDoctorId$ | async) && hasNoServicesSelected">Select a service to continue</p>
+          </div>
+        </div>
+      </ng-container>
+    </section>
+  

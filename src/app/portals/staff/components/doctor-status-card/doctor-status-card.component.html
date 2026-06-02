@@ -1,0 +1,82 @@
+
+    <div
+      class="doctor-status-card clinic-card"
+      [class.clinic-card--accent-green]="currentStatus === 'Available'"
+      [class.clinic-card--accent-amber]="currentStatus === 'RunningLate'"
+      [class.clinic-card--accent-red]="currentStatus === 'UnavailableToday'"
+    >
+      <div class="doctor-status-card__header">
+        <div class="doctor-info">
+          <app-avatar [name]="doctor.fullName" size="md"></app-avatar>
+          <div>
+            <p class="doctor-name">{{ doctor.fullName }}</p>
+            <p class="doctor-spec">{{ doctor.specialization }}</p>
+          </div>
+        </div>
+
+        <div
+          class="status-chip"
+          [class.status-chip--green]="currentStatus === 'Available'"
+          [class.status-chip--amber]="currentStatus === 'RunningLate'"
+          [class.status-chip--red]="currentStatus === 'UnavailableToday'"
+        >
+          {{
+            currentStatus === 'RunningLate'
+              ? 'Running Late'
+              : currentStatus === 'UnavailableToday'
+                ? 'Unavailable Today'
+                : 'Available'
+          }}
+        </div>
+      </div>
+
+      <p class="running-late-info" *ngIf="currentStatus === 'RunningLate' && dayStatus?.runningLateMinutes">
+        <ion-icon name="time-outline"></ion-icon>
+        Approximately {{ dayStatus?.runningLateMinutes }} minutes late
+      </p>
+
+      <div class="running-late-form" *ngIf="isSettingRunningLate">
+        <label class="field-label" for="running-late-input-{{ doctor.id }}">Estimated delay (minutes)</label>
+        <input
+          id="running-late-input-{{ doctor.id }}"
+          class="filter-input"
+          type="number"
+          min="5"
+          max="120"
+          step="5"
+          [(ngModel)]="runningLateMinutes"
+        />
+        <div class="running-late-actions">
+          <button class="btn-primary" type="button" (click)="confirmRunningLate()" [disabled]="runningLateMinutes < 5">
+            Confirm
+          </button>
+          <button class="btn-ghost" type="button" (click)="isSettingRunningLate = false">Cancel</button>
+        </div>
+      </div>
+
+      <div class="status-actions" *ngIf="!isSettingRunningLate">
+        <button class="btn-primary" *ngIf="currentStatus !== 'Available'" type="button" (click)="setAvailable()">
+          <ion-icon name="checkmark-circle-outline"></ion-icon>
+          Mark Available
+        </button>
+        <button class="btn-outline" *ngIf="currentStatus !== 'RunningLate'" type="button" (click)="isSettingRunningLate = true">
+          <ion-icon name="time-outline"></ion-icon>
+          Set Running Late
+        </button>
+        <button class="btn-danger" *ngIf="currentStatus !== 'UnavailableToday'" type="button" (click)="setUnavailable()">
+          <ion-icon name="close-circle-outline"></ion-icon>
+          Mark Unavailable Today
+        </button>
+      </div>
+    </div>
+
+    <app-confirm-modal
+      [isOpen]="confirmOpen"
+      title="Mark Doctor Unavailable"
+      message="Mark this doctor as unavailable for today?"
+      confirmLabel="Mark Unavailable"
+      [isDanger]="true"
+      (confirmed)="confirmUnavailable()"
+      (cancelled)="confirmOpen = false"
+    ></app-confirm-modal>
+  

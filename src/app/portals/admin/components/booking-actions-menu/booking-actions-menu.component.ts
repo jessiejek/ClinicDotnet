@@ -12,27 +12,7 @@ export interface BookingActionItem {
   selector: 'app-booking-actions-menu',
   standalone: true,
   imports: [NgFor, IonIcon, IonPopover],
-  template: `
-    <button [id]="triggerId" type="button" class="actions-menu__button" aria-label="Open booking actions">
-      <ion-icon name="ellipsis-vertical"></ion-icon>
-    </button>
-
-    <ion-popover [trigger]="triggerId" triggerAction="click" side="bottom" alignment="end">
-      <ng-template>
-        <div class="actions-menu">
-          <button
-            *ngFor="let action of actions"
-            type="button"
-            class="actions-menu__item"
-            [class.actions-menu__item--danger]="action.danger"
-            (click)="actionSelected.emit(action.value)"
-          >
-            {{ action.label }}
-          </button>
-        </div>
-      </ng-template>
-    </ion-popover>
-  `,
+  templateUrl: './booking-actions-menu.component.html',
   styleUrl: './booking-actions-menu.component.scss'
 })
 export class BookingActionsMenuComponent {

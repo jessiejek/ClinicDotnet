@@ -1,0 +1,36 @@
+
+    <div class="lv-modal">
+      <div class="lv-modal__head">
+        <h2>Load from last visit</h2>
+        <p>Review the previous SOAP note and adjust anything before applying it.</p>
+      </div>
+
+      <form class="lv-grid" [formGroup]="form">
+        <ion-item class="field">
+          <ion-label position="stacked">Chief Complaint</ion-label>
+          <ion-textarea formControlName="chiefComplaint" autoGrow="true"></ion-textarea>
+        </ion-item>
+        <ion-item class="field">
+          <ion-label position="stacked">Subjective</ion-label>
+          <ion-textarea formControlName="subjective" autoGrow="true"></ion-textarea>
+        </ion-item>
+        <ion-item class="field">
+          <ion-label position="stacked">Objective</ion-label>
+          <ion-textarea formControlName="objective" autoGrow="true"></ion-textarea>
+        </ion-item>
+        <ion-item class="field">
+          <ion-label position="stacked">Assessment</ion-label>
+          <ion-textarea formControlName="assessment" autoGrow="true"></ion-textarea>
+        </ion-item>
+        <ion-item class="field field--full">
+          <ion-label position="stacked">Plan</ion-label>
+          <ion-textarea formControlName="plan" autoGrow="true"></ion-textarea>
+        </ion-item>
+      </form>
+
+      <div class="lv-actions">
+        <button type="button" class="btn-outline" (click)="dismiss()">Cancel</button>
+        <button type="button" class="btn-primary" (click)="accept()">Use This Note</button>
+      </div>
+    </div>
+  

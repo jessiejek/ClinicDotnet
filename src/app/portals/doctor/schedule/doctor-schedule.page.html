@@ -1,0 +1,44 @@
+
+    <section class="schedule-page-head">
+      <div class="schedule-page-head__copy">
+        <div class="schedule-page-head__title-row">
+          <h1>Schedule</h1>
+          <span class="schedule-page-head__status schedule-page-head__status--dirty" *ngIf="isDirty">
+            <span aria-hidden="true">●</span>
+            Unsaved changes
+          </span>
+          <span class="schedule-page-head__status schedule-page-head__status--saved" *ngIf="isSaved">
+            <span aria-hidden="true">✓</span>
+            Saved
+          </span>
+        </div>
+        <p>Weekly availability and blocked dates</p>
+      </div>
+    </section>
+
+    <app-skeleton *ngIf="isLoading" variant="card" [count]="2"></app-skeleton>
+
+    <div *ngIf="error" class="er">
+      <p>Unable to load schedule. Please try again.</p>
+      <button type="button" class="btn-primary" (click)="loadData()">Retry</button>
+    </div>
+
+    <ng-container *ngIf="doctorId && !isLoading && !error">
+      <app-doctor-schedule-editor
+        [schedules]="draftSchedules"
+        [blockedDates]="blockedDates"
+        [previewSlots]="previewSlots"
+        [previewDate]="previewDate"
+        [isSaving]="isSaving"
+        [dailyPatientLimit]="dailyPatientLimit"
+        [previewDayIsActive]="previewDayIsActive"
+        [previewDayHasSlots]="previewDayHasSlots"
+        [previewDayIsBlocked]="previewDayIsBlocked"
+        (schedulesSaved)="saveSchedules($event)"
+        (blockedDateAdded)="addBlockedDate($event.blockedDate, $event.reason)"
+        (blockedDateRemoved)="removeBlockedDate($event)"
+        (previewDateChanged)="updatePreviewDate($event)"
+        (dirtyChanged)="markDirty()"
+      ></app-doctor-schedule-editor>
+    </ng-container>
+  

@@ -6,9 +6,7 @@ import { BookingStatus, DoctorStatus, PaymentStatus } from '../../../core/models
   selector: 'app-status-badge',
   standalone: true,
   imports: [NgClass],
-  template: `
-    <span class="badge" [ngClass]="cssClass">{{ displayLabel }}</span>
-  `,
+  templateUrl: './status-badge.component.html',
   styleUrl: './status-badge.component.scss'
 })
 export class StatusBadgeComponent {

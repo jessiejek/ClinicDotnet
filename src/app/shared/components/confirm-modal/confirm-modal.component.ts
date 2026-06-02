@@ -6,58 +6,7 @@ import { NgIf } from '@angular/common';
   selector: 'app-confirm-modal',
   standalone: true,
   imports: [NgIf, FormsModule],
-  template: `
-    <div
-      class="confirm-modal__backdrop"
-      *ngIf="isOpen"
-      [attr.data-testid]="testIdPrefix + '-backdrop'"
-      (click)="cancel()"
-    >
-      <section
-        class="confirm-modal clinic-card"
-        role="dialog"
-        aria-modal="true"
-        [attr.data-testid]="testIdPrefix + '-dialog'"
-        (click)="$event.stopPropagation()"
-      >
-        <div class="confirm-modal__header">
-          <h3 class="confirm-modal__title">{{ title }}</h3>
-          <button class="btn-ghost" type="button" [attr.data-testid]="testIdPrefix + '-close-button'" (click)="cancel()">Close</button>
-        </div>
-        <p class="confirm-modal__message">{{ message }}</p>
-        <div *ngIf="requireReason" class="confirm-modal__field">
-          <label class="confirm-modal__label">{{ reasonLabel }}</label>
-          <textarea
-            class="filter-input confirm-modal__textarea"
-            rows="4"
-            name="confirmModalReason"
-            [attr.data-testid]="testIdPrefix + '-reason-textarea'"
-            [(ngModel)]="reason"
-            [ngModelOptions]="{ standalone: true }"
-            [placeholder]="reasonLabel"
-          ></textarea>
-          <p class="confirm-modal__hint">
-            Enter at least {{ reasonMinLength }} characters to continue.
-          </p>
-        </div>
-        <div class="confirm-modal__actions">
-          <button class="btn-ghost" type="button" [attr.data-testid]="testIdPrefix + '-cancel-button'" (click)="cancel()">
-            {{ cancelLabel }}
-          </button>
-          <button
-            [class.btn-danger]="isDanger"
-            [class.btn-primary]="!isDanger"
-            type="button"
-            [attr.data-testid]="testIdPrefix + '-confirm-button'"
-            [disabled]="requireReason && reasonTrimmed.length < reasonMinLength"
-            (click)="onConfirm()"
-          >
-            {{ confirmLabel }}
-          </button>
-        </div>
-      </section>
-    </div>
-  `,
+  templateUrl: './confirm-modal.component.html',
   styleUrl: './confirm-modal.component.scss'
 })
 export class ConfirmModalComponent {

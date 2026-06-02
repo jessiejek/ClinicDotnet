@@ -7,19 +7,7 @@ export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   selector: 'app-avatar',
   standalone: true,
   imports: [NgIf, NgClass],
-  template: `
-    <img
-      *ngIf="imageUrl; else initialsTpl"
-      [src]="imageUrl"
-      [alt]="name"
-      [ngClass]="['avatar', avatarClass]"
-    />
-    <ng-template #initialsTpl>
-      <div [ngClass]="['avatar', avatarClass]" [attr.aria-label]="name">
-        {{ initials }}
-      </div>
-    </ng-template>
-  `,
+  templateUrl: './avatar.component.html',
   styleUrl: './avatar.component.scss'
 })
 export class AvatarComponent {

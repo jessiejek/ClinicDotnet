@@ -16,74 +16,7 @@ import { StatCardComponent } from '../components/stat-card/stat-card.component';
     AsyncPipe, CurrencyPipe, DatePipe, NgFor, NgIf,
     StatCardComponent, TodayAppointmentsTableComponent,
   ],
-  template: `
-    <section class="page-shell">
-      <div class="page-shell__header">
-        <div>
-          <h2 class="page-title">Dashboard</h2>
-          <p class="page-subtitle">Live admin overview for bookings, patients, and payments.</p>
-        </div>
-      </div>
-
-      <div class="stats-grid">
-        <app-stat-card color="green" icon="calendar-outline" label="Today's Appointments" [value]="todayAppointmentsCount"></app-stat-card>
-        <app-stat-card color="blue" icon="stats-chart-outline" label="Monthly Appointments" [value]="monthlyAppointmentsCount"></app-stat-card>
-        <app-stat-card color="amber" icon="cash-outline" label="Revenue Today" [value]="(revenueToday | currency:'PHP':'symbol-narrow':'1.0-0') || 'PHP 0'"></app-stat-card>
-        <app-stat-card color="red" icon="alert-circle-outline" label="Pending Verifications" [value]="pendingVerificationCount" badgeLabel="Action Required"></app-stat-card>
-        <app-stat-card color="blue" icon="time-outline" label="On Hold Bookings" [value]="onHoldCount"></app-stat-card>
-        <app-stat-card color="red" icon="warning-outline" label="Unpaid Completed" [value]="unpaidCompletedCount" badgeLabel="Collect Payment"></app-stat-card>
-        <app-stat-card color="gray" icon="person-remove-outline" label="No Shows Today" [value]="noShowCount"></app-stat-card>
-        <app-stat-card color="amber" icon="calendar-outline" label="Follow-Ups (7 days)" [value]="followUpsCount"></app-stat-card>
-      </div>
-
-      <div class="chart-grid">
-        <div class="clinic-card">
-          <div class="section-heading">Most Booked Doctors</div>
-          <div class="chart-card chart-card--bar">
-            <div class="bar-row" *ngFor="let item of topDoctorStats">
-              <div class="bar-row__label">{{ item.label }}</div>
-              <div class="bar-row__track">
-                <div class="bar-row__fill" [style.width.%]="item.max ? (item.value / item.max) * 100 : 0"></div>
-              </div>
-              <div class="bar-row__value">{{ item.value }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="clinic-card">
-          <div class="section-heading">Revenue This Month</div>
-          <div class="chart-card chart-card--area">
-            <svg viewBox="0 0 600 220" class="area-chart" aria-label="Revenue chart">
-              <defs>
-                <linearGradient id="revenueGradient" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" [attr.stop-color]="primaryColor" stop-opacity="0.42"></stop>
-                  <stop offset="100%" [attr.stop-color]="primaryColor" stop-opacity="0.06"></stop>
-                </linearGradient>
-              </defs>
-              <path [attr.d]="areaFillPath" fill="url(#revenueGradient)"></path>
-              <path [attr.d]="areaLinePath" fill="none" [attr.stroke]="primaryColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
-            </svg>
-            <div class="area-chart__legend">
-              <span *ngFor="let point of revenueLegend">{{ point }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="clinic-card">
-        <div class="section-heading">Today's Appointments</div>
-        <app-today-appointments-table
-          [bookings]="todaysBookings"
-          [doctors]="doctors"
-          [patients]="patients"
-          [services]="services"
-          [isLoading]="isLoading"
-          (rowClicked)="openBooking($event.id)"
-          (action)="handleTableAction($event)"
-        ></app-today-appointments-table>
-      </div>
-    </section>
-  `,
+  templateUrl: './dashboard.page.html',
   styleUrl: './dashboard.page.scss'
 })
 export class DashboardPage extends BaseComponent implements OnInit {

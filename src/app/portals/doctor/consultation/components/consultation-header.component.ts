@@ -9,51 +9,7 @@ export type ConsultationHeaderMode = 'complete' | 'view' | 'amend';
   selector: 'app-consultation-header',
   standalone: true,
   imports: [DatePipe, NgSwitch, NgSwitchCase, PageHeaderComponent],
-  template: `
-    <app-page-header
-      title="Consultation"
-      subtitle="Complete the medical record from the appointment"
-      [showBackButton]="true"
-      defaultBackHref="/doctor/appointments"
-    ></app-page-header>
-
-    <section class="consultation-header">
-      <div class="consultation-header__copy">
-        <h2>{{ patientName }}</h2>
-        <p>
-          Booking {{ booking.id }} &bull; {{ booking.appointmentDate | date : 'MMMM d, y (EEE)' }}
-          {{ booking.slotStartTime }} - {{ booking.slotEndTime }}
-        </p>
-      </div>
-      <div class="consultation-header__actions">
-        <ng-container [ngSwitch]="mode">
-          <ng-container *ngSwitchCase="'complete'">
-            <button type="button" class="btn-ghost" data-testid="doctor-consultation-header-save-draft-button" [disabled]="saveDisabled" (click)="saveDraft.emit()">
-              {{ isSavingDraft ? 'Saving Draft...' : 'Save Draft' }}
-            </button>
-            <button type="button" class="btn-primary" data-testid="doctor-consultation-header-complete-transaction-button" [disabled]="completeDisabled" (click)="completeTransaction.emit()">
-              {{ isCompleting ? 'Completing...' : 'Complete Transaction' }}
-            </button>
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'view'">
-            <button type="button" class="btn-primary" data-testid="doctor-consultation-header-enter-amend-button" [disabled]="amendDisabled" (click)="enterAmendMode.emit()">
-              Edit / Amend Consultation
-            </button>
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'amend'">
-            <button type="button" class="btn-ghost" data-testid="doctor-consultation-header-cancel-amend-button" [disabled]="amendDisabled || isSavingAmendment" (click)="cancelAmendMode.emit()">
-              Cancel
-            </button>
-            <button type="button" class="btn-primary" data-testid="doctor-consultation-header-save-amendment-button" [disabled]="amendDisabled || isSavingAmendment" (click)="saveAmendment.emit()">
-              {{ isSavingAmendment ? 'Saving Amendment...' : 'Save Amendment' }}
-            </button>
-          </ng-container>
-        </ng-container>
-      </div>
-    </section>
-  `,
+  templateUrl: './consultation-header.component.html',
   styles: [
     `
       .consultation-header {

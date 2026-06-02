@@ -1,0 +1,453 @@
+
+    <ng-container *ngIf="vm$ | async as vm; else notFound">
+      <div class="cr">
+        <!-- ===== VIEW MODE: Completed consultation, compact header + summary body ===== -->
+        <ng-container *ngIf="isCompletedConsultation(vm) && !isAmendMode; else editMode">
+          <div class="cvh">
+            <div class="cvh__top">
+              <a class="cvh__back" routerLink="/doctor/appointments">&larr; Back to Appointments</a>
+              <div class="cvh__actions">
+                <button class="cr-btn cr-btn--secondary" type="button" (click)="openHistoryDrawer(vm)">History</button>
+                <div class="cvh__finalized">
+                  <span class="cvh__finalized-badge">COMPLETED</span>
+                  <span class="cvh__finalized-meta">{{ getCompletionStatusText(vm) }}</span>
+                </div>
+                <button class="cr-btn cr-btn--secondary cvh__modify" type="button" (click)="enterAmendMode(vm)">
+                  <i class="ti ti-pencil"></i>
+                  Edit Consultation
+                </button>
+              </div>
+            </div>
+            <div class="cvh__main">
+              <div class="cvh__identity">
+                <div class="cvh__avatar" [ngStyle]="getPatientAvatarStyle(vm.patient)">
+                  {{ (vm.patient.firstName?.charAt(0) || '?') }}{{ (vm.patient.lastName?.charAt(0) || '') }}
+                </div>
+                <div class="cvh__patient">
+                  <strong>{{ vm.patient.firstName }} {{ vm.patient.lastName }}</strong>
+                  <span>{{ vm.patient.sex || '--' }} &middot; {{ vm.patient.dateOfBirth ? (calcAge(vm.patient.dateOfBirth) + ' yrs') : '--' }}</span>
+                  <span class="cvh__patient-line">{{ vm.booking.serviceNames?.join(', ') || vm.booking.serviceName || 'Service' }}</span>
+                </div>
+              </div>
+              <div class="cvh__meta-cluster">
+                <div class="cvh__meta-label">Visit Metadata</div>
+                <div class="cvh__meta">
+                  <div class="cvh__tag">
+                    <span class="cvh__tag-label">Date</span>
+                    <span class="cvh__tag-value">{{ vm.booking.appointmentDate | date:'MMMM d, y (EEE)' }}</span>
+                  </div>
+                  <div class="cvh__tag">
+                    <span class="cvh__tag-label">Time</span>
+                    <span class="cvh__tag-value">{{ vm.booking.slotStartTime }} - {{ vm.booking.slotEndTime }}</span>
+                  </div>
+                  <div class="cvh__tag">
+                    <span class="cvh__tag-label">Queue</span>
+                    <span class="cvh__tag-value">#{{ vm.booking.queueNumber ?? '--' }}</span>
+                  </div>
+                  <div class="cvh__tag">
+                    <span class="cvh__tag-label">Fee</span>
+                    <span class="cvh__tag-value">PHP {{ vm.booking.consultationFeeSnapshot ?? vm.booking.totalFee ?? 0 }}</span>
+                  </div>
+                  <div class="cvh__tag">
+                    <span class="cvh__tag-label">Payment</span>
+                    <span class="cvh__tag-value">{{ vm.booking.paymentMode || '--' }} &middot; <app-status-badge [status]="vm.booking.paymentStatus || 'Unpaid'"></app-status-badge></span>
+                  </div>
+                  <div class="cvh__tag" *ngIf="vm.allergies.length > 0">
+                    <span class="cvh__tag-label">Allergies</span>
+                    <span class="cvh__tag-value">{{ vm.allergies.length }} recorded</span>
+                  </div>
+                  <div class="cvh__tag" *ngIf="existingConditions(vm).length > 0">
+                    <span class="cvh__tag-label">Conditions</span>
+                    <span class="cvh__tag-value">{{ existingConditions(vm).slice(0,2).join(', ') }}{{ existingConditions(vm).length > 2 ? '...' : '' }}</span>
+                  </div>
+                  <div class="cvh__tag" *ngIf="lastVisitDate(vm) as lv">
+                    <span class="cvh__tag-label">Last Visit</span>
+                    <span class="cvh__tag-value">{{ lv | date:'MMM d' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cr-body cr-body--view">
+            <app-consultation-summary
+              class="cr-summary-fill"
+              [vm]="vm"
+            ></app-consultation-summary>
+          </div>
+        </ng-container>
+
+        <!-- ===== EDIT / AMEND MODE: Existing layout with sidebar ===== -->
+        <ng-template #editMode>
+          <div class="cr-top">
+            <div class="cr-hdr">
+              <div class="cr-hdr__left">
+                <h1 class="cr-hdr__title">Consultation Room{{ isViewOnlyConsultation(vm) && !isAmendMode ? ' (View Only)' : '' }}</h1>
+                <p class="cr-hdr__sub">{{ vm.patient.firstName || 'Patient' }} {{ vm.patient.lastName || '' }} &middot; {{ vm.booking.appointmentDate | date:'MMMM d, y (EEE)' }} &middot; Queue #{{ vm.booking.queueNumber ?? '--' }}</p>
+              </div>
+              <div class="cr-hdr__right">
+                <ng-container *ngIf="isCompletedConsultation(vm); else activeActions">
+                  <div class="cr-complete-pill">
+                    <span class="cr-complete-pill__badge">COMPLETED</span>
+                    <span class="cr-complete-pill__meta">{{ getCompletionStatusText(vm) }}</span>
+                  </div>
+                  <button class="cr-btn cr-btn--secondary" type="button" (click)="openHistoryDrawer(vm)">History</button>
+                  <div class="cr-save-state" [class.cr-save-state--editing]="isAmendMode" [ngClass]="!isAmendMode ? 'cr-save-state--' + saveState : ''">
+                    <ng-container *ngIf="!isAmendMode; else editingState">
+                      <span class="cr-save-state__icon" *ngIf="saveState === 'saved'"></span>
+                      <span class="cr-save-state__icon cr-save-state__icon--spinner" *ngIf="saveState === 'saving'"></span>
+                      <span class="cr-save-state__icon" *ngIf="saveState === 'unsaved'"></span>
+                      <span class="cr-save-state__icon" *ngIf="saveState === 'failed'"></span>
+                    </ng-container>
+                    <ng-template #editingState>
+                      <span class="cr-save-state__icon cr-save-state__icon--editing"><i class="ti ti-pencil"></i></span>
+                    </ng-template>
+                    <span class="cr-save-state__label">{{ getSaveStateLabel() }}</span>
+                  </div>
+                  <button *ngIf="!isAmendMode" class="cr-btn cr-btn--secondary cvh__modify" type="button" (click)="enterAmendMode(vm)">
+                    <i class="ti ti-pencil"></i>
+                    Edit Consultation
+                  </button>
+                  <button *ngIf="isAmendMode" class="cr-btn cr-btn--primary" (click)="saveAmendment(vm)" [disabled]="isSavingAmendment">
+                    {{ isSavingAmendment ? 'Saving...' : 'Save Changes' }}
+                  </button>
+                  <button *ngIf="isAmendMode" class="cr-btn cr-btn--outline" type="button" data-testid="doctor-consultation-cancel-amend-button" (click)="cancelAmendMode()">
+                    Cancel
+                  </button>
+                  <div class="cr-cancel-prompt" *ngIf="editCancelPromptOpen">
+                    <span>Discard unsaved changes?</span>
+                    <div class="cr-cancel-prompt__actions">
+                      <button type="button" class="cr-btn cr-btn--secondary" data-testid="doctor-consultation-keep-editing-button" (click)="keepEditing()">Keep Editing</button>
+                      <button type="button" class="cr-btn cr-btn--outline" data-testid="doctor-consultation-discard-changes-button" (click)="discardEditChanges(vm)">Discard Changes</button>
+                    </div>
+                  </div>
+                </ng-container>
+                <ng-template #activeActions>
+                  <app-status-badge [status]="vm.booking.status"></app-status-badge>
+                  <a class="cr-btn" data-testid="doctor-consultation-back-to-appointments-link" routerLink="/doctor/appointments">Back to Appointments</a>
+                  <button class="cr-btn cr-btn--primary" data-testid="doctor-consultation-save-draft-button" (click)="saveDraft(vm)" [disabled]="isWorkspaceLocked(vm) || isSavingDraft || isAutosaving">{{ getDraftButtonLabel() }}</button>
+                  <span class="cr-complete-wrap" [attr.title]="getCompleteTooltip(vm)">
+                    <button
+                      *ngIf="currentClinicalRole === 'physician'"
+                      class="cr-btn cr-btn--complete"
+                      data-testid="doctor-consultation-complete-button"
+                      [class.cr-btn--complete--ready]="!isCompleteActionDisabled(vm)"
+                      (click)="requestCompletion(vm)"
+                      [disabled]="isCompleteActionDisabled(vm)"
+                    >
+                      Complete Consultation
+                    </button>
+                    <span *ngIf="currentClinicalRole !== 'physician'" class="cr-complete-wrap__message">
+                      Consultation can only be completed by the attending physician.
+                    </span>
+                  </span>
+                </ng-template>
+              </div>
+            </div>
+
+            <div class="cr-network-banner" *ngIf="!isNetworkOnline || networkBannerMessage">
+              <i class="ti" [ngClass]="isNetworkOnline ? 'ti-wifi' : 'ti-wifi-off'"></i>
+              <span>{{ networkBannerMessage || 'You are offline — Changes are being saved locally and will sync when reconnected.' }}</span>
+              <button type="button" class="cr-network-banner__retry" *ngIf="networkSyncFailed" (click)="retrySync()">Retry sync</button>
+            </div>
+
+              <div class="cr-patient" id="patient-identity-card">
+              <div class="cr-avatar" [ngStyle]="getPatientAvatarStyle(vm.patient)">{{ (vm.patient.firstName?.charAt(0) || '?') }}{{ (vm.patient.lastName?.charAt(0) || '') }}</div>
+                <div class="cr-patient__info">
+                  <strong>{{ vm.patient.firstName }} {{ vm.patient.lastName }}</strong>
+                  <span>{{ vm.patient.sex || '--' }} &middot; {{ vm.patient.dateOfBirth ? (calcAge(vm.patient.dateOfBirth) + ' yrs') : '--' }}</span>
+                  <span>{{ vm.booking.serviceNames?.join(', ') || vm.booking.serviceName || 'Service' }}</span>
+              </div>
+              <div class="cr-patient__meta">
+                <div><span class="ml">Fee</span><span class="mv">PHP {{ vm.booking.consultationFeeSnapshot ?? vm.booking.totalFee ?? 0 }}</span></div>
+                <div><span class="ml">Mode</span><span class="mv">{{ vm.booking.paymentMode || '--' }}</span></div>
+                <div><span class="ml">Payment</span><app-status-badge [status]="vm.booking.paymentStatus || 'Unpaid'"></app-status-badge></div>
+              </div>
+            </div>
+          </div>
+
+          <app-patient-identity-strip
+            *ngIf="showStickyIdentityStrip"
+            [patient]="vm.patient"
+            [booking]="vm.booking"
+            [allergies]="vm.allergies"
+            [allergyConfirmationState]="getAllergyConfirmationState(vm)"
+            [expanded]="identityStripExpanded"
+            (historyClick)="openPatientClinicalHistory(vm)"
+          ></app-patient-identity-strip>
+
+          <nav class="cr-mobile-tabs" aria-label="Consultation sections">
+            <a
+              *ngFor="let sectionId of mobileSectionIds"
+              [href]="'#' + sectionId"
+              class="cr-mobile-tabs__item"
+              [class.active]="isStepActive(sectionId)"
+              [class.done]="getProgressStepState(sectionId, vm) === 'complete'"
+              [class.warning]="getProgressStepState(sectionId, vm) === 'warning'"
+              (click)="scrollToSection(sectionId, $event)"
+            >
+              <span>{{ getMobileTabLabel(sectionId) }}</span>
+              <i class="cr-mobile-tabs__dot" aria-hidden="true"></i>
+            </a>
+          </nav>
+
+          <div class="cr-edit-banner" *ngIf="isAmendMode">
+            <i class="ti ti-pencil"></i>
+            <span>You are editing a completed consultation. Click Save Changes to apply your edits.</span>
+          </div>
+          <div class="cr-edit-error" *ngIf="editSaveErrorMessage">
+            <span>{{ editSaveErrorMessage }}</span>
+            <button type="button" (click)="saveAmendment(vm)" [disabled]="isSavingAmendment">{{ isSavingAmendment ? 'Saving...' : 'Retry' }}</button>
+          </div>
+
+          <div class="cr-body" role="main">
+            <div class="cr-workspace">
+              <app-consultation-overview
+                [patient]="vm.patient"
+                [consultation]="vm.consultation"
+                [existingPrescription]="vm.existingPrescription"
+                [allergies]="vm.allergies"
+                [followUps]="vm.followUps"
+                [recentConsultations]="vm.recentConsultations"
+              ></app-consultation-overview>
+
+              <div class="cr-section">
+                <app-consultation-workspace
+                  [vm]="vm"
+                  [locked]="isWorkspaceLocked(vm)"
+                  [clinicalRole]="currentClinicalRole"
+                  [prescriptionItems]="prescriptionItems"
+                  [professionalFee]="professionalFeeAmount"
+                [professionalFeePaymentMode]="professionalFeePaymentMode"
+                [professionalFeeNotes]="professionalFeeNotes"
+                [pendingVaccinations]="pendingVaccinations"
+                [validationRequested]="editValidationRequested"
+                (vitalSignsChange)="onVitalsChange($event)"
+                (vitalsValidityChange)="vitalsValid = $event"
+                (soapChange)="onSoapChange($event)"
+                  (soapValidityChange)="soapValid = $event"
+                  (diagnosesChange)="onDiagnosesChange($event)"
+                  (diagnosisValidityChange)="diagnosisValid = $event"
+                  (prescriptionItemsChange)="onPrescriptionItemsChange($event)"
+                  (labRequestsChange)="onLabRequestsChange($event)"
+                  (followUpChange)="onFollowUpChange($event)"
+                  (professionalFeeChange)="professionalFeeAmount = $event"
+                  (professionalFeePaymentModeChange)="professionalFeePaymentMode = $event"
+                  (professionalFeeNotesChange)="professionalFeeNotes = $event"
+                  (professionalFeeValidityChange)="pfDecisionValid = $event"
+                  (vaccinationsAdded)="onVaccinationsAdded($event)"
+                  (loadFromLastVisit)="openLastVisitSoap(vm)"
+                  (requestPrescription)="requestAttendingPhysician('prescription', vm)"
+                  (requestLabOrder)="requestAttendingPhysician('lab-order', vm)"
+                ></app-consultation-workspace>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="cr-progress-toggle"
+              (click)="toggleProgressSidebar()"
+              [attr.aria-expanded]="progressSidebarOpen"
+              aria-label="Toggle consultation progress"
+            >
+              <i class="ti ti-progress"></i>
+            </button>
+
+            <div class="cr-side" [class.is-open]="progressSidebarOpen" role="navigation" aria-label="Consultation sections">
+              <div class="cr-side-card">
+                <div class="cr-progress-summary">
+                  <div class="cr-progress-summary__label">
+                    {{ getProgressSummaryLabel(vm) }}
+                  </div>
+                  <div class="cr-progress-summary__bar" [class.cr-progress-summary__bar--ready]="isCompletedConsultation(vm) && !isAmendMode" [class.cr-progress-summary__bar--editing]="isAmendMode">
+                    <span class="cr-progress-summary__fill" [style.width.%]="getProgressPercent(vm)"></span>
+                  </div>
+                </div>
+                <h3>Consultation Progress</h3>
+                <ul class="cr-progress">
+                  <li class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-soap', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-soap', vm) === 'complete'"
+                      [class.active]="isStepActive('section-soap')">
+                    <a href="#section-soap" (click)="scrollToSection('section-soap', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-soap', vm) }}</span>
+                      <span class="cr-progress__label">Notes &amp; SOAP</span>
+                    </a>
+                  </li>
+                  <li class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-vitals', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-vitals', vm) === 'complete'"
+                      [class.active]="isStepActive('section-vitals')">
+                    <a href="#section-vitals" (click)="scrollToSection('section-vitals', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-vitals', vm) }}</span>
+                      <span class="cr-progress__label">Vitals</span>
+                    </a>
+                  </li>
+                  <li class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-diagnosis', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-diagnosis', vm) === 'complete'"
+                      [class.active]="isStepActive('section-diagnosis')">
+                    <a href="#section-diagnosis" (click)="scrollToSection('section-diagnosis', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-diagnosis', vm) }}</span>
+                      <span class="cr-progress__label">Diagnosis</span>
+                    </a>
+                  </li>
+                  <li class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-prescription', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-prescription', vm) === 'complete'"
+                      [class.active]="isStepActive('section-prescription')">
+                    <a href="#section-prescription" (click)="scrollToSection('section-prescription', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-prescription', vm) }}</span>
+                      <span class="cr-progress__label">Prescription</span>
+                    </a>
+                  </li>
+                  <li class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-lab-orders', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-lab-orders', vm) === 'complete'"
+                      [class.active]="isStepActive('section-lab-orders')">
+                    <a href="#section-lab-orders" (click)="scrollToSection('section-lab-orders', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-lab-orders', vm) }}</span>
+                      <span class="cr-progress__label">Lab Orders</span>
+                    </a>
+                  </li>
+                  <li class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-followup', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-followup', vm) === 'complete'"
+                      [class.active]="isStepActive('section-followup')">
+                    <a href="#section-followup" (click)="scrollToSection('section-followup', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-followup', vm) }}</span>
+                      <span class="cr-progress__label">Follow-up</span>
+                    </a>
+                  </li>
+                  <li *ngIf="currentClinicalRole !== 'nurse' && currentClinicalRole !== 'medical_assistant'" class="cr-progress__item"
+                      [class.warning]="getProgressStepState('section-pf-decision', vm) === 'warning'"
+                      [class.done]="getProgressStepState('section-pf-decision', vm) === 'complete'"
+                      [class.active]="isStepActive('section-pf-decision')">
+                    <a href="#section-pf-decision" (click)="scrollToSection('section-pf-decision', $event)">
+                      <span class="cr-progress__icon">{{ getProgressStepIcon('section-pf-decision', vm) }}</span>
+                      <span class="cr-progress__label">PF Decision</span>
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="cr-side-card">
+                <h3>Patient Uploads</h3>
+                <app-patient-media-panel kind="document" [patientId]="vm.patient.id" [filterByBooking]="false" [allowUpload]="false" heading="Documents" subheading="Referrals, certificates, and files."></app-patient-media-panel>
+                <app-patient-media-panel kind="lab-result" [patientId]="vm.patient.id" [filterByBooking]="false" [allowUpload]="false" heading="Lab Results" headingIcon="ti ti-upload" subheading="Files uploaded by the patient"></app-patient-media-panel>
+              </div>
+            </div>
+            <div class="cr-side-backdrop" [class.is-visible]="progressSidebarOpen" (click)="closeProgressSidebar()"></div>
+          </div>
+
+          <div class="cr-mobile-actions">
+            <ng-container *ngIf="isCompletedConsultation(vm) && !isAmendMode; else mobileActiveOrEdit">
+              <button type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--outline cr-mobile-actions__btn--full" (click)="enterAmendMode(vm)">
+                <i class="ti ti-pencil"></i>
+                Edit Consultation
+              </button>
+            </ng-container>
+            <ng-template #mobileActiveOrEdit>
+              <ng-container *ngIf="isAmendMode; else mobileActiveActions">
+                <button type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--outline cr-mobile-actions__btn--cancel" (click)="cancelAmendMode()">
+                  Cancel
+                </button>
+                <button type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--primary cr-mobile-actions__btn--save" (click)="saveAmendment(vm)" [disabled]="isSavingAmendment">
+                  {{ isSavingAmendment ? 'Saving...' : 'Save Changes' }}
+                </button>
+                <div class="cr-cancel-prompt cr-cancel-prompt--mobile" *ngIf="editCancelPromptOpen">
+                  <span>Discard unsaved changes?</span>
+                  <div class="cr-cancel-prompt__actions">
+                    <button type="button" class="cr-btn cr-btn--secondary" (click)="keepEditing()">Keep Editing</button>
+                    <button type="button" class="cr-btn cr-btn--outline" (click)="discardEditChanges(vm)">Discard Changes</button>
+                  </div>
+                </div>
+              </ng-container>
+            </ng-template>
+            <ng-template #mobileActiveActions>
+              <button type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--outline" (click)="saveDraft(vm)">
+                Save Draft
+              </button>
+              <button *ngIf="currentClinicalRole === 'physician'" type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--primary" (click)="requestCompletion(vm)" [disabled]="isCompleteActionDisabled(vm)">
+                Complete ▶
+              </button>
+              <button *ngIf="currentClinicalRole !== 'physician'" type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--primary" disabled>
+                Physician Only
+              </button>
+            </ng-template>
+          </div>
+        </ng-template>
+
+        <app-patient-clinical-history-drawer
+          [isOpen]="clinicalHistoryDrawerOpen"
+          [patientName]="clinicalHistoryPatientName"
+          [history]="clinicalHistory"
+          (close)="closeClinicalHistoryDrawer()"
+        ></app-patient-clinical-history-drawer>
+
+        <div class="shortcut-backdrop" *ngIf="shortcutsHelpOpen" (click)="shortcutsHelpOpen = false"></div>
+        <section
+          class="shortcut-modal"
+          *ngIf="shortcutsHelpOpen"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcutsHelpTitle"
+        >
+          <div class="shortcut-modal__card">
+            <div class="shortcut-modal__head">
+              <h2 id="shortcutsHelpTitle">Keyboard Shortcuts</h2>
+              <button type="button" class="shortcut-modal__close" (click)="shortcutsHelpOpen = false" aria-label="Close shortcuts help">×</button>
+            </div>
+            <table class="shortcut-table">
+              <tr><th>Shortcut</th><th>Action</th></tr>
+              <tr><td>Ctrl/Cmd + S</td><td>Save Draft</td></tr>
+              <tr><td>Ctrl/Cmd + Enter</td><td>Open Complete Consultation flow</td></tr>
+              <tr><td>Ctrl/Cmd + 1</td><td>Patient Summary</td></tr>
+              <tr><td>Ctrl/Cmd + 2</td><td>Vitals</td></tr>
+              <tr><td>Ctrl/Cmd + 3</td><td>SOAP</td></tr>
+              <tr><td>Ctrl/Cmd + 4</td><td>Diagnosis</td></tr>
+              <tr><td>Ctrl/Cmd + 5</td><td>Prescription</td></tr>
+              <tr><td>Ctrl/Cmd + 6</td><td>Lab Orders</td></tr>
+              <tr><td>Ctrl/Cmd + 7</td><td>Vaccinations</td></tr>
+              <tr><td>Ctrl/Cmd + 8</td><td>Follow-up</td></tr>
+              <tr><td>Esc</td><td>Close open overlays</td></tr>
+              <tr><td>?</td><td>Open this help panel</td></tr>
+            </table>
+          </div>
+        </section>
+
+        <div class="history-drawer-backdrop" *ngIf="historyDrawerOpen" (click)="closeHistoryDrawer()"></div>
+        <aside class="history-drawer" *ngIf="historyDrawerOpen" role="dialog" aria-modal="true" aria-label="Consultation Edit History">
+          <div class="history-drawer__top">
+            <div>
+              <h2>Consultation Edit History</h2>
+              <p>Chronological edit events for this visit.</p>
+            </div>
+            <button type="button" class="history-drawer__close" (click)="closeHistoryDrawer()">&times;</button>
+          </div>
+
+          <ng-container *ngIf="hasRealAuditHistory && historyEntries.length > 0; else emptyHistory">
+            <ol class="history-list">
+              <li class="history-item" [class.history-item--amendment]="entry.tone === 'amendment'" *ngFor="let entry of historyEntries">
+                <div class="history-item__timestamp">{{ entry.timestamp | date : 'MMM d, y h:mm a' }}</div>
+                <div class="history-item__meta">
+                  <strong>{{ entry.editorName }}</strong>
+                  <span>{{ entry.editorRole }}</span>
+                </div>
+                <div class="history-item__section">{{ entry.section }}</div>
+                <p class="history-item__detail">{{ entry.detail }}</p>
+              </li>
+            </ol>
+          </ng-container>
+
+          <ng-template #emptyHistory>
+            <div class="history-empty">No edits recorded yet for this consultation.</div>
+          </ng-template>
+        </aside>
+      </div>
+    </ng-container>
+
+    <ng-template #notFound>
+      <app-empty-state icon="document-text-outline" title="Consultation unavailable" description="This appointment is either missing or belongs to another doctor." ctaLabel="Back to Appointments" ctaRoute="/doctor/appointments"></app-empty-state>
+    </ng-template>
+  
