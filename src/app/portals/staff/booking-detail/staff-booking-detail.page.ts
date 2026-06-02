@@ -461,8 +461,13 @@ export class StaffBookingDetailPage implements OnInit {
     );
   }
 
+  /**
+   * ⚠️ Waive PF is a Doctor-only action. Staff must not waive.
+   * Backend authorizes only Doctor role for PATCH /api/payments/{id}/waive.
+   * Staff gets 403 if they attempt to call the endpoint.
+   */
   get canWaivePf(): boolean {
-    return this.canConfirmPayment;
+    return false;
   }
 
   get canPrintDocument(): boolean {

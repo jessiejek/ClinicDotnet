@@ -122,7 +122,6 @@ interface CollectPaymentMethodOption {
                   <ng-container *ngIf="canTakePaymentAction(item); else noDesktopAction">
                     <div class="ar">
                       <button type="button" class="btn-primary" [attr.data-testid]="'staff-payments-confirm-open-button-' + item.bookingId" (click)="openPaymentModal(item)">Confirm Payment</button>
-                      <button type="button" class="btn-outline" [attr.data-testid]="'staff-payments-waive-open-button-' + item.bookingId" (click)="openWaiveModal(item)">Waive PF</button>
                     </div>
                   </ng-container>
                   <ng-template #noDesktopAction>&mdash;</ng-template>
@@ -153,7 +152,6 @@ interface CollectPaymentMethodOption {
             <div class="mca">
               <ng-container *ngIf="canTakePaymentAction(item); else noMobileAction">
                 <button type="button" class="btn-primary" [attr.data-testid]="'staff-payments-mobile-confirm-open-button-' + item.bookingId" (click)="openPaymentModal(item)">Confirm Payment</button>
-                <button type="button" class="btn-outline" [attr.data-testid]="'staff-payments-mobile-waive-open-button-' + item.bookingId" (click)="openWaiveModal(item)">Waive PF</button>
               </ng-container>
               <ng-template #noMobileAction>&mdash;</ng-template>
             </div>
