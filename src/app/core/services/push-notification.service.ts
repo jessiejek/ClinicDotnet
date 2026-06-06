@@ -2,9 +2,10 @@ import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getMessaging, getToken, isSupported, onMessage, type Messaging } from 'firebase/messaging';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthStateService } from './auth-state.service';
+import { ApiService } from './api.service';
 
 /** Shape of a notification received from SignalR. */
 export interface InAppNotification {
@@ -21,12 +22,12 @@ export interface InAppNotification {
 function rowToNotification(row: any): InAppNotification {
   return {
     id: row.id,
-    userId: row.user_id,
+    userId: row.userId ?? row.user_id,
     title: row.title,
     message: row.message,
-    isRead: row.is_read ?? false,
-    createdAt: row.created_at,
-    navigateTo: row.navigate_to ?? undefined
+    isRead: row.isRead ?? row.is_read ?? false,
+    createdAt: row.createdAt ?? row.created_at,
+    navigateTo: row.navigateTo ?? row.navigate_to ?? undefined
   };
 }
 
@@ -54,6 +55,7 @@ type FirebaseWebConfig = {
 @Injectable({ providedIn: 'root' })
 export class PushNotificationService {
   private readonly authState = inject(AuthStateService);
+  private readonly apiService = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly notificationsSubject = new BehaviorSubject<InAppNotification[]>([]);
@@ -153,6 +155,18 @@ export class PushNotificationService {
       }
 
       console.info('[PushNotification] Device token acquired locally.');
+
+      try {
+        await firstValueFrom(
+          this.apiService.post('device-tokens', { token, platform: 'web' })
+        );
+        console.info('[PushNotification] Device token registered with backend.');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error.';
+        console.warn('[PushNotification] Backend registration failed (push may not work):', msg);
+        // Non-blocking — token is cached locally; retry on next login
+      }
+
       this.deviceRegisteredSubject.next(true);
       return { success: true };
     } catch (err) {
