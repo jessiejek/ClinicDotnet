@@ -350,15 +350,15 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
 }
 
 function normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffForPaymentItem | undefined {
-  const bookingId = trimOptionalString(row['booking_id'] ?? row['bookingId']) ?? '';
-  const paymentId = trimOptionalString(row['payment_id'] ?? row['paymentId']) ?? bookingId;
-  const patientName = trimOptionalString(row['patient_name'] ?? row['patientName']) ?? 'Patient';
-  const doctorName = trimOptionalString(row['doctor_name'] ?? row['doctorName']) ?? 'Doctor';
-  const services = normalizeTextArray(row['services'] ?? row['service_names'] ?? row['serviceNames']);
-  const appointmentDate = trimOptionalString(row['appointment_date'] ?? row['appointmentDate']) ?? '';
-  const slotStartTime = trimOptionalString(row['slot_start_time'] ?? row['slotStartTime']) ?? '';
-  const status = trimOptionalString(row['booking_status'] ?? row['status']) ?? 'Completed';
-  const paymentStatus = trimOptionalString(row['payment_status'] ?? row['paymentStatus']) ?? 'Unpaid';
+  const bookingId = trimOptionalString(row['bookingId'] ?? row['booking_id']) ?? '';
+  const paymentId = trimOptionalString(row['paymentId'] ?? row['payment_id']) ?? bookingId;
+  const patientName = trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient';
+  const doctorName = trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor';
+  const services = normalizeTextArray(row['services'] ?? row['serviceNames'] ?? row['service_names']);
+  const appointmentDate = trimOptionalString(row['appointmentDate'] ?? row['appointment_date']) ?? '';
+  const slotStartTime = trimOptionalString(row['slotStartTime'] ?? row['slot_start_time']) ?? '';
+  const status = trimOptionalString(row['status'] ?? row['booking_status']) ?? 'Completed';
+  const paymentStatus = trimOptionalString(row['paymentStatus'] ?? row['payment_status']) ?? 'Unpaid';
 
   if (!bookingId) {
     return undefined;
@@ -372,9 +372,9 @@ function normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffFor
     services,
     appointmentDate,
     slotStartTime,
-    queueNumber: normalizeNullableNumber(row['queue_number'] ?? row['queueNumber']),
-    amountDue: normalizeNumber(row['amountDue'] ?? row['final_amount'] ?? row['finalAmount']),
-    doctorCompletedAt: trimOptionalString(row['doctor_completed_at'] ?? row['doctorCompletedAt']),
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    amountDue: normalizeNumber(row['amountDue'] ?? row['finalAmount'] ?? row['final_amount']),
+    doctorCompletedAt: trimOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
     paymentStatus: paymentStatus as StaffForPaymentItem['paymentStatus'],
     status: status as StaffForPaymentItem['status']
   };
