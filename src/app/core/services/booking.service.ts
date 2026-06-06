@@ -431,31 +431,30 @@ export class BookingService {
   }
 
   private normalizeStaffForPaymentViewRow(row: Record<string, unknown>): StaffForPaymentItem | undefined {
-    const bookingId = trimOptionalString(row['booking_id']);
+    const bookingId = trimOptionalString(row['bookingId']) ?? trimOptionalString(row['booking_id']);
     if (!bookingId) {
       return undefined;
     }
 
     const serviceNames = Array.isArray(row['services'])
       ? (row['services'] as unknown[])
-          .map((item) => (isRecord(item) ? trimOptionalString(item['service_name']) ?? trimOptionalString(item['name']) : undefined))
+          .map((item) => (isRecord(item) ? trimOptionalString(item['serviceName'] ?? item['service_name']) ?? trimOptionalString(item['name']) : undefined))
           .filter((value): value is string => Boolean(value))
       : [];
 
     return {
       bookingId,
-      // The API call uses booking_id for payment collection. Keep this field populated for existing UI code.
       paymentId: bookingId,
-      patientName: trimOptionalString(row['patient_name']) ?? 'Patient',
-      doctorName: trimOptionalString(row['doctor_name']) ?? 'Doctor',
+      patientName: trimOptionalString(row['patientName']) ?? trimOptionalString(row['patient_name']) ?? 'Patient',
+      doctorName: trimOptionalString(row['doctorName']) ?? trimOptionalString(row['doctor_name']) ?? 'Doctor',
       services: serviceNames,
-      appointmentDate: normalizeDateOnly(row['appointment_date']),
-      slotStartTime: normalizeTimeOnly(row['slot_start_time']),
-      queueNumber: normalizeNullableNumber(row['queue_number']),
-      amountDue: normalizeNumber(row['final_amount']),
-      doctorCompletedAt: trimOptionalString(row['doctor_completed_at']),
-      paymentStatus: normalizePaymentStatus(row['payment_status']) ?? 'Unpaid',
-      status: normalizeBookingStatus(row['booking_status']) ?? 'Completed'
+      appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
+      slotStartTime: normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']),
+      queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+      amountDue: normalizeNumber(row['finalAmount'] ?? row['final_amount']),
+      doctorCompletedAt: trimOptionalString(row['doctorCompletedAt'] ?? row['doctor_completed_at']),
+      paymentStatus: normalizePaymentStatus(row['paymentStatus'] ?? row['payment_status']) ?? 'Unpaid',
+      status: normalizeBookingStatus(row['status'] ?? row['booking_status']) ?? 'Completed'
     };
   }
 
@@ -1338,22 +1337,22 @@ function mapFollowUp(
 function mapPaymentRow(row: Record<string, unknown>): Record<string, unknown> {
   return {
     id: trimOptionalString(row['id']),
-    bookingId: trimOptionalString(row['booking_id']),
+    bookingId: trimOptionalString(row['bookingId'] ?? row['booking_id']),
     amount: normalizeNumber(row['amount']),
-    paymentMethod: trimOptionalString(row['payment_method']) ?? 'PayAtClinic',
-    referenceNumber: trimOptionalString(row['reference_number']),
-    proofImageUrl: trimOptionalString(row['proof_image_url']),
+    paymentMethod: trimOptionalString(row['paymentMethod'] ?? row['payment_method']) ?? 'PayAtClinic',
+    referenceNumber: trimOptionalString(row['referenceNumber'] ?? row['reference_number']),
+    proofImageUrl: trimOptionalString(row['proofImageUrl'] ?? row['proof_image_url']),
     status: trimOptionalString(row['status']),
-    orNumber: trimOptionalString(row['or_number']),
-    verifiedByUserId: trimOptionalString(row['verified_by_user_id']),
-    verifiedAt: trimOptionalString(row['verified_at']),
-    paidAt: trimOptionalString(row['verified_at']),
-    waivedByUserId: trimOptionalString(row['waived_by_user_id']),
-    waivedAt: trimOptionalString(row['waived_at']),
-    waivedReason: trimOptionalString(row['waived_reason']),
-    refundedByUserId: trimOptionalString(row['refunded_by_user_id']),
-    refundedAt: trimOptionalString(row['refunded_at']),
-    refundReason: trimOptionalString(row['refund_reason'])
+    orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']),
+    verifiedByUserId: trimOptionalString(row['verifiedByUserId'] ?? row['verified_by_user_id']),
+    verifiedAt: trimOptionalString(row['verifiedAt'] ?? row['verified_at']),
+    paidAt: trimOptionalString(row['verifiedAt'] ?? row['verified_at']),
+    waivedByUserId: trimOptionalString(row['waivedByUserId'] ?? row['waived_by_user_id']),
+    waivedAt: trimOptionalString(row['waivedAt'] ?? row['waived_at']),
+    waivedReason: trimOptionalString(row['waivedReason'] ?? row['waived_reason']),
+    refundedByUserId: trimOptionalString(row['refundedByUserId'] ?? row['refunded_by_user_id']),
+    refundedAt: trimOptionalString(row['refundedAt'] ?? row['refunded_at']),
+    refundReason: trimOptionalString(row['refundReason'] ?? row['refund_reason'])
   };
 }
 

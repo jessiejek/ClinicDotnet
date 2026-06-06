@@ -2394,7 +2394,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     bookings: Record<string, unknown>[]
   ): Promise<PatientClinicalHistoryDto['prescriptions']> {
     const bookingIds = bookings
-      .map((booking) => trimStr(booking['booking_id']) ?? '')
+      .map((booking) => (trimStr(booking['id']) ?? trimStr(booking['booking_id'])) ?? '')
       .filter((bookingId): bookingId is string => Boolean(bookingId));
 
     if (bookingIds.length === 0) {
@@ -2415,9 +2415,8 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     return consultationRecords
       .filter((record): record is NonNullable<typeof record> => Boolean(record?.prescription))
       .map((record) => {
-        const bookingDate = trimStr(
-          bookings.find((booking) => trimStr(booking['booking_id']) === record.bookingId)?.['appointment_date']
-        );
+        const match = bookings.find((booking) => (trimStr(booking['id']) ?? trimStr(booking['booking_id'])) === record.bookingId);
+        const bookingDate = trimStr(match?.['appointmentDate'] ?? match?.['appointment_date']);
 
         return {
           prescriptionDate: bookingDate ?? record.followUp?.followUpDate ?? record.bookingId,

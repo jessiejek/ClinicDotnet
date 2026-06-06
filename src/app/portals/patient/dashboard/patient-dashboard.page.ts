@@ -257,46 +257,46 @@ function mapDashboardBookings(rows: Record<string, unknown>[], patientId: string
 }
 
 function mapDashboardBookingRow(row: Record<string, unknown>, patientId: string): Booking | undefined {
-  const id = trimOptionalString(row['booking_id']) ?? trimOptionalString(row['id']);
+  const id = trimOptionalString(row['id']) ?? trimOptionalString(row['booking_id']);
   if (!id) {
     return undefined;
   }
 
-  const serviceNames = normalizeStringArray(row['service_names']);
+  const serviceNames = normalizeStringArray(row['serviceNames'] ?? row['service_names']);
   const services = normalizeServices(row['services']);
   const derivedServiceNames = serviceNames.length > 0
     ? serviceNames
     : services.map((service) => service.name).filter((name) => name.trim().length > 0);
-  const serviceName = trimOptionalString(row['service_name']) ?? derivedServiceNames[0] ?? 'Service';
-  const serviceId = trimOptionalString(row['service_id']) ?? services[0]?.id ?? '';
-  const slotStartTime = normalizeTimeOnly(row['slot_start_time']);
-  const slotEndTime = normalizeTimeOnly(row['slot_end_time']) || slotStartTime;
+  const serviceName = trimOptionalString(row['serviceName']) ?? trimOptionalString(row['service_name']) ?? derivedServiceNames[0] ?? 'Service';
+  const serviceId = trimOptionalString(row['serviceId']) ?? trimOptionalString(row['service_id']) ?? services[0]?.id ?? '';
+  const slotStartTime = normalizeTimeOnly(row['slotStartTime'] ?? row['slot_start_time']);
+  const slotEndTime = normalizeTimeOnly(row['slotEndTime'] ?? row['slot_end_time']) || slotStartTime;
 
   return {
     id,
-    patientId: trimOptionalString(row['patient_id']) ?? patientId,
-    patientName: trimOptionalString(row['patient_name']) ?? undefined,
-    doctorId: trimOptionalString(row['doctor_id']) ?? '',
-    doctorName: trimOptionalString(row['doctor_name']) ?? undefined,
+    patientId: trimOptionalString(row['patientId']) ?? trimOptionalString(row['patient_id']) ?? patientId,
+    patientName: trimOptionalString(row['patientName']) ?? trimOptionalString(row['patient_name']) ?? undefined,
+    doctorId: trimOptionalString(row['doctorId']) ?? trimOptionalString(row['doctor_id']) ?? '',
+    doctorName: trimOptionalString(row['doctorName']) ?? trimOptionalString(row['doctor_name']) ?? undefined,
     serviceId,
-    serviceIds: normalizeStringArray(row['service_ids']),
+    serviceIds: normalizeStringArray(row['serviceIds'] ?? row['service_ids']),
     serviceName,
     serviceNames: derivedServiceNames,
     services,
-    appointmentDate: normalizeDateOnly(row['appointment_date']),
+    appointmentDate: normalizeDateOnly(row['appointmentDate'] ?? row['appointment_date']),
     slotStartTime,
     slotEndTime,
-    status: (trimOptionalString(row['booking_status']) ?? 'Pending') as Booking['status'],
-    paymentStatus: (trimOptionalString(row['payment_status']) ?? 'Unpaid') as Booking['paymentStatus'],
-    paymentMode: (trimOptionalString(row['payment_mode']) ?? 'PayAtClinic') as Booking['paymentMode'],
-    queueNumber: normalizeNullableNumber(row['queue_number']),
-    totalFee: normalizeNumber(row['total_fee']),
-    finalAmount: normalizeNullableNumber(row['final_amount']),
-    amountDue: normalizeNullableNumber(row['amount_due']) ?? normalizeNullableNumber(row['final_amount']),
-    consultationFeeSnapshot: normalizeNumber(row['consultation_fee_snapshot']),
-    serviceFeeSnapshot: normalizeNumber(row['service_fee_snapshot']),
-    isWalkIn: normalizeBoolean(row['is_walk_in'], false),
-    createdAt: trimOptionalString(row['created_at']) ?? new Date().toISOString()
+    status: (trimOptionalString(row['status']) ?? trimOptionalString(row['booking_status']) ?? 'Pending') as Booking['status'],
+    paymentStatus: (trimOptionalString(row['paymentStatus']) ?? trimOptionalString(row['payment_status']) ?? 'Unpaid') as Booking['paymentStatus'],
+    paymentMode: (trimOptionalString(row['paymentMode']) ?? trimOptionalString(row['payment_mode']) ?? 'PayAtClinic') as Booking['paymentMode'],
+    queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
+    totalFee: normalizeNumber(row['totalFee'] ?? row['total_fee']),
+    finalAmount: normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    amountDue: normalizeNullableNumber(row['amountDue'] ?? row['amount_due']) ?? normalizeNullableNumber(row['finalAmount'] ?? row['final_amount']),
+    consultationFeeSnapshot: normalizeNumber(row['consultationFeeSnapshot'] ?? row['consultation_fee_snapshot']),
+    serviceFeeSnapshot: normalizeNumber(row['serviceFeeSnapshot'] ?? row['service_fee_snapshot']),
+    isWalkIn: normalizeBoolean(row['isWalkIn'] ?? row['is_walk_in'], false),
+    createdAt: trimOptionalString(row['createdAt'] ?? row['created_at']) ?? new Date().toISOString()
   };
 }
 
