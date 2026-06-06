@@ -42,7 +42,7 @@ export class DoctorPatientDetailPage {
       this.errorMessage = '';
       return from(this.buildClinicalHistory(patientId)).pipe(
         catchError((err: any) => {
-          console.error('Clinical history error:', err);
+          console.error('[DoctorPatientDetail] buildClinicalHistory failed:', err?.message ?? err);
           this.errorMessage = 'Failed to load clinical history.';
           return of(null);
         })
@@ -125,37 +125,48 @@ export class DoctorPatientDetailPage {
   }
 
   private async buildClinicalHistory(patientId: string): Promise<PatientClinicalHistoryDto> {
-    // Load patient from API
-    const patientRow: any = await firstValueFrom(this.apiService.get('patients/' + patientId));
+    const patientRow: any = await firstValueFrom(
+      this.apiService.get('patients/' + patientId).pipe(
+        catchError((err) => {
+          console.error('Failed to fetch patient:', err);
+          return of(null);
+        })
+      )
+    );
 
     const patient: PatientClinicalHistoryPatientDto = {
       id: patientId,
-      patientCode: trimStr(patientRow?.patient_code) || patientId,
-      fullName: composeName(patientRow?.first_name, patientRow?.middle_name, patientRow?.last_name),
-      dateOfBirth: trimStr(patientRow?.date_of_birth),
+      patientCode: trimStr(patientRow?.patientCode) || trimStr(patientRow?.patient_code) || patientId,
+      fullName: trimStr(patientRow?.fullName) || composeName(patientRow?.firstName, patientRow?.middleName, patientRow?.lastName) || 'Unknown Patient',
+      dateOfBirth: trimStr(patientRow?.dateOfBirth) || trimStr(patientRow?.date_of_birth),
       sex: trimStr(patientRow?.sex),
-      contactNumber: trimStr(patientRow?.contact_number),
-      email: trimStr(patientRow?.contact_email),
+      contactNumber: trimStr(patientRow?.contactNumber) || trimStr(patientRow?.contact_number),
+      email: trimStr(patientRow?.email) || trimStr(patientRow?.contact_email) || trimStr(patientRow?.email),
     };
 
     const [bookingRowsResult, recordState] = await Promise.all([
-      firstValueFrom(this.apiService.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50')),
+      firstValueFrom(this.apiService.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50').pipe(catchError(() => of([])))),
       firstValueFrom(
         forkJoin({
           consultations: this.apiService.get<any[]>('medical-records/consultations?patientId=' + patientId).pipe(
-            map((rows) => this.medicalRecords.mapConsultationRows(rows ?? []))
+            map((rows) => this.medicalRecords.mapConsultationRows(rows ?? [])),
+            catchError(() => of([]))
           ),
           prescriptions: this.apiService.get<any[]>('medical-records/prescriptions?patientId=' + patientId).pipe(
-            map((rows) => this.medicalRecords.mapPrescriptionRows(rows ?? []))
+            map((rows) => this.medicalRecords.mapPrescriptionRows(rows ?? [])),
+            catchError(() => of([]))
           ),
           labResults: this.apiService.get<any[]>('medical-records/lab-results?patientId=' + patientId).pipe(
-            map((rows) => this.medicalRecords.mapLabResultRows(rows ?? []))
+            map((rows) => this.medicalRecords.mapLabResultRows(rows ?? [])),
+            catchError(() => of([]))
           ),
           vaccinations: this.apiService.get<any[]>('medical-records/vaccinations?patientId=' + patientId).pipe(
-            map((rows) => this.medicalRecords.mapVaccinationRows(rows ?? []))
+            map((rows) => this.medicalRecords.mapVaccinationRows(rows ?? [])),
+            catchError(() => of([]))
           ),
           followUps: this.apiService.get<any[]>('medical-records/follow-ups?patientId=' + patientId).pipe(
-            map((rows) => this.medicalRecords.mapFollowUpRows(rows ?? []))
+            map((rows) => this.medicalRecords.mapFollowUpRows(rows ?? [])),
+            catchError(() => of([]))
           )
         })
       )
@@ -163,7 +174,7 @@ export class DoctorPatientDetailPage {
 
     const bookingRows = bookingRowsResult ?? [];
 
-    const bookings = (bookingRows ?? []) as Record<string, unknown>[];
+    const bookings = (Array.isArray(bookingRows) ? bookingRows : (bookingRows as any)?.items ?? []) as Record<string, unknown>[];
     const consultations = recordState.consultations;
     const prescriptions = dedupePrescriptionEntries([
       ...recordState.prescriptions
@@ -190,28 +201,28 @@ export class DoctorPatientDetailPage {
 
     const summary: PatientClinicalHistorySummaryDto = {
       totalAppointments: bookings.length,
-      completedConsultations: consultations.length || bookings.filter((b) => trimStr(b['booking_status']) === 'Completed').length,
+      completedConsultations: consultations.length || bookings.filter((b) => (trimStr(b['status']) ?? trimStr(b['booking_status'])) === 'Completed').length,
       activePrescriptions: prescriptions.length,
       labResultsCount: labResults.length,
       documentsCount: 0,
       vaccinationsCount: vaccinations.length,
-      lastVisitDate: bookings.length > 0 ? trimStr(bookings[0]['appointment_date']) : undefined,
-      nextAppointmentDate: bookings.find((b) => ['Confirmed', 'CheckedIn'].includes(trimStr(b['booking_status']) ?? ''))?.['appointment_date'] as string | undefined,
+      lastVisitDate: bookings.length > 0 ? (trimStr(bookings[0]['appointmentDate']) ?? trimStr(bookings[0]['appointment_date'])) : undefined,
+      nextAppointmentDate: bookings.find((b) => ['Confirmed', 'CheckedIn'].includes((trimStr(b['status']) ?? trimStr(b['booking_status'])) ?? ''))?.['appointmentDate'] as string | undefined,
     };
 
     // Build timeline and subsections from booking data (other sections deferred)
     const appointments = bookings.map((b) => ({
-      bookingId: trimStr(b['booking_id']) ?? '',
-      appointmentDate: trimStr(b['appointment_date']) ?? '',
-      slotStartTime: trimStr(b['slot_start_time']) ?? '',
-      slotEndTime: trimStr(b['slot_end_time']) ?? '',
-      doctorId: trimStr(b['doctor_id']) ?? '',
-      doctorName: trimStr(b['doctor_name']) ?? 'Doctor',
-      serviceName: trimStr(b['service_name']) ?? '',
-      serviceNames: (b['service_names'] as string[]) ?? [],
-      status: trimStr(b['booking_status']) ?? '',
-      paymentStatus: trimStr(b['payment_status']) ?? '',
-      queueNumber: normalizeNum(b['queue_number']),
+      bookingId: (trimStr(b['id']) ?? trimStr(b['booking_id'])) ?? '',
+      appointmentDate: (trimStr(b['appointmentDate']) ?? trimStr(b['appointment_date'])) ?? '',
+      slotStartTime: (trimStr(b['slotStartTime']) ?? trimStr(b['slot_start_time'])) ?? '',
+      slotEndTime: (trimStr(b['slotEndTime']) ?? trimStr(b['slot_end_time'])) ?? '',
+      doctorId: (trimStr(b['doctorId']) ?? trimStr(b['doctor_id'])) ?? '',
+      doctorName: (trimStr(b['doctorName']) ?? trimStr((b['doctor'] as Record<string, unknown>)?.['fullName']) ?? trimStr(b['doctor_name'])) ?? 'Doctor',
+      serviceName: (trimStr(b['serviceName']) ?? trimStr(b['service_name'])) ?? '',
+      serviceNames: (b['serviceNames'] as string[]) ?? (b['service_names'] as string[]) ?? [],
+      status: (trimStr(b['status']) ?? trimStr(b['booking_status'])) ?? '',
+      paymentStatus: (trimStr(b['paymentStatus']) ?? trimStr(b['payment_status'])) ?? '',
+      queueNumber: normalizeNum(b['queueNumber'] ?? b['queue_number']),
     }));
 
     const timeline = appointments.map((a) => ({
@@ -233,7 +244,10 @@ export class DoctorPatientDetailPage {
         consultationId: consultation.id,
         appointmentDate: consultation.consultationDate,
         appointmentTime: consultation.consultationTime ?? '',
-        doctorName: bookings.find((booking) => trimStr(booking['booking_id']) === consultation.bookingId)?.['doctor_name'] as string || 'Doctor',
+        doctorName: (() => {
+          const match = bookings.find((booking) => (trimStr(booking['id']) ?? trimStr(booking['booking_id'])) === consultation.bookingId);
+          return (trimStr(match?.['doctorName']) || trimStr((match?.['doctor'] as Record<string, unknown>)?.['fullName']) || 'Doctor');
+        })(),
         generalNotes: consultation.generalNotes,
         vitalSigns: consultation.vitalSigns ?? null,
         soap: consultation as unknown as Record<string, string | null> | null,
@@ -290,7 +304,7 @@ export class DoctorPatientDetailPage {
     bookings: Record<string, unknown>[]
   ): Promise<PatientClinicalHistoryDto['prescriptions']> {
     const bookingIds = bookings
-      .map((booking) => trimStr(booking['booking_id']) ?? '')
+      .map((booking) => (trimStr(booking['id']) ?? trimStr(booking['booking_id'])) ?? '')
       .filter((bookingId): bookingId is string => Boolean(bookingId));
 
     if (bookingIds.length === 0) {
@@ -311,9 +325,8 @@ export class DoctorPatientDetailPage {
     return consultationRecords
       .filter((record): record is ConsultationRecordResponse => Boolean(record?.prescription))
       .map((record) => {
-        const bookingDate = trimStr(
-          bookings.find((booking) => trimStr(booking['booking_id']) === record.bookingId)?.['appointment_date']
-        );
+        const match = bookings.find((booking) => (trimStr(booking['id']) ?? trimStr(booking['booking_id'])) === record.bookingId);
+        const bookingDate = trimStr(match?.['appointmentDate']) ?? trimStr(match?.['appointment_date']);
 
         return {
         prescriptionDate: bookingDate ?? record.followUp?.followUpDate ?? record.bookingId,
@@ -400,7 +413,7 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
               .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
               .map((item) => ({
                 id: trimStr(item['id']),
-                medicationName: trimStr(item['medication_name']) ?? '',
+                medicationName: (trimStr(item['medicationName']) || trimStr(item['medication_name'])) ?? '',
                 strength: trimStr(item['strength']),
                 dosage: trimStr(item['dosage']),
                 route: trimStr(item['route']),
@@ -415,12 +428,12 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
     : null;
 
   return {
-    bookingId: trimStr(row['booking_id']) ?? '',
-    consultationId: trimStr(row['consultation_id']),
-    patientId: trimStr(row['patient_id']) ?? '',
-    doctorId: trimStr(row['doctor_id']) ?? '',
-    bookingStatus: (trimStr(row['booking_status']) ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
-    generalNotes: trimStr(row['general_notes']),
+    bookingId: (trimStr(row['bookingId']) || trimStr(row['booking_id'])) ?? '',
+    consultationId: trimStr(row['consultationId']) || trimStr(row['consultation_id']),
+    patientId: (trimStr(row['patientId']) || trimStr(row['patient_id'])) ?? '',
+    doctorId: (trimStr(row['doctorId']) || trimStr(row['doctor_id'])) ?? '',
+    bookingStatus: ((trimStr(row['bookingStatus']) || trimStr(row['booking_status'])) ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
+    generalNotes: trimStr(row['generalNotes']) || trimStr(row['general_notes']),
     vitalSigns: null,
     soap: null,
     diagnoses: [],
@@ -429,7 +442,7 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
     followUp: firstFollowUpRow
       ? {
           id: trimStr(firstFollowUpRow['id']),
-          followUpDate: trimStr(firstFollowUpRow['follow_up_date']),
+          followUpDate: trimStr(firstFollowUpRow['followUpDate']) || trimStr(firstFollowUpRow['follow_up_date']),
           instructions: trimStr(firstFollowUpRow['instructions']),
           reason: trimStr(firstFollowUpRow['reason'])
         }

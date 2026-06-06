@@ -2,13 +2,13 @@ export const environment = {
   production: false,
 
   // .NET backend API URL
-  apiUrl: 'https://localhost:44384/api',
+  apiUrl: 'http://localhost:5000/api',
 
   // SignalR hub URL (same origin, different path)
-  signalrHubUrl: 'https://localhost:44384/hubs/clinic-dashboard',
+  signalrHubUrl: 'http://localhost:5000/hubs/clinic-dashboard',
 
   // Legacy alias — kept for backward compatibility
-  apiBaseUrl: 'https://localhost:44384/api',
+  apiBaseUrl: 'http://localhost:5000/api',
 
   // .NET backend handles auth. Social login via /api/auth/google and /api/auth/facebook.
   // Google OAuth client ID — matches the one validated by the .NET backend
