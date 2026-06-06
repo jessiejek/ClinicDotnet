@@ -27,6 +27,7 @@ export interface DoctorScheduleSavePayload {
   styleUrl: './doctor-schedule-editor.component.scss'
 })
 export class DoctorScheduleEditorComponent implements OnChanges {
+  private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   @Input() schedules: DoctorWeeklyScheduleDraft[] = [];
   @Input() blockedDates: DoctorBlockedDate[] = [];
   @Input() previewSlots: TimeSlot[] = [];
@@ -98,5 +99,16 @@ export class DoctorScheduleEditorComponent implements OnChanges {
 
   markDirty(): void {
     this.dirtyChanged.emit();
+    this.scheduleAutoSave();
+  }
+
+  private scheduleAutoSave(): void {
+    if (this.autoSaveTimer) {
+      clearTimeout(this.autoSaveTimer);
+    }
+    this.autoSaveTimer = setTimeout(() => {
+      this.autoSaveTimer = null;
+      this.save();
+    }, 800);
   }
 }
