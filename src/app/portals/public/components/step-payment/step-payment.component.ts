@@ -1,4 +1,4 @@
-import { AsyncPipe, NgFor, NgIf } from '@angular/common';
+import { AsyncPipe, DatePipe, NgFor, NgIf } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -8,11 +8,12 @@ import { ApiService } from '../../../../core/services/api.service';
 import { AuthStateService } from '../../../../core/services/auth-state.service';
 import { CreateBookingRequest } from '../../../../core/services/booking.service';
 import { BookingWizardService } from '../../../../core/services/booking-wizard.service';
+import { TimeSlotPipe } from '../../../../shared/pipes/time-slot.pipe';
 
 @Component({
   selector: 'app-step-payment',
   standalone: true,
-  imports: [NgIf, NgFor, AsyncPipe, FormsModule],
+  imports: [NgIf, NgFor, AsyncPipe, FormsModule, DatePipe, TimeSlotPipe],
   templateUrl: './step-payment.component.html',
   styleUrl: './step-payment.component.scss'
 })

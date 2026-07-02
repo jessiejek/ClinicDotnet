@@ -39,6 +39,9 @@ export class TopbarComponent {
   }
 
   get roleBadge() {
+    if (this.currentUser?.role === 'Patient') {
+      return { label: 'Patient', className: 'role-badge--patient' };
+    }
     return getClinicalRoleBadge(resolveClinicalRole(this.currentUser));
   }
 

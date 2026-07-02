@@ -165,6 +165,10 @@
   background: #4b5563;
 }
 
+.role-badge--patient {
+  background: #0891b2;
+}
+
 @media (max-width: 768px) {
   .topbar {
     gap: var(--space-2);

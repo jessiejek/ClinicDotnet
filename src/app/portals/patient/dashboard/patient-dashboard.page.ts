@@ -80,7 +80,7 @@ export class PatientDashboardPage implements OnInit {
   readonly patientBookings$ = this.patient$.pipe(
     switchMap((patient) =>
       patient
-        ? this.apiService.get<any>('bookings?page=1&pageSize=100').pipe(
+        ? this.apiService.get<any>('bookings/me?page=1&pageSize=100').pipe(
             map((data) =>
               mapDashboardBookings((data?.items ?? data ?? []) as Record<string, unknown>[], patient.id)
                 .filter((booking) => !booking.patientId || booking.patientId === patient.id)

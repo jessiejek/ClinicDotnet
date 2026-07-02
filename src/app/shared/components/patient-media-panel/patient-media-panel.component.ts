@@ -546,7 +546,7 @@ export class PatientMediaPanelComponent implements OnInit, OnChanges {
               .filter((booking) => booking.patientId === this.patientId);
           })
         )
-      : this.apiService.get<any>('bookings?page=1&pageSize=100').pipe(
+      : this.apiService.get<any>('bookings/me?page=1&pageSize=100').pipe(
           map((data: any) => {
             const rows = (data?.items ?? data ?? []) as Record<string, unknown>[];
             return rows

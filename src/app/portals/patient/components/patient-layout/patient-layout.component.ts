@@ -1,6 +1,6 @@
-import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
-import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { catchError, filter, of } from 'rxjs';
+import { Component, HostListener, OnInit, inject } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { catchError, of } from 'rxjs';
 import { addIcons } from 'ionicons';
 import {
   calendarOutline,
@@ -11,7 +11,6 @@ import {
   medicalOutline,
   personOutline
 } from 'ionicons/icons';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ToastController } from '@ionic/angular/standalone';
 import { NavItem } from '../../../../core/models';
 import { ApiService } from '../../../../core/services/api.service';
@@ -36,10 +35,8 @@ export class PatientLayoutComponent implements OnInit {
   private readonly apiService = inject(ApiService);
   private readonly notificationService = inject(NotificationService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly clinicSettingsService = inject(ClinicSettingsService);
   private readonly tokenService = inject(TokenService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly toastCtrl = inject(ToastController);
 
   readonly currentUser = this.authState.currentUser;
@@ -48,7 +45,6 @@ export class PatientLayoutComponent implements OnInit {
   clinicName = '';
   portalLabel = 'Patient Portal';
   portalTitle = 'Dashboard';
-  pageTitle = 'Dashboard';
   navItems: NavItem[] = PATIENT_NAV_ITEMS;
   sidebarOpen = false;
   private sidebarMode = 'desktop';
@@ -69,15 +65,12 @@ export class PatientLayoutComponent implements OnInit {
   ngOnInit(): void {
     this.clinicName = this.clinicSettingsService.load().clinicName;
     this.syncSidebarState(true);
-    this.updatePageTitle();
     this.loadNotifications();
+  }
 
-    this.router.events
-      .pipe(
-        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe(() => this.updatePageTitle());
+  get pageTitle(): string {
+    const route = this.getDeepestChild(this.router.routerState.root);
+    return (route.snapshot?.data?.['title'] as string | undefined) ?? this.portalTitle;
   }
 
   @HostListener('window:resize')
@@ -129,11 +122,6 @@ export class PatientLayoutComponent implements OnInit {
         void this.showToast('Document not available yet.');
       }
     });
-  }
-
-  private updatePageTitle(): void {
-    const route = this.getDeepestChild(this.route);
-    this.pageTitle = (route.snapshot.data['title'] as string | undefined) ?? this.portalTitle;
   }
 
   private getDeepestChild(route: ActivatedRoute): ActivatedRoute {

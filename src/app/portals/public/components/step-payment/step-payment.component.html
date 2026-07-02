@@ -32,11 +32,11 @@
           </div>
           <div class="summary-row">
             <span>Date</span>
-            <strong>{{ vm.selectedDate }}</strong>
+            <strong>{{ vm.selectedDate | date : 'MMMM d, y (EEE)' }}</strong>
           </div>
           <div class="summary-row">
             <span>Time</span>
-            <strong>{{ vm.selectedSlot }} - {{ vm.selectedSlotEnd }}</strong>
+            <strong>{{ vm.selectedSlot | timeSlot }} - {{ vm.selectedSlotEnd | timeSlot }}</strong>
           </div>
         </div>
 
