@@ -1,6 +1,5 @@
 
-    <section class="consultation-grid">
-      <div class="consultation-main">
+    <section class="consultation-main">
         <app-vital-signs-form
           id="section-vitals"
           [value]="vm.consultation?.vitalSigns ?? null"
@@ -103,35 +102,5 @@
           (notesChange)="professionalFeeNotesChange.emit($event)"
           (validityChange)="professionalFeeValidityChange.emit($event)"
         ></app-professional-fee-decision-form>
-      </div>
-
-      <aside class="consultation-side">
-        <app-vitals-trend-chart [consultations]="vm.recentConsultations"></app-vitals-trend-chart>
-
-        <section class="clinic-card side-card">
-          <h3>Patient Allergies</h3>
-          <p *ngFor="let allergy of vm.allergies">{{ allergy.allergen }} &bull; {{ allergy.severity }}</p>
-          <p *ngIf="vm.allergies.length === 0">No allergies on record.</p>
-        </section>
-
-        <section class="clinic-card side-card">
-          <h3>Vaccinations</h3>
-          <p *ngFor="let vaccination of vm.vaccinations">
-            {{ vaccination.vaccineName }} &bull; {{ vaccination.dateGiven | date : 'MMMM d, y (EEE)' }}
-          </p>
-          <p *ngIf="vm.vaccinations.length === 0">No vaccinations on record.</p>
-        </section>
-
-        <section class="clinic-card side-card">
-          <div class="side-card__head" title="Lab result files uploaded by the patient">
-            <h3><i class="ti ti-upload"></i> Lab Results</h3>
-            <p>Files uploaded by the patient</p>
-          </div>
-          <p *ngFor="let result of vm.labResults">
-            {{ result.fileName }} &bull; {{ result.resultDate | date : 'MMMM d, y (EEE)' }}
-          </p>
-          <p *ngIf="vm.labResults.length === 0">No lab results on record.</p>
-        </section>
-      </aside>
     </section>
   

@@ -89,7 +89,7 @@ export class DoctorPatientsPage implements OnInit {
           patientCode: trimOptionalString(row['patientCode'] ?? row['patient_code']),
           latestDate: normalizeDateOnly(row['latestDate'] ?? row['appointment_date']),
           latestTime: normalizeTimeOnly(row['latestTime'] ?? row['slot_start_time']),
-          services: normalizeBookingServices(row['services']).map((s) => s.name).filter(Boolean).join(', '),
+          services: trimOptionalString(row['services']) ?? normalizeBookingServices(row['services']).map((s) => s.name).filter(Boolean).join(', '),
           status: normalizeBookingStatus(row['status'] ?? row['booking_status']) ?? 'Pending',
           queueNumber: normalizeNullableNumber(row['queueNumber'] ?? row['queue_number']),
           latestBookingId: trimOptionalString(row['latestBookingId'] ?? row['booking_id']) ?? ''

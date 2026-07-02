@@ -396,26 +396,27 @@ function composeName(first: unknown, middle: unknown, last: unknown): string {
 }
 
 function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRecordResponse {
-  const prescriptionRows = Array.isArray(row['prescriptions']) ? row['prescriptions'] : [];
-  const firstPrescription = prescriptionRows.find((item) => typeof item === 'object' && item !== null) as
-    | Record<string, unknown>
-    | undefined;
-  const firstFollowUpRow = Array.isArray(row['follow_ups'])
-    ? (row['follow_ups'].find((item) => typeof item === 'object' && item !== null) as Record<string, unknown> | undefined)
-    : undefined;
+  const prescriptionRow =
+    typeof row['prescription'] === 'object' && row['prescription'] !== null
+      ? (row['prescription'] as Record<string, unknown>)
+      : undefined;
+  const followUpRow =
+    typeof row['followUp'] === 'object' && row['followUp'] !== null
+      ? (row['followUp'] as Record<string, unknown>)
+      : undefined;
 
-  const prescription = firstPrescription
+  const prescription = prescriptionRow
     ? {
-        id: trimStr(firstPrescription['id']),
-        notes: trimStr(firstPrescription['notes']),
-        items: Array.isArray(firstPrescription['items'])
-          ? firstPrescription['items']
+        id: trimStr(prescriptionRow['id']),
+        notes: trimStr(prescriptionRow['notes']),
+        items: Array.isArray(prescriptionRow['items'])
+          ? prescriptionRow['items']
               .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
               .map((item) => ({
                 id: trimStr(item['id']),
-                medicationName: (trimStr(item['medicationName']) || trimStr(item['medication_name'])) ?? '',
+                medicationName: trimStr(item['medicineName']) ?? '',
                 strength: trimStr(item['strength']),
-                dosage: trimStr(item['dosage']),
+                dosage: trimStr(item['dosageForm']),
                 route: trimStr(item['route']),
                 frequency: trimStr(item['frequency']),
                 duration: trimStr(item['duration']),
@@ -428,23 +429,23 @@ function mapConsultationRecordRow(row: Record<string, unknown>): ConsultationRec
     : null;
 
   return {
-    bookingId: (trimStr(row['bookingId']) || trimStr(row['booking_id'])) ?? '',
-    consultationId: trimStr(row['consultationId']) || trimStr(row['consultation_id']),
-    patientId: (trimStr(row['patientId']) || trimStr(row['patient_id'])) ?? '',
-    doctorId: (trimStr(row['doctorId']) || trimStr(row['doctor_id'])) ?? '',
-    bookingStatus: ((trimStr(row['bookingStatus']) || trimStr(row['booking_status'])) ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
-    generalNotes: trimStr(row['generalNotes']) || trimStr(row['general_notes']),
+    bookingId: trimStr(row['bookingId']) ?? '',
+    consultationId: trimStr(row['consultationId']),
+    patientId: trimStr(row['patientId']) ?? '',
+    doctorId: trimStr(row['doctorId']) ?? '',
+    bookingStatus: (trimStr(row['bookingStatus']) ?? 'Completed') as ConsultationRecordResponse['bookingStatus'],
+    generalNotes: trimStr(row['generalNotes']),
     vitalSigns: null,
     soap: null,
     diagnoses: [],
     prescription,
     labOrders: [],
-    followUp: firstFollowUpRow
+    followUp: followUpRow
       ? {
-          id: trimStr(firstFollowUpRow['id']),
-          followUpDate: trimStr(firstFollowUpRow['followUpDate']) || trimStr(firstFollowUpRow['follow_up_date']),
-          instructions: trimStr(firstFollowUpRow['instructions']),
-          reason: trimStr(firstFollowUpRow['reason'])
+          id: trimStr(followUpRow['id']),
+          followUpDate: trimStr(followUpRow['followUpDate']),
+          instructions: trimStr(followUpRow['instructions']),
+          reason: trimStr(followUpRow['reason'])
         }
       : null
   };

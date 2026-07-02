@@ -47,12 +47,15 @@ function formatDayRangeLabel(days: DayOfWeek[]): string {
   return sorted.map((d) => DAY_SHORT[d]).join(', ');
 }
 
+const DEFAULT_OPEN_HOURS = { isOpen: true, openTime: '08:00', closeTime: '17:00' };
+const DEFAULT_CLOSED_HOURS = { isOpen: false, openTime: '08:00', closeTime: '12:00' };
+
 /** Lines for clinic settings (Mon–Fri / Sat / Sun). */
 export function formatClinicOperatingLines(settings: ClinicSettings): [string, string, string] {
   const oh = settings.operatingHours;
-  const mf = oh.monday;
-  const sat = oh.saturday;
-  const sun = oh.sunday;
+  const mf = oh?.monday ?? DEFAULT_OPEN_HOURS;
+  const sat = oh?.saturday ?? DEFAULT_CLOSED_HOURS;
+  const sun = oh?.sunday ?? DEFAULT_CLOSED_HOURS;
 
   let monFriLine: string;
   if (mf.isOpen) {

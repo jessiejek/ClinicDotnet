@@ -103,10 +103,16 @@ export interface DoctorCompleteBookingRequest {
       medicationName: string;
       strength?: string | null;
       dosage?: string | null;
+      dose?: string | null;
       route?: string | null;
+      routeDescription?: string | null;
       frequency?: string | null;
+      frequencyCode?: string | null;
       duration?: string | null;
       quantity?: string | number | null;
+      unitOfMeasure?: string | null;
+      unitOfMeasureDescription?: string | null;
+      sig?: string | null;
       instructions?: string | null;
     }>;
   } | null;
@@ -173,10 +179,16 @@ export interface ConsultationRecordResponse {
       medicationName: string;
       strength?: string | null;
       dosage?: string | null;
+      dose?: string | null;
       route?: string | null;
+      routeDescription?: string | null;
       frequency?: string | null;
+      frequencyCode?: string | null;
       duration?: string | null;
       quantity?: string | null;
+      unitOfMeasure?: string | null;
+      unitOfMeasureDescription?: string | null;
+      sig?: string | null;
       instructions?: string | null;
     }>;
   } | null;
@@ -1127,10 +1139,16 @@ export class BookingService {
       medicationName,
       strength: trimOptionalString(payload['strength']),
       dosage: trimOptionalString(payload['dosage']),
+      dose: trimOptionalString(payload['dose']),
       route: trimOptionalString(payload['route']),
+      routeDescription: trimOptionalString(payload['routeDescription']),
       frequency: trimOptionalString(payload['frequency']),
+      frequencyCode: trimOptionalString(payload['frequencyCode']),
       duration: trimOptionalString(payload['duration']),
       quantity: trimOptionalString(payload['quantity']),
+      unitOfMeasure: trimOptionalString(payload['unitOfMeasure']),
+      unitOfMeasureDescription: trimOptionalString(payload['unitOfMeasureDescription']),
+      sig: trimOptionalString(payload['sig']),
       instructions: trimOptionalString(payload['instructions'])
     } as never;
   }

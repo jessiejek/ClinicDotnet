@@ -96,10 +96,16 @@ export interface ConsultationRecordResponse {
       medicationName: string;
       strength?: string | null;
       dosage?: string | null;
+      dose?: string | null;
       route?: string | null;
+      routeDescription?: string | null;
       frequency?: string | null;
+      frequencyCode?: string | null;
       duration?: string | null;
       quantity?: string | null;
+      unitOfMeasure?: string | null;
+      unitOfMeasureDescription?: string | null;
+      sig?: string | null;
       instructions?: string | null;
     }>;
   } | null;
@@ -272,7 +278,7 @@ function mapVaccinationRow(row: Record<string, unknown>): VaccinationRecord | nu
     vaccineName: str(row, 'vaccineName'),
     dateGiven: str(row, 'dateGiven'),
     administeredBy: strOpt(row, 'administeredBy'),
-    doseNumber: num(row, 'doseNumber'),
+    doseNumber: strOpt(row, 'doseNumber'),
     lotNumber: strOpt(row, 'lotNumber'),
     brandName: strOpt(row, 'brandName'),
     dateAdministered: strOpt(row, 'dateAdministered'),
@@ -317,13 +323,19 @@ function mapConsultationRecordRowInternal(row: Record<string, unknown>): Consult
               .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
               .map((item) => ({
                 id: strOpt(item, 'id'),
-                medicationName: str(item, 'medication_name') ?? '',
+                medicationName: str(item, 'medicationName') || str(item, 'medicineName') || str(item, 'medication_name'),
                 strength: strOpt(item, 'strength'),
-                dosage: strOpt(item, 'dosage'),
+                dosage: strOpt(item, 'dosage') ?? strOpt(item, 'dosageForm'),
+                dose: strOpt(item, 'dose'),
                 route: strOpt(item, 'route'),
+                routeDescription: strOpt(item, 'routeDescription'),
                 frequency: strOpt(item, 'frequency'),
+                frequencyCode: strOpt(item, 'frequencyCode'),
                 duration: strOpt(item, 'duration'),
                 quantity: strOpt(item, 'quantity'),
+                unitOfMeasure: strOpt(item, 'unitOfMeasure'),
+                unitOfMeasureDescription: strOpt(item, 'unitOfMeasureDescription'),
+                sig: strOpt(item, 'sig'),
                 instructions: strOpt(item, 'instructions')
               }))
               .filter((item) => item.medicationName.length > 0)

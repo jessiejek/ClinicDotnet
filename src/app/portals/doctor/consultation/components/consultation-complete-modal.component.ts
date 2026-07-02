@@ -14,6 +14,7 @@ export interface ConsultationChecklistItem {
   label: string;
   detail?: string;
   complete: boolean;
+  optional?: boolean;
 }
 
 export interface ConsultationSummaryLine {
@@ -98,6 +99,16 @@ export interface ConsultationSummaryLine {
       .checklist__icon--missing {
         background: #fee2e2;
         color: #b91c1c;
+      }
+
+      .checklist__icon--optional {
+        background: #f1f5f9;
+        color: #64748b;
+      }
+
+      .checklist__optional-tag {
+        color: #94a3b8;
+        font-weight: 600;
       }
 
       .checklist__body {
@@ -189,7 +200,7 @@ export class ConsultationCompleteModalComponent implements OnInit {
   }
 
   hasMissingChecklistItems(): boolean {
-    return this.checklistItems.some((item) => !item.complete);
+    return this.checklistItems.some((item) => !item.complete && !item.optional);
   }
 
   goToSummary(): void {

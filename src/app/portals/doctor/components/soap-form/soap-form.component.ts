@@ -1,5 +1,6 @@
 import { NgFor, NgIf } from '@angular/common';
 import {
+  AfterViewInit,
   Component,
   DestroyRef,
   ElementRef,
@@ -32,7 +33,7 @@ export interface SoapFormValue {
   templateUrl: './soap-form.component.html',
   styleUrl: './soap-form.component.scss'
 })
-export class SoapFormComponent implements OnChanges {
+export class SoapFormComponent implements OnChanges, AfterViewInit {
   @Input() value: SoapFormValue | null = null;
   @Input() lastVisitSoap: SoapFormValue | null = null;
   @Input() auditText = 'Not yet edited this visit';
@@ -127,6 +128,7 @@ export class SoapFormComponent implements OnChanges {
         { emitEvent: false }
       );
       this.emitValue();
+      queueMicrotask(() => this.resizeTextareas());
     }
 
     if (changes['locked']) {
@@ -135,6 +137,45 @@ export class SoapFormComponent implements OnChanges {
       } else {
         this.form.enable({ emitEvent: false });
       }
+    }
+  }
+
+  ngAfterViewInit(): void {
+    this.resizeTextareas();
+    this.maybeAutoFocusChiefComplaint();
+  }
+
+  private maybeAutoFocusChiefComplaint(): void {
+    if (this.locked) {
+      return;
+    }
+
+    const isBrandNew = !this.value || Object.values(this.value).every((field) => !field?.trim());
+    if (!isBrandNew) {
+      return;
+    }
+
+    void this.chiefComplaintInput?.setFocus();
+  }
+
+  private resizeTextareas(): void {
+    const inputs = [
+      this.chiefComplaintInput,
+      this.subjectiveInput,
+      this.objectiveInput,
+      this.assessmentInput,
+      this.planInput
+    ];
+
+    for (const ionTextarea of inputs) {
+      if (!ionTextarea) {
+        continue;
+      }
+
+      void ionTextarea.getInputElement().then((el) => {
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+      });
     }
   }
 

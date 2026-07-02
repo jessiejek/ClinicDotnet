@@ -17,7 +17,8 @@ import {
 } from '../../../../core/services/drug-interaction.service';
 import {
   MEDICATION_FREQUENCY_MASTERS,
-  MEDICATION_ROUTE_MASTERS
+  MEDICATION_ROUTE_MASTERS,
+  MEDICATION_UOM_MASTERS
 } from '../prescription-builder/prescription-masters';
 import { PRESCRIPTION_DRUG_LIST } from '../prescription-builder/prescription-drug-list';
 
@@ -37,16 +38,32 @@ interface PendingMedicineAction {
     `
       :host{display:block;scroll-margin-top:128px}
       .pf{display:grid;gap:var(--space-4)}
-      .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-3)}
+      .pf-hidden-fields{display:none}
+      .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--space-3)}
       .pf-f{display:grid;gap:4px;position:relative}
       .pf-f label{font-size:12px;font-weight:500;color:#475569;text-transform:uppercase}
-      .pf-f input{padding:var(--space-2) var(--space-3);font-size:14px;border:1px solid #e2e8f0;border-radius:var(--radius-md);outline:none;background:#fff;color:var(--clinic-text-primary);width:100%;min-height:44px}
-      .pf-f input:focus{border-color:var(--ion-color-primary);box-shadow:0 0 0 2px rgba(93,62,142,.12)}
+      .pf-f input,.pf-f select{padding:var(--space-2) var(--space-3);font-size:14px;border:1px solid #e2e8f0;border-radius:var(--radius-md);outline:none;background:#fff;color:var(--clinic-text-primary);width:100%;min-height:44px}
+      .pf-f input:focus,.pf-f select:focus{border-color:var(--ion-color-primary);box-shadow:0 0 0 2px rgba(93,62,142,.12)}
+      .pf-f select:disabled,.pf-f input[readonly]{background:#f3f4f6;color:#6b7280;cursor:not-allowed}
       .pf-full{grid-column:1/-1}
+      .pf-qty-field{max-width:200px}
       .pf-suggest{position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:var(--radius-md);box-shadow:var(--shadow-lg);max-height:200px;overflow-y:auto}
       .pf-suggest button{display:grid;gap:2px;width:100%;padding:var(--space-2) var(--space-3);text-align:left;font-size:var(--text-sm);border:none;background:transparent;cursor:pointer}
       .pf-suggest button:hover{background:var(--color-primary-50)}
       .pf-suggest button span{font-size:var(--text-xs);color:#64748b}
+      .pf-preview{background:#f8fafc;border-radius:var(--radius-md);padding:14px 16px;display:grid;gap:4px}
+      .pf-preview__label{font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:0}
+      .pf-preview__medicine{font-size:15px;font-weight:600;color:#1e293b;margin:0}
+      .pf-preview__uom{font-weight:400;color:#64748b}
+      .pf-preview__sig{font-size:13px;color:#475569;margin:0}
+      .pf-preview__dispense{font-size:14px;color:#1e293b;margin:0}
+      .pf-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-2)}
+      .pf-btn{padding:10px 20px;font-size:14px;border-radius:8px;border:none;cursor:pointer;font-weight:500}
+      .pf-btn-cancel{background:#e2e8f0;color:#475569}
+      .pf-btn-cancel:hover:not(:disabled){background:#cbd5e1}
+      .pf-btn-save{background:var(--ion-color-primary,#1e293b);color:#fff}
+      .pf-btn-save:hover:not(:disabled){filter:brightness(0.92)}
+      .pf-btn:disabled{opacity:0.6;cursor:not-allowed}
       .pf-added{display:grid;gap:var(--space-2);margin-top:var(--space-3)}
       .pf-item{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);background:#f8fafc;border-radius:var(--radius-md)}
       .pf-item-info{display:grid;gap:2px;min-width:0}
@@ -77,7 +94,7 @@ interface PendingMedicineAction {
       .pf-modal__severity{margin:12px 0 8px;font-weight:700;color:#b45309}
       .pf-modal__severity--red{color:#b91c1c}
       .pf-modal__body{margin:0;color:#475569;line-height:1.55}
-      @media(max-width:767px){.pf-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-item{flex-direction:column}.pf-f input{min-height:48px}.pf-full{grid-column:1/-1}}
+      @media(max-width:767px){.pf-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-item{flex-direction:column}.pf-full{grid-column:1/-1}.pf-qty-field{max-width:none}}
       @media(max-width:374px){.pf-grid{grid-template-columns:1fr}}
     `
   ]
@@ -95,24 +112,40 @@ export class PrescriptionFormComponent implements OnChanges {
   private readonly apiService = inject(ApiService);
   private readonly interactionService = inject(DrugInteractionService);
 
-  readonly form = this.fb.group({ medicineName: [''], strength: [''], dosage: [''], route: ['Oral'], frequency: ['Once daily'], duration: [''], quantity: [1], instructions: [''] });
+  readonly form = this.fb.group({
+    medicineName: [''],
+    strength: [''],
+    dosage: [''],
+    dose: ['1'],
+    uom: ['TAB'],
+    route: ['PO'],
+    frequency: ['once a day'],
+    duration: [''],
+    quantity: [1],
+    instructions: ['']
+  });
 
-  readonly dosageOptions = ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Cream', 'Drops', 'Powder', 'Suspension', 'Ointment', 'Others'];
-  readonly routeOptions = MEDICATION_ROUTE_MASTERS.map((r) => ({ value: r.route_description, label: r.route_description }));
+  readonly routeOptions = MEDICATION_ROUTE_MASTERS.map((r) => ({ value: r.route_code, label: r.route_description }));
   readonly freqOptions = [...MEDICATION_FREQUENCY_MASTERS].sort((a, b) => a.priority_order - b.priority_order).map((f) => ({ value: f.dosage_desc, label: f.dosage_desc }));
+  readonly uomOptions = MEDICATION_UOM_MASTERS.map((u) => ({ value: u.unit_of_measure, label: u.unit_of_measure }));
+  readonly whenOptions = ['After dinner', 'Before meals', 'After meals', 'At bedtime', 'On an empty stomach', 'With food'];
+
+  private readonly routeAdverbs: Record<string, string> = {
+    PO: 'orally',
+    TOP: 'topically',
+    IV: 'intravenously',
+    IM: 'intramuscularly',
+    SUBCUT: 'subcutaneously',
+    SL: 'sublingually',
+    PR: 'rectally',
+    VAG: 'vaginally',
+    OPTH: 'in the eye(s)',
+    NEB: 'via nebulizer'
+  };
 
   medicines: PrescriptionItem[] = [];
   editIdx = -1;
   showDrugSuggestions = false;
-  showDosage = false;
-  showRoute = false;
-  showFreq = false;
-  showInst = false;
-  drugFilter = '';
-  dosageFilter = '';
-  routeFilter = '';
-  freqFilter = '';
-  instFilter = '';
   interactionWarnings: Record<string, DrugInteractionWarning> = {};
   interactionCheckUnavailable = false;
   interactionDetailsOpen = false;
@@ -121,41 +154,6 @@ export class PrescriptionFormComponent implements OnChanges {
   awaitingOverrideReason = false;
   overrideReason = '';
   private pendingMedicineAction: PendingMedicineAction | null = null;
-
-  readonly instructionOptions = [
-    'Take after meals',
-    'Take before meals',
-    'Take with plenty of water',
-    'Take at bedtime',
-    'Take as needed for pain',
-    'Take with food',
-    'Take on empty stomach',
-    'Do not drive after taking',
-    'Avoid alcohol',
-    'Complete the full course',
-    'Do not exceed prescribed dose',
-    'Take at the same time each day',
-    'May cause drowsiness',
-    'For external use only',
-    'Shake well before use',
-    'Refrigerate after opening'
-  ];
-
-  constructor() {
-    let autoGen = true;
-    this.form.valueChanges.subscribe((v) => {
-      if (!autoGen) return;
-      const instCtrl = this.form.get('instructions');
-      if (instCtrl && instCtrl.dirty) {
-        autoGen = false;
-        return;
-      }
-      const smart = this.buildSmartInstruction(v);
-      if (smart && instCtrl && instCtrl.value !== smart) {
-        instCtrl.setValue(smart, { emitEvent: false });
-      }
-    });
-  }
 
   get isReadOnlyFields(): boolean {
     return this.locked || this.actionMode === 'request';
@@ -166,45 +164,21 @@ export class PrescriptionFormComponent implements OnChanges {
     return q ? PRESCRIPTION_DRUG_LIST.filter((d) => [d.medicineName, d.genericName].join(' ').toLowerCase().includes(q)).slice(0, 6) : [];
   }
 
-  get dosageOptionsFiltered(): string[] {
-    const q = (this.form.get('dosage')?.value || '').toLowerCase();
-    return q ? this.dosageOptions.filter((d) => d.toLowerCase().includes(q)) : this.dosageOptions;
+  getMedicineDisplayName(): string {
+    return String(this.form.get('medicineName')?.value ?? '').trim();
   }
 
-  get routeOptionsFiltered(): { value: string; label: string }[] {
-    const q = (this.form.get('route')?.value || '').toLowerCase();
-    return q ? this.routeOptions.filter((r) => r.label.toLowerCase().includes(q)) : this.routeOptions;
-  }
-
-  get freqOptionsFiltered(): { value: string; label: string }[] {
-    const q = (this.form.get('frequency')?.value || '').toLowerCase();
-    return q ? this.freqOptions.filter((f) => f.label.toLowerCase().includes(q)) : this.freqOptions;
-  }
-
-  get instOptionsFiltered(): string[] {
-    const q = (this.form.get('instructions')?.value || '').toLowerCase();
-    const v = this.form.getRawValue();
-    const smart = this.buildSmartInstruction(v);
-    const base = smart ? [smart, ...this.instructionOptions] : this.instructionOptions;
-    return q ? base.filter((i) => i.toLowerCase().includes(q)) : base;
+  getSigPreview(): string {
+    return this.buildSig(this.form.getRawValue());
   }
 
   hideDrugSuggestions() { setTimeout(() => this.showDrugSuggestions = false, 200); }
-  hideDosage() { setTimeout(() => this.showDosage = false, 200); }
-  hideRoute() { setTimeout(() => this.showRoute = false, 200); }
-  hideFreq() { setTimeout(() => this.showFreq = false, 200); }
-  hideInst() { setTimeout(() => this.showInst = false, 200); }
   filterDrugs() { this.showDrugSuggestions = true; }
 
   selectDrug(d: { medicineName: string; genericName?: string }) {
     this.form.patchValue({ medicineName: d.medicineName });
     this.showDrugSuggestions = false;
   }
-
-  selectDosage(d: string) { this.form.patchValue({ dosage: d }); this.showDosage = false; }
-  selectRoute(r: { value: string; label: string }) { this.form.patchValue({ route: r.label }); this.showRoute = false; }
-  selectFreq(f: { value: string; label: string }) { this.form.patchValue({ frequency: f.label }); this.showFreq = false; }
-  selectInst(i: string) { this.form.patchValue({ instructions: i }); this.showInst = false; }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['items']) {
@@ -374,7 +348,18 @@ export class PrescriptionFormComponent implements OnChanges {
     const m = this.medicines[idx];
     if (!m) return;
     this.editIdx = idx;
-    this.form.patchValue({ medicineName: m.medicineName, strength: m.strength, dosage: m.dosageForm, route: m.route || '', frequency: m.frequency || '', duration: m.duration || '', quantity: m.quantity, instructions: m.instructions || '' });
+    this.form.patchValue({
+      medicineName: m.medicineName,
+      strength: m.strength,
+      dosage: m.dosageForm,
+      dose: m.dose || '1',
+      uom: m.unitOfMeasure || 'TAB',
+      route: m.route || 'PO',
+      frequency: m.frequency || 'once a day',
+      duration: m.duration || '',
+      quantity: m.quantity,
+      instructions: m.instructions || ''
+    });
   }
 
   removeMedicine(idx: number): void {
@@ -396,6 +381,11 @@ export class PrescriptionFormComponent implements OnChanges {
   closeInteractionDetails(): void {
     this.interactionDetailsOpen = false;
     this.selectedInteraction = null;
+  }
+
+  cancelEdit(): void {
+    this.editIdx = -1;
+    this.emitAndClear();
   }
 
   @HostListener('document:keydown.escape')
@@ -489,33 +479,71 @@ export class PrescriptionFormComponent implements OnChanges {
     });
   }
 
+  private getFrequencyCode(frequencyLabel: string): string | undefined {
+    if (!frequencyLabel) return undefined;
+    const freq = MEDICATION_FREQUENCY_MASTERS.find((f) => f.dosage_desc === frequencyLabel);
+    return freq ? freq.dosage_no.trim() : undefined;
+  }
+
+  private getUomDescription(uomValue: string): string | undefined {
+    if (!uomValue) return undefined;
+    const uom = MEDICATION_UOM_MASTERS.find((u) => u.unit_of_measure === uomValue);
+    return uom ? uom.description.trim() || uom.unit_of_measure : uomValue;
+  }
+
   private buildItem(v: any): PrescriptionItem {
+    const sig = this.buildSig(v) || String(v.medicineName ?? '').trim();
     return {
       id: `rx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       medicineName: String(v.medicineName ?? '').trim(),
       strength: String(v.strength ?? '').trim(),
       dosageForm: String(v.dosage ?? 'Other').trim() || 'Other',
       quantity: Math.max(1, Number(v.quantity) || 1),
-      sig: [v.dosage, v.frequency].filter(Boolean).join(' ') || String(v.medicineName ?? ''),
+      sig,
+      dose: v.dose || undefined,
       frequency: v.frequency || undefined,
+      frequencyCode: this.getFrequencyCode(v.frequency),
       duration: v.duration || undefined,
       route: v.route || undefined,
+      routeDescription: this.getRouteDescription(v.route) || undefined,
+      unitOfMeasure: v.uom || undefined,
+      unitOfMeasureDescription: this.getUomDescription(v.uom),
       instructions: v.instructions || undefined
     };
   }
 
   private emitAndClear(): void {
     this.itemsChange.emit([...this.medicines]);
-    this.form.patchValue({ medicineName: '', strength: '', dosage: '', route: 'Oral', frequency: 'Once daily', duration: '', quantity: 1, instructions: '' });
+    this.form.patchValue({
+      medicineName: '',
+      strength: '',
+      dosage: '',
+      dose: '1',
+      uom: 'TAB',
+      route: 'PO',
+      frequency: 'once a day',
+      duration: '',
+      quantity: 1,
+      instructions: ''
+    });
   }
 
-  private buildSmartInstruction(v: any): string | null {
-    if (!v.medicineName) return null;
-    const parts = ['Take', v.medicineName];
-    if (v.strength) parts.push(v.strength);
-    if (v.route) { const route = v.route.toLowerCase().startsWith('by ') ? v.route : `by ${v.route.toLowerCase()}`; parts.push(route); }
-    if (v.frequency) parts.push(v.frequency.toLowerCase().startsWith('every') || v.frequency.toLowerCase().startsWith('once') ? v.frequency : `every ${v.frequency}`);
-    if (v.duration) parts.push(`for ${v.duration}`);
+  private getRouteDescription(routeCode: string): string {
+    if (!routeCode) return '';
+    const route = MEDICATION_ROUTE_MASTERS.find(r => r.route_code === routeCode);
+    return route ? route.route_description : routeCode;
+  }
+
+  private buildSig(v: any): string {
+    if (!v.medicineName || !v.dose) return '';
+    const parts: string[] = ['take', String(v.dose)];
+    if (v.uom) parts.push(String(v.uom).toLowerCase());
+    if (v.route) {
+      const adverb = this.routeAdverbs[v.route] || `via ${this.getRouteDescription(v.route).toLowerCase()}`;
+      parts.push(adverb);
+    }
+    if (v.frequency) parts.push(String(v.frequency).toLowerCase());
+    if (v.instructions) parts.push(String(v.instructions).toLowerCase());
     return parts.join(' ');
   }
 }

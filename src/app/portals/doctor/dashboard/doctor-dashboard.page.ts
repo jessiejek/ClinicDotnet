@@ -139,12 +139,12 @@ export class DoctorDashboardPage implements OnInit {
                 map((summaryResponse) => {
                   const row = (summaryResponse ?? {}) as Record<string, unknown>;
                   return {
-                    bookedToday: normalizeNumber(row['today_total'], queue.length),
-                    checkedIn: normalizeNumber(row['checked_in_count']),
-                    waiting: normalizeNumber(row['checked_in_count']) + normalizeNumber(row['in_progress_count']),
-                    completed: normalizeNumber(row['completed_count']),
-                    noShow: normalizeNumber(row['no_show_count']),
-                    cancelled: 0,
+                    bookedToday: normalizeNumber(row['bookedToday'], queue.length),
+                    checkedIn: normalizeNumber(row['checkedIn']),
+                    waiting: normalizeNumber(row['waiting']),
+                    completed: normalizeNumber(row['completed']),
+                    noShow: normalizeNumber(row['noShow']),
+                    cancelled: normalizeNumber(row['cancelled']),
                     items: queue
                   } as DoctorTodaySummary;
                 })

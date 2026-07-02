@@ -1,5 +1,5 @@
 
-    <ng-container *ngIf="vm$ | async as vm; else notFound">
+    <ng-container *ngIf="vm$ | async as vm; else notFoundOrLoading">
       <div class="cr">
         <!-- ===== VIEW MODE: Completed consultation, compact header + summary body ===== -->
         <ng-container *ngIf="isCompletedConsultation(vm) && !isAmendMode; else editMode">
@@ -108,12 +108,14 @@
                     <i class="ti ti-pencil"></i>
                     Edit Consultation
                   </button>
-                  <button *ngIf="isAmendMode" class="cr-btn cr-btn--primary" (click)="saveAmendment(vm)" [disabled]="isSavingAmendment">
-                    {{ isSavingAmendment ? 'Saving...' : 'Save Changes' }}
-                  </button>
-                  <button *ngIf="isAmendMode" class="cr-btn cr-btn--outline" type="button" data-testid="doctor-consultation-cancel-amend-button" (click)="cancelAmendMode()">
-                    Cancel
-                  </button>
+                  <div *ngIf="isAmendMode" class="cr-hdr__amend-actions">
+                    <button class="cr-btn cr-btn--primary" (click)="saveAmendment(vm)" [disabled]="isSavingAmendment">
+                      {{ isSavingAmendment ? 'Saving...' : 'Save Changes' }}
+                    </button>
+                    <button class="cr-btn cr-btn--outline" type="button" data-testid="doctor-consultation-cancel-amend-button" (click)="cancelAmendMode()">
+                      Cancel
+                    </button>
+                  </div>
                   <div class="cr-cancel-prompt" *ngIf="editCancelPromptOpen">
                     <span>Discard unsaved changes?</span>
                     <div class="cr-cancel-prompt__actions">
@@ -336,6 +338,33 @@
                 <app-patient-media-panel kind="document" [patientId]="vm.patient.id" [filterByBooking]="false" [allowUpload]="false" heading="Documents" subheading="Referrals, certificates, and files."></app-patient-media-panel>
                 <app-patient-media-panel kind="lab-result" [patientId]="vm.patient.id" [filterByBooking]="false" [allowUpload]="false" heading="Lab Results" headingIcon="ti ti-upload" subheading="Files uploaded by the patient"></app-patient-media-panel>
               </div>
+
+              <app-vitals-trend-chart [consultations]="vm.recentConsultations"></app-vitals-trend-chart>
+
+              <div class="cr-side-card">
+                <h3>Patient Allergies</h3>
+                <p *ngFor="let allergy of vm.allergies">{{ allergy.allergen }} &bull; {{ allergy.severity }}</p>
+                <p *ngIf="vm.allergies.length === 0">No allergies on record.</p>
+              </div>
+
+              <div class="cr-side-card">
+                <h3>Vaccinations</h3>
+                <p *ngFor="let vaccination of vm.vaccinations">
+                  {{ vaccination.vaccineName }} &bull; {{ vaccination.dateGiven | date : 'MMMM d, y (EEE)' }}
+                </p>
+                <p *ngIf="vm.vaccinations.length === 0">No vaccinations on record.</p>
+              </div>
+
+              <div class="cr-side-card">
+                <div title="Lab result files uploaded by the patient">
+                  <h3><i class="ti ti-upload"></i> Lab Results</h3>
+                  <p>Files uploaded by the patient</p>
+                </div>
+                <p *ngFor="let result of vm.labResults">
+                  {{ result.fileName }} &bull; {{ result.resultDate | date : 'MMMM d, y (EEE)' }}
+                </p>
+                <p *ngIf="vm.labResults.length === 0">No lab results on record.</p>
+              </div>
             </div>
             <div class="cr-side-backdrop" [class.is-visible]="progressSidebarOpen" (click)="closeProgressSidebar()"></div>
           </div>
@@ -447,7 +476,12 @@
       </div>
     </ng-container>
 
-    <ng-template #notFound>
-      <app-empty-state icon="document-text-outline" title="Consultation unavailable" description="This appointment is either missing or belongs to another doctor." ctaLabel="Back to Appointments" ctaRoute="/doctor/appointments"></app-empty-state>
+    <ng-template #notFoundOrLoading>
+      <div class="cr-initial-loading" *ngIf="isLoadingConsultation; else notFound">
+        <div class="cr-initial-loading__spinner" aria-hidden="true"></div>
+        <p>Loading consultation&hellip;</p>
+      </div>
+      <ng-template #notFound>
+        <app-empty-state icon="document-text-outline" title="Consultation unavailable" description="This appointment is either missing or belongs to another doctor." ctaLabel="Back to Appointments" ctaRoute="/doctor/appointments"></app-empty-state>
+      </ng-template>
     </ng-template>
-  

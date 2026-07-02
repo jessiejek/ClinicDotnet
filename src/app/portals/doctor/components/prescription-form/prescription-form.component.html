@@ -25,119 +25,105 @@
       </div>
 
       <form class="pf" [formGroup]="form">
+        <!-- Medicine name -->
+        <div class="pf-f pf-full">
+          <label for="rx-medicine">Medicine name *</label>
+          <input
+            id="rx-medicine"
+            formControlName="medicineName"
+            placeholder="Start typing drug name..."
+            (focus)="showDrugSuggestions=true"
+            (blur)="hideDrugSuggestions()"
+            (input)="filterDrugs()"
+            autocomplete="off"
+            [readonly]="isReadOnlyFields"
+          />
+          <div class="pf-suggest" *ngIf="showDrugSuggestions && filteredDrugs.length > 0">
+            <button type="button" *ngFor="let d of filteredDrugs" (mousedown)="selectDrug(d)">
+              <strong>{{ d.medicineName }}</strong>
+              <span>{{ d.genericName }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Strength / Dosage form (hidden inputs, kept for interaction checks & display) -->
+        <div class="pf-hidden-fields">
+          <input id="rx-strength" formControlName="strength" placeholder="e.g. 500mg" [readonly]="isReadOnlyFields" />
+          <input id="rx-dosage" formControlName="dosage" placeholder="e.g. Tablet" [readonly]="isReadOnlyFields" />
+        </div>
+
+        <!-- Dose / Unit / Route / Frequency -->
         <div class="pf-grid">
-          <div class="pf-f pf-full">
-            <label for="rx-medicine">Medicine Name *</label>
-            <input
-              id="rx-medicine"
-              formControlName="medicineName"
-              placeholder="Start typing drug name..."
-              (focus)="showDrugSuggestions=true"
-              (blur)="hideDrugSuggestions()"
-              (input)="filterDrugs()"
-              autocomplete="off"
-              [readonly]="isReadOnlyFields"
-            />
-            <div class="pf-suggest" *ngIf="showDrugSuggestions && filteredDrugs.length > 0">
-              <button type="button" *ngFor="let d of filteredDrugs" (mousedown)="selectDrug(d)">
-                <strong>{{ d.medicineName }}</strong>
-                <span>{{ d.genericName }}</span>
-              </button>
-            </div>
+          <div class="pf-f">
+            <label for="rx-dose">Dose</label>
+            <input id="rx-dose" type="text" formControlName="dose" placeholder="e.g. 1" [readonly]="isReadOnlyFields" />
           </div>
 
           <div class="pf-f">
-            <label for="rx-strength">Strength</label>
-            <input id="rx-strength" formControlName="strength" placeholder="e.g. 500mg" [readonly]="isReadOnlyFields" />
-          </div>
-
-          <div class="pf-f">
-            <label for="rx-dosage">Dosage Form</label>
-            <input
-              id="rx-dosage"
-              formControlName="dosage"
-              placeholder="e.g. Tablet"
-              (focus)="showDosage=true"
-              (blur)="hideDosage()"
-              (input)="dosageFilter = form.get('dosage')?.value || ''"
-              autocomplete="off"
-              [readonly]="isReadOnlyFields"
-            />
-            <div class="pf-suggest" *ngIf="showDosage && dosageOptionsFiltered.length > 0">
-              <button type="button" *ngFor="let d of dosageOptionsFiltered" (mousedown)="selectDosage(d)">{{ d }}</button>
-            </div>
+            <label for="rx-uom">Unit</label>
+            <select id="rx-uom" formControlName="uom" [disabled]="isReadOnlyFields">
+              <option value="">Select unit</option>
+              <option *ngFor="let u of uomOptions" [value]="u.value">{{ u.label }}</option>
+            </select>
           </div>
 
           <div class="pf-f">
             <label for="rx-route">Route</label>
-            <input
-              id="rx-route"
-              formControlName="route"
-              placeholder="e.g. Oral"
-              (focus)="showRoute=true"
-              (blur)="hideRoute()"
-              (input)="routeFilter = form.get('route')?.value || ''"
-              autocomplete="off"
-              [readonly]="isReadOnlyFields"
-            />
-            <div class="pf-suggest" *ngIf="showRoute && routeOptionsFiltered.length > 0">
-              <button type="button" *ngFor="let r of routeOptionsFiltered" (mousedown)="selectRoute(r)">{{ r.label }}</button>
-            </div>
+            <select id="rx-route" formControlName="route" [disabled]="isReadOnlyFields">
+              <option value="">Select route</option>
+              <option *ngFor="let r of routeOptions" [value]="r.value">{{ r.label }}</option>
+            </select>
           </div>
 
           <div class="pf-f">
             <label for="rx-frequency">Frequency</label>
-            <input
-              id="rx-frequency"
-              formControlName="frequency"
-              placeholder="e.g. TID"
-              (focus)="showFreq=true"
-              (blur)="hideFreq()"
-              (input)="freqFilter = form.get('frequency')?.value || ''"
-              autocomplete="off"
-              [readonly]="isReadOnlyFields"
-            />
-            <div class="pf-suggest" *ngIf="showFreq && freqOptionsFiltered.length > 0">
-              <button type="button" *ngFor="let f of freqOptionsFiltered" (mousedown)="selectFreq(f)">{{ f.label }}</button>
-            </div>
-          </div>
-
-          <div class="pf-f">
-            <label for="rx-duration">Duration</label>
-            <input id="rx-duration" formControlName="duration" placeholder="e.g. 7 days" [readonly]="isReadOnlyFields" />
-          </div>
-
-          <div class="pf-f">
-            <label for="rx-quantity">Quantity</label>
-            <input id="rx-quantity" type="number" min="1" formControlName="quantity" [readonly]="isReadOnlyFields" />
-          </div>
-
-          <div class="pf-f pf-full">
-            <label for="rx-instructions">Instructions</label>
-            <input
-              id="rx-instructions"
-              formControlName="instructions"
-              placeholder="e.g. Take after meals"
-              (focus)="showInst=true"
-              (blur)="hideInst()"
-              (input)="instFilter = form.get('instructions')?.value || ''"
-              autocomplete="off"
-              [readonly]="isReadOnlyFields"
-            />
-            <div class="pf-suggest" *ngIf="showInst && instOptionsFiltered.length > 0">
-              <button type="button" *ngFor="let i of instOptionsFiltered" (mousedown)="selectInst(i)">{{ i }}</button>
-            </div>
+            <select id="rx-frequency" formControlName="frequency" [disabled]="isReadOnlyFields">
+              <option value="">Select frequency</option>
+              <option *ngFor="let f of freqOptions" [value]="f.value">{{ f.label }}</option>
+            </select>
           </div>
         </div>
 
-        <button
-          type="button"
-          [ngClass]="actionMode === 'request' ? 'btn-outline' : 'btn-primary'"
-          [disabled]="locked || (actionMode === 'edit' && !form.get('medicineName')?.value)"
-          (click)="actionMode === 'request' ? requestAttendingPhysician.emit() : attemptSaveMedicine()"
-        >
-          {{ actionMode === 'request' ? 'Request prescription from attending physician' : (editIdx >= 0 ? 'Update Medicine' : 'Add Medicine') }}
-        </button>
+        <!-- When (optional) -->
+        <div class="pf-f">
+          <label for="rx-when">When (optional)</label>
+          <select id="rx-when" formControlName="instructions" [disabled]="isReadOnlyFields">
+            <option value="">Select timing</option>
+            <option *ngFor="let w of whenOptions" [value]="w">{{ w }}</option>
+          </select>
+        </div>
+
+        <!-- Quantity to dispense -->
+        <div class="pf-f pf-qty-field">
+          <label for="rx-quantity">Quantity to dispense</label>
+          <input id="rx-quantity" type="number" min="1" formControlName="quantity" [readonly]="isReadOnlyFields" />
+        </div>
+
+        <!-- Duration field (hidden) -->
+        <input formControlName="duration" type="hidden" />
+
+        <!-- Preview -->
+        <div class="pf-preview" *ngIf="form.get('medicineName')?.value">
+          <p class="pf-preview__label">Preview</p>
+          <p class="pf-preview__medicine">{{ getMedicineDisplayName() }} <span class="pf-preview__uom">/{{ form.get('uom')?.value || 'TAB' }}</span></p>
+          <p class="pf-preview__sig" *ngIf="getSigPreview()">sig: {{ getSigPreview() }}</p>
+          <p class="pf-preview__dispense">Dispense: <strong>#{{ form.get('quantity')?.value || 0 }}</strong></p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="pf-actions">
+          <button type="button" class="pf-btn pf-btn-cancel" (click)="cancelEdit()" [disabled]="locked">
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="pf-btn pf-btn-save"
+            [disabled]="locked || (actionMode === 'edit' && !form.get('medicineName')?.value)"
+            (click)="actionMode === 'request' ? requestAttendingPhysician.emit() : attemptSaveMedicine()"
+          >
+            {{ actionMode === 'request' ? 'Request prescription from attending physician' : (editIdx >= 0 ? 'Update medicine' : 'Add medicine') }}
+          </button>
+        </div>
       </form>
 
       <div class="pf-added" *ngIf="medicines.length > 0">
@@ -177,4 +163,3 @@
         </div>
       </div>
     </section>
-  

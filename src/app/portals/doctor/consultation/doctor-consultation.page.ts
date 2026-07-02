@@ -3,7 +3,7 @@ import { AfterViewChecked, Component, HostListener, OnDestroy, OnInit, inject } 
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ModalController, ToastController } from '@ionic/angular/standalone';
 import { BehaviorSubject, Observable, combineLatest, firstValueFrom, forkJoin, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { catchError, map, switchMap, take, tap } from 'rxjs/operators';
 import {
   Allergy,
   Booking,
@@ -56,6 +56,7 @@ import {
 } from './components/professional-fee-decision-form.component';
 import { ConsultationOverviewComponent } from './components/consultation-overview.component';
 import { ConsultationWorkspaceComponent } from './components/consultation-workspace.component';
+import { VitalsTrendChartComponent } from '../components/vitals-trend-chart/vitals-trend-chart.component';
 import { ConsultationPageVm } from './doctor-consultation.types';
 import { PatientMediaPanelComponent } from '../../../shared/components/patient-media-panel/patient-media-panel.component';
 import { PatientClinicalHistoryDto } from '../../../core/models/patient-clinical-history.models';
@@ -163,7 +164,8 @@ type ProgressSectionId =
     PatientClinicalHistoryDrawerComponent,
     PatientIdentityStripComponent,
     PatientMediaPanelComponent,
-    StatusBadgeComponent
+    StatusBadgeComponent,
+    VitalsTrendChartComponent
   ],
   templateUrl: './doctor-consultation.page.html',
   styleUrl: './doctor-consultation.page.scss'
@@ -202,6 +204,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   editValidationRequested = false;
   editSaveErrorMessage = '';
   private editModeSnapshot: ConsultationLocalDraft | null = null;
+  private amendFromQueryConsumed = false;
   completionValidationRequested = false;
   showStickyIdentityStrip = false;
   identityStripExpanded = false;
@@ -253,11 +256,16 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   historyEntries: ConsultationHistoryEntry[] = [];
   hasRealAuditHistory = false;
 
+  isLoadingConsultation = true;
+
   readonly vm$ = combineLatest([
     this.route.paramMap.pipe(map((paramMap) => paramMap.get('bookingId') ?? '')),
     this.authState.currentUser$,
     this.reloadSubject
   ]).pipe(
+    tap(() => {
+      this.isLoadingConsultation = true;
+    }),
     switchMap(([bookingId, user]) => {
       if (!bookingId || !user) {
         return of(null);
@@ -323,6 +331,9 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
           );
         })
       );
+    }),
+    tap(() => {
+      this.isLoadingConsultation = false;
     })
   );
 
@@ -979,12 +990,14 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
       {
         label: `Prescriptions (${this.prescriptionItems.length})`,
         complete: this.prescriptionItems.length > 0,
-        detail: this.prescriptionItems.length > 0 ? 'At least one prescription added' : 'No prescriptions added'
+        detail: this.prescriptionItems.length > 0 ? 'At least one prescription added' : 'No prescriptions needed for this visit',
+        optional: true
       },
       {
         label: `Lab Orders (${this.labRequests.length})`,
         complete: this.labRequests.length > 0,
-        detail: this.labRequests.length > 0 ? 'At least one lab order added' : 'No lab orders added'
+        detail: this.labRequests.length > 0 ? 'At least one lab order added' : 'No lab orders needed for this visit',
+        optional: true
       },
       {
         label: 'Follow-up date',
@@ -1645,7 +1658,27 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
     this.saveState = 'saved';
     this.lastAutosaveAt = Date.now();
 
+    this.maybeAutoEnterAmendMode(vm);
+
     return vm;
+  }
+
+  private maybeAutoEnterAmendMode(vm: ConsultationPageVm): void {
+    if (this.amendFromQueryConsumed || this.isAmendMode) {
+      return;
+    }
+
+    if (this.route.snapshot.queryParamMap.get('amend') !== '1') {
+      return;
+    }
+
+    if (!this.isCompletedConsultation(vm)) {
+      return;
+    }
+
+    this.amendFromQueryConsumed = true;
+    void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    setTimeout(() => this.enterAmendMode(vm));
   }
 
   private soapFromConsultation(consultation: Consultation | null): SoapFormValue {
@@ -2065,10 +2098,16 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
           medicationName,
           strength: item.strength.trim() || null,
           dosage: item.sig.trim() || null,
-          route: item.route?.trim() || item.routeDescription?.trim() || null,
-          frequency: item.frequency?.trim() || item.frequencyCode?.trim() || null,
+          dose: item.dose?.trim() || null,
+          route: item.route?.trim() || null,
+          routeDescription: item.routeDescription?.trim() || null,
+          frequency: item.frequency?.trim() || null,
+          frequencyCode: item.frequencyCode?.trim() || null,
           duration: item.duration?.trim() || null,
           quantity: item.quantity === null || item.quantity === undefined ? null : String(item.quantity),
+          unitOfMeasure: item.unitOfMeasure?.trim() || null,
+          unitOfMeasureDescription: item.unitOfMeasureDescription?.trim() || null,
+          sig: item.sig?.trim() || null,
           instructions: item.instructions?.trim() || null
         };
       })
@@ -2654,15 +2693,17 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
           dosageForm: 'Tablet',
           strength: item.strength ?? '',
           quantity: parsePrescriptionQuantity(item.quantity),
-          sig: item.dosage ?? '',
+          sig: item.sig ?? item.dosage ?? '',
           frequency: item.frequency ?? undefined,
+          frequencyCode: item.frequencyCode ?? undefined,
           duration: item.duration ?? undefined,
           route: item.route ?? undefined,
-          routeDescription: item.route ?? undefined,
-          unitOfMeasure: undefined,
-          unitOfMeasureDescription: undefined,
+          routeDescription: item.routeDescription ?? item.route ?? undefined,
+          unitOfMeasure: item.unitOfMeasure ?? undefined,
+          unitOfMeasureDescription: item.unitOfMeasureDescription ?? item.unitOfMeasure ?? undefined,
           instructions: item.instructions ?? undefined,
-          isControlledSubstance: false
+          isControlledSubstance: false,
+          dose: item.dose ?? undefined
         }))
         .filter((item) => item.medicineName.length > 0 && item.strength.length > 0 && item.sig.length > 0),
       notes: prescription.notes ?? undefined
@@ -2863,9 +2904,9 @@ function mapConsultationRecordRow(rawRow: Record<string, unknown>): Consultation
     .filter(isRecord)
     .map((item) => ({
       id: trimOptionalString(item['id']),
-      diagnosisText: trimOptionalString(item['diagnosis_text']) ?? '',
-      diagnosisCode: trimOptionalString(item['diagnosis_code']),
-      isPrimary: normalizeBoolean(item['is_primary'], false),
+      diagnosisText: trimOptionalString(item['diagnosis_text'] ?? item['diagnosisText']) ?? '',
+      diagnosisCode: trimOptionalString(item['diagnosis_code'] ?? item['diagnosisCode']),
+      isPrimary: normalizeBoolean(item['is_primary'] ?? item['isPrimary'], false),
       notes: trimOptionalString(item['notes'])
     }))
     .filter((item) => item.diagnosisText.length > 0);
@@ -2880,9 +2921,9 @@ function mapConsultationRecordRow(rawRow: Record<string, unknown>): Consultation
           .filter(isRecord)
           .map((item) => ({
             id: trimOptionalString(item['id']),
-            medicationName: trimOptionalString(item['medication_name']) ?? '',
+            medicationName: trimOptionalString(item['medication_name'] ?? item['medicineName']) ?? '',
             strength: trimOptionalString(item['strength']),
-            dosage: trimOptionalString(item['dosage']),
+            dosage: trimOptionalString(item['dosage'] ?? item['dosageForm']),
             route: trimOptionalString(item['route']),
             frequency: trimOptionalString(item['frequency']),
             duration: trimOptionalString(item['duration']),
@@ -2902,15 +2943,12 @@ function mapConsultationRecordRow(rawRow: Record<string, unknown>): Consultation
         .filter(isRecord)
         .map((item) => ({
           id: trimOptionalString(item['id']),
-          testName: trimOptionalString(item['test_name']) ?? '',
-          testCode: trimOptionalString(item['test_code']),
+          testName: trimOptionalString(item['test_name'] ?? item['testName']) ?? '',
+          testCode: trimOptionalString(item['test_code'] ?? item['testCode']),
           instructions: trimOptionalString(item['instructions'])
         }))
         .filter((item) => item.testName.length > 0)
     }));
-
-  const followUpRows = extractArray(row['follow_ups']).filter(isRecord);
-  const firstFollowUp = followUpRows[0];
 
   const soap = isRecord(row['soap_note'])
     ? {
@@ -2921,8 +2959,15 @@ function mapConsultationRecordRow(rawRow: Record<string, unknown>): Consultation
       }
     : null;
 
-  const vitalRows = extractArray(row['vital_signs']).filter(isRecord);
-  const latestVitals = vitalRows[0];
+  const vitalSignsRow = row['vital_signs'];
+  const latestVitals = isRecord(vitalSignsRow)
+    ? vitalSignsRow
+    : extractArray(vitalSignsRow).filter(isRecord)[0];
+
+  const followUpRow = row['follow_ups'];
+  const firstFollowUp = isRecord(followUpRow)
+    ? followUpRow
+    : extractArray(followUpRow).filter(isRecord)[0];
 
   return {
     bookingId: trimOptionalString(row['booking_id']) ?? '',
@@ -2933,17 +2978,17 @@ function mapConsultationRecordRow(rawRow: Record<string, unknown>): Consultation
     generalNotes: trimOptionalString(row['general_notes']),
     vitalSigns: latestVitals
       ? {
-          systolicBp: normalizeNullableNumber(latestVitals['systolic_bp']),
-          diastolicBp: normalizeNullableNumber(latestVitals['diastolic_bp']),
-          heartRate: normalizeNullableNumber(latestVitals['heart_rate']),
-          respiratoryRate: normalizeNullableNumber(latestVitals['respiratory_rate']),
-          temperature: normalizeNullableNumber(latestVitals['temperature_c']),
-          oxygenSaturation: normalizeNullableNumber(latestVitals['oxygen_saturation']),
-          weight: normalizeNullableNumber(latestVitals['weight_kg']),
-          height: normalizeNullableNumber(latestVitals['height_cm']),
+          systolicBp: normalizeNullableNumber(latestVitals['systolic_bp'] ?? latestVitals['systolicBp']),
+          diastolicBp: normalizeNullableNumber(latestVitals['diastolic_bp'] ?? latestVitals['diastolicBp']),
+          heartRate: normalizeNullableNumber(latestVitals['heart_rate'] ?? latestVitals['heartRate']),
+          respiratoryRate: normalizeNullableNumber(latestVitals['respiratory_rate'] ?? latestVitals['respiratoryRate']),
+          temperature: normalizeNullableNumber(latestVitals['temperature_c'] ?? latestVitals['temperature']),
+          oxygenSaturation: normalizeNullableNumber(latestVitals['oxygen_saturation'] ?? latestVitals['oxygenSaturation']),
+          weight: normalizeNullableNumber(latestVitals['weight_kg'] ?? latestVitals['weight']),
+          height: normalizeNullableNumber(latestVitals['height_cm'] ?? latestVitals['height']),
           bmi: normalizeNullableNumber(latestVitals['bmi']),
-          painScore: normalizeNullableNumber(latestVitals['pain_score']),
-          takenAt: trimOptionalString(latestVitals['taken_at'])
+          painScore: normalizeNullableNumber(latestVitals['pain_score'] ?? latestVitals['painScore']),
+          takenAt: trimOptionalString(latestVitals['taken_at'] ?? latestVitals['takenAt'])
         }
       : null,
     soap,
@@ -2953,7 +2998,7 @@ function mapConsultationRecordRow(rawRow: Record<string, unknown>): Consultation
     followUp: firstFollowUp
       ? {
           id: trimOptionalString(firstFollowUp['id']),
-          followUpDate: trimOptionalString(firstFollowUp['follow_up_date']),
+          followUpDate: trimOptionalString(firstFollowUp['follow_up_date'] ?? firstFollowUp['followUpDate']),
           instructions: trimOptionalString(firstFollowUp['instructions']),
           reason: trimOptionalString(firstFollowUp['reason'])
         }

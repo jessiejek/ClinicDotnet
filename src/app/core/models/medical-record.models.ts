@@ -99,6 +99,7 @@ export interface PrescriptionItem {
   strength: string;
   quantity: number;
   sig: string;
+  dose?: string;
   frequency?: string;
   frequencyCode?: string;
   duration?: string;

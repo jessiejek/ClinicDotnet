@@ -23,11 +23,16 @@
 
           <div class="checklist">
             <div class="checklist__item" *ngFor="let item of checklistItems">
-              <span class="checklist__icon" [class.checklist__icon--complete]="item.complete" [class.checklist__icon--missing]="!item.complete">
-                {{ item.complete ? '✓' : '✕' }}
+              <span
+                class="checklist__icon"
+                [class.checklist__icon--complete]="item.complete"
+                [class.checklist__icon--missing]="!item.complete && !item.optional"
+                [class.checklist__icon--optional]="!item.complete && item.optional"
+              >
+                {{ item.complete ? '✓' : (item.optional ? '–' : '✕') }}
               </span>
               <div class="checklist__body">
-                <strong>{{ item.label }}</strong>
+                <strong>{{ item.label }}<span *ngIf="!item.complete && item.optional" class="checklist__optional-tag"> (optional)</span></strong>
                 <span *ngIf="item.detail">{{ item.detail }}</span>
               </div>
             </div>

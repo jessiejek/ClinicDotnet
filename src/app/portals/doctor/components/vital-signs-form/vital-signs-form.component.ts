@@ -7,12 +7,25 @@ import {
   OnChanges,
   Output,
   SimpleChanges,
+  ViewChild,
   inject
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VitalSigns } from '../../../../core/models';
 import { IonBadge, IonInput, IonItem, IonLabel, IonNote } from '@ionic/angular/standalone';
+
+const VITAL_FIELD_ORDER: VitalFieldKey[] = [
+  'bloodPressureSystolic',
+  'bloodPressureDiastolic',
+  'heartRate',
+  'respiratoryRate',
+  'painScore',
+  'temperatureCelsius',
+  'oxygenSaturation',
+  'weightKg',
+  'heightCm'
+];
 
 const optionalRange = (min: number, max: number): ValidatorFn => (control) => {
   const raw = control.value;
@@ -69,6 +82,16 @@ export class VitalSignsFormComponent implements OnChanges {
 
   @Output() vitalSignsChange = new EventEmitter<VitalSigns>();
   @Output() validityChange = new EventEmitter<boolean>();
+
+  @ViewChild('bloodPressureSystolicInput') bloodPressureSystolicInput?: IonInput;
+  @ViewChild('bloodPressureDiastolicInput') bloodPressureDiastolicInput?: IonInput;
+  @ViewChild('heartRateInput') heartRateInput?: IonInput;
+  @ViewChild('respiratoryRateInput') respiratoryRateInput?: IonInput;
+  @ViewChild('painScoreInput') painScoreInput?: IonInput;
+  @ViewChild('temperatureCelsiusInput') temperatureCelsiusInput?: IonInput;
+  @ViewChild('oxygenSaturationInput') oxygenSaturationInput?: IonInput;
+  @ViewChild('weightKgInput') weightKgInput?: IonInput;
+  @ViewChild('heightCmInput') heightCmInput?: IonInput;
 
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -133,6 +156,29 @@ export class VitalSignsFormComponent implements OnChanges {
 
   markTouched(field: VitalFieldKey): void {
     this.touchedFields.add(field);
+  }
+
+  focusNext(current: VitalFieldKey, event: Event): void {
+    const currentIndex = VITAL_FIELD_ORDER.indexOf(current);
+    const nextField = VITAL_FIELD_ORDER[currentIndex + 1];
+    if (!nextField) {
+      return;
+    }
+
+    event.preventDefault();
+    const inputMap: Record<VitalFieldKey, IonInput | undefined> = {
+      bloodPressureSystolic: this.bloodPressureSystolicInput,
+      bloodPressureDiastolic: this.bloodPressureDiastolicInput,
+      heartRate: this.heartRateInput,
+      respiratoryRate: this.respiratoryRateInput,
+      painScore: this.painScoreInput,
+      temperatureCelsius: this.temperatureCelsiusInput,
+      oxygenSaturation: this.oxygenSaturationInput,
+      weightKg: this.weightKgInput,
+      heightCm: this.heightCmInput
+    };
+
+    void inputMap[nextField]?.setFocus();
   }
 
   hasValue(field: VitalFieldKey): boolean {

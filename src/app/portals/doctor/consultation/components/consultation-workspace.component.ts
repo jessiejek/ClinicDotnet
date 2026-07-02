@@ -11,7 +11,6 @@ import { PrescriptionFormComponent } from '../../components/prescription-form/pr
 import { SoapFormComponent, SoapFormValue } from '../../components/soap-form/soap-form.component';
 import { VaccinationFormComponent } from '../../components/vaccination-form/vaccination-form.component';
 import { VitalSignsFormComponent } from '../../components/vital-signs-form/vital-signs-form.component';
-import { VitalsTrendChartComponent } from '../../components/vitals-trend-chart/vitals-trend-chart.component';
 import {
   ProfessionalFeeDecisionFormComponent,
   ProfessionalFeePaymentMode
@@ -33,7 +32,6 @@ import { ConsultationPageVm } from '../doctor-consultation.types';
     LabRequestFormComponent,
     FollowUpFormComponent,
     VaccinationFormComponent,
-    VitalsTrendChartComponent,
     ProfessionalFeeDecisionFormComponent
   ],
   templateUrl: './consultation-workspace.component.html',
