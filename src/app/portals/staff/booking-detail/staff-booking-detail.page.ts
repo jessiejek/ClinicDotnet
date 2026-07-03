@@ -582,13 +582,19 @@ function normalizeBookingRow(payload: unknown): Booking | null {
   const serviceName = trimOptionalString(row['serviceName'] ?? row['primary_service_name']) ?? serviceNames[0];
   const serviceId = trimOptionalString(row['serviceId'] ?? row['primary_service_id']) ?? serviceIds[0] ?? '';
   const payment = normalizePaymentRow(row['payment']);
+  const patient = normalizeBookingPatientRow(row['patient']);
+  const doctor = normalizeBookingDoctorRow(row['doctor']);
+  const catalogService = normalizeBookingCatalogServiceRow(row['service']);
 
   return {
     id,
-    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
-    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
-    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
-    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? trimOptionalString(patient?.id) ?? '',
+    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? trimOptionalString(patient?.fullName) ?? 'Patient',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? trimOptionalString(doctor?.id) ?? '',
+    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? trimOptionalString(doctor?.fullName) ?? 'Doctor',
+    patient,
+    doctor,
+    service: catalogService,
     serviceId,
     serviceIds: serviceIds.length > 0 ? serviceIds : serviceId ? [serviceId] : [],
     serviceName,
@@ -614,6 +620,64 @@ function normalizeBookingRow(payload: unknown): Booking | null {
     isProfessionalFeeWaived: normalizeBooleanOrUndefined(row['isProfessionalFeeWaived'] ?? row['is_professional_fee_waived']),
     professionalFeeWaivedReason: trimOptionalString(row['professionalFeeWaivedReason'] ?? row['professional_fee_waived_reason']),
     payment: payment ?? undefined
+  };
+}
+
+function normalizeBookingPatientRow(payload: unknown): import('../../../core/models').BookingPatientInfo | undefined {
+  const row = isRecord(payload) ? payload : null;
+  const id = trimOptionalString(row?.['id']);
+  if (!row || !id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    patientCode: trimOptionalString(row['patientCode']),
+    firstName: trimOptionalString(row['firstName']),
+    middleName: trimOptionalString(row['middleName']),
+    lastName: trimOptionalString(row['lastName']),
+    fullName: trimOptionalString(row['fullName']),
+    dateOfBirth: trimOptionalString(row['dateOfBirth']),
+    sex: trimOptionalString(row['sex']),
+    contactNumber: trimOptionalString(row['contactNumber']),
+    email: trimOptionalString(row['email']),
+    isGuest: typeof row['isGuest'] === 'boolean' ? row['isGuest'] : undefined
+  };
+}
+
+function normalizeBookingDoctorRow(payload: unknown): import('../../../core/models').BookingDoctorInfo | undefined {
+  const row = isRecord(payload) ? payload : null;
+  const id = trimOptionalString(row?.['id']);
+  if (!row || !id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    userId: trimOptionalString(row['userId']),
+    fullName: trimOptionalString(row['fullName']),
+    specialization: trimOptionalString(row['specialization']),
+    consultationFee: typeof row['consultationFee'] === 'number' ? row['consultationFee'] : undefined,
+    status: trimOptionalString(row['status']),
+    profilePhotoUrl: trimOptionalString(row['profilePhotoUrl'])
+  };
+}
+
+function normalizeBookingCatalogServiceRow(payload: unknown): import('../../../core/models').BookingCatalogService | undefined {
+  const row = isRecord(payload) ? payload : null;
+  const id = trimOptionalString(row?.['id']);
+  if (!row || !id) {
+    return undefined;
+  }
+
+  return {
+    id,
+    name: trimOptionalString(row['name']),
+    description: trimOptionalString(row['description']),
+    category: trimOptionalString(row['category']),
+    price: typeof row['price'] === 'number' ? row['price'] : undefined,
+    estimatedDurationMinutes: typeof row['estimatedDurationMinutes'] === 'number' ? row['estimatedDurationMinutes'] : undefined,
+    isActive: typeof row['isActive'] === 'boolean' ? row['isActive'] : undefined
   };
 }
 

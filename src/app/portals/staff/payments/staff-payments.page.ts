@@ -9,7 +9,6 @@ import { ConfirmPaymentRequest, PagedResult, StaffForPaymentItem } from '../../.
 import { ClinicDashboardRealtimeService } from '../../../core/services/clinic-dashboard-realtime.service';
 import { Payment, ReceiptData } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
-import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { ReceiptModalComponent } from '../../../shared/components/receipt-modal/receipt-modal.component';
@@ -33,7 +32,6 @@ interface CollectPaymentMethodOption {
     PageHeaderComponent,
     EmptyStateComponent,
     StatusBadgeComponent,
-    ConfirmModalComponent,
     ReceiptModalComponent
   ],
   templateUrl: './staff-payments.page.html',
@@ -58,13 +56,10 @@ export class StaffPaymentsPage implements OnInit {
   referenceNumber = '';
   notes = '';
   isSubmitting = false;
-  waiveModalOpen = false;
-  waiveTarget: StaffForPaymentItem | null = null;
 
   receiptModalOpen = false;
   receiptData: ReceiptData | null = null;
 
-  readonly waiverReasonMinLength = 5;
   readonly paymentMethods: CollectPaymentMethodOption[] = [
     { value: 'Cash', label: 'Cash' },
     { value: 'GCash', label: 'GCash' },
@@ -119,8 +114,6 @@ export class StaffPaymentsPage implements OnInit {
       return;
     }
 
-    this.waiveModalOpen = false;
-    this.waiveTarget = null;
     this.selectedItem = item;
     this.paymentModalOpen = true;
     this.paymentMethod = 'Cash';
@@ -132,24 +125,6 @@ export class StaffPaymentsPage implements OnInit {
   closePaymentModal(): void {
     this.paymentModalOpen = false;
     this.selectedItem = null;
-    this.isSubmitting = false;
-  }
-
-  openWaiveModal(item: StaffForPaymentItem): void {
-    if (!this.canTakePaymentAction(item)) {
-      return;
-    }
-
-    this.paymentModalOpen = false;
-    this.selectedItem = null;
-    this.waiveTarget = item;
-    this.waiveModalOpen = true;
-    this.isSubmitting = false;
-  }
-
-  closeWaiveModal(): void {
-    this.waiveModalOpen = false;
-    this.waiveTarget = null;
     this.isSubmitting = false;
   }
 
@@ -212,39 +187,6 @@ export class StaffPaymentsPage implements OnInit {
       error: async (error) => {
         this.isSubmitting = false;
         await this.presentToast(extractApiErrorMessage(error, 'Failed to confirm payment.'), 'danger');
-      }
-    });
-  }
-
-  confirmWaive(reason?: string): void {
-    if (!this.waiveTarget || this.isSubmitting) {
-      return;
-    }
-
-    if (!this.canTakePaymentAction(this.waiveTarget)) {
-      void this.presentToast('This payment is no longer available to waive.', 'warning');
-      return;
-    }
-
-    const waiveReason = (reason ?? '').trim();
-    if (waiveReason.length < this.waiverReasonMinLength) {
-      void this.presentToast(
-        `Please provide a waiver reason with at least ${this.waiverReasonMinLength} characters.`,
-        'warning'
-      );
-      return;
-    }
-
-    this.isSubmitting = true;
-    this.apiService.patch('payments/' + this.waiveTarget.bookingId + '/waive', { reason: waiveReason }).subscribe({
-      next: async () => {
-        this.closeWaiveModal();
-        this.loadQueue();
-        await this.presentToast('PF waived.', 'success');
-      },
-      error: async (error) => {
-        this.isSubmitting = false;
-        await this.presentToast(extractApiErrorMessage(error, 'Failed to waive PF.'), 'danger');
       }
     });
   }

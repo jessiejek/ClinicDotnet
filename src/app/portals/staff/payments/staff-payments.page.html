@@ -39,7 +39,7 @@
           <div class="pch">
             <div>
               <div class="section-heading">Outstanding professional fees</div>
-              <p class="page-subtitle">Review completed consultations and collect or waive the professional fee.</p>
+              <p class="page-subtitle">Review completed consultations and collect the professional fee.</p>
             </div>
             <div class="data-mono">Page {{ currentPage }} of {{ totalPages }}</div>
           </div>
@@ -161,21 +161,6 @@
           </div>
         </section>
       </div>
-
-      <app-confirm-modal
-        *ngIf="waiveModalOpen"
-        [isOpen]="waiveModalOpen"
-        title="Waive PF"
-        message="Waive the professional fee for this completed consultation?"
-        confirmLabel="Waive PF"
-        [isDanger]="true"
-        [requireReason]="true"
-        [reasonMinLength]="waiverReasonMinLength"
-        reasonLabel="Waive reason"
-        testIdPrefix="staff-payments-waive-modal"
-        (confirmed)="confirmWaive($event)"
-        (cancelled)="closeWaiveModal()"
-      ></app-confirm-modal>
 
       <app-receipt-modal testIdPrefix="staff-payments-receipt" [isOpen]="receiptModalOpen" [data]="receiptData" (closed)="receiptModalOpen = false"></app-receipt-modal>
     </section>
