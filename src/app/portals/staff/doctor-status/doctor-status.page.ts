@@ -58,18 +58,22 @@ export class DoctorStatusPage implements OnInit {
             });
           }
 
+          const today = new Date().toISOString().slice(0, 10);
           return forkJoin(
             activeDoctors.map((doctor) =>
               this.apiService
-                .get<DoctorDayStatus | null>('doctor-day-status/' + (doctor.userId || doctor.id))
-                .pipe(catchError(() => of(null as DoctorDayStatus | null)))
+                .get<any[]>('doctors/' + doctor.id + '/day-status')
+                .pipe(
+                  map((rows) => (rows ?? []).find((row) => row?.date === today) ?? null),
+                  catchError(() => of(null))
+                )
             )
           ).pipe(
             map((statuses) => {
               const dayStatuses = activeDoctors.reduce((acc, doctor, index) => {
-                const status = statuses[index];
-                if (status) {
-                  acc[doctor.id] = status;
+                const row = statuses[index];
+                if (row) {
+                  acc[doctor.id] = { ...this.doctorState.normalizeDoctorDayStatusRow(row), doctorId: doctor.id };
                 }
                 return acc;
               }, {} as Record<string, DoctorDayStatus>);
@@ -128,11 +132,14 @@ export class DoctorStatusPage implements OnInit {
     status: AvailabilityStatus;
     runningLateMinutes?: number;
   }): void {
-    this.apiService.post<DoctorDayStatus>('doctor-day-status/' + event.doctorId + '/status', {
+    const today = new Date().toISOString().slice(0, 10);
+    this.apiService.post<any>('doctors/' + event.doctorId + '/day-status', {
+      date: today,
       status: event.status,
       runningLateMinutes: event.runningLateMinutes ?? null
     }).subscribe({
-      next: (updated) => {
+      next: (row) => {
+        const updated = { ...this.doctorState.normalizeDoctorDayStatusRow(row), doctorId: event.doctorId };
         this.doctorState.mergeDayStatus(event.doctorId, updated);
         this.dayStatuses = { ...this.dayStatuses, [event.doctorId]: updated };
         const doctor = this.doctors.find((item) => item.id === event.doctorId);

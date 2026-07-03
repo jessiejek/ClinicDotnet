@@ -794,13 +794,21 @@ export class BookingService {
 
     return {
       id,
-      patientId: trimOptionalString(source['patientId']) ?? trimOptionalString(fallbackRecord.patientId) ?? '',
+      patientId:
+        trimOptionalString(source['patientId']) ??
+        trimOptionalString(patient?.id) ??
+        trimOptionalString(fallbackRecord.patientId) ??
+        '',
       patientName:
         trimOptionalString(source['patientName']) ??
         trimOptionalString(patient?.fullName) ??
         composePersonName(patient) ??
         trimOptionalString(fallbackRecord.patientName),
-      doctorId: trimOptionalString(source['doctorId']) ?? trimOptionalString(fallbackRecord.doctorId) ?? '',
+      doctorId:
+        trimOptionalString(source['doctorId']) ??
+        trimOptionalString(doctor?.id) ??
+        trimOptionalString(fallbackRecord.doctorId) ??
+        '',
       doctorName:
         trimOptionalString(source['doctorName']) ??
         trimOptionalString(doctor?.fullName) ??

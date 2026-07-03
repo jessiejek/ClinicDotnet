@@ -61,9 +61,12 @@ export class DoctorProfilePage implements OnInit {
       this.isLoading = false;
       return;
     }
-    this.apiService.get<DoctorDayStatus | null>('doctor-day-status/' + id).pipe(
-      catchError(() => of(null as DoctorDayStatus | null))
-    ).subscribe((status) => {
+    const today = new Date().toISOString().slice(0, 10);
+    this.apiService.get<any[]>('doctors/' + id + '/day-status').pipe(
+      catchError(() => of([] as any[]))
+    ).subscribe((rows) => {
+      const row = (rows ?? []).find((item) => item?.date === today) ?? null;
+      const status = row ? { ...this.doctorState.normalizeDoctorDayStatusRow(row), doctorId: id } : null;
       this.dayStatus = status ?? undefined;
       this.doctorState.setTodayStatus(status);
     });
