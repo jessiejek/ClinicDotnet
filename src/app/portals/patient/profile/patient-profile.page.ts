@@ -24,6 +24,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthUser, Patient, UpdatePatientRequest } from '../../../core/models';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
+import { ClinicSettingsService } from '../../../core/services/clinic-settings.service';
 import {
   getPasswordStrength,
   passwordStrengthValidator
@@ -66,11 +67,14 @@ export class PatientProfilePage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly toastCtrl = inject(ToastController);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly clinicSettingsService = inject(ClinicSettingsService);
 
   currentUser: AuthUser | null = null;
   currentPatient: Patient | null = null;
   loadError: string | null = null;
-  readonly consentVersion = '1.0';
+  get consentVersion(): string {
+    return this.clinicSettingsService.load().consentVersion || 'v1.0';
+  }
   strengthIndexes = [0, 1, 2, 3];
   passwordStrength: 0 | 1 | 2 | 3 | 4 = 0;
   isLoadingProfile = true;

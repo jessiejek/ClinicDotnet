@@ -52,9 +52,16 @@ export class PatientReviewsPage implements OnInit {
   }
 
   private async checkExistingReview(bookingId: string): Promise<void> {
+    if (!this.booking?.doctorId) {
+      this.hasExistingReview = false;
+      return;
+    }
+
     try {
-      const data = await firstValueFrom(this.api.get('reviews?bookingId=' + bookingId));
-      this.hasExistingReview = Array.isArray(data) && data.length > 0;
+      const data = await firstValueFrom(this.api.get('reviews?doctorId=' + this.booking.doctorId));
+      this.hasExistingReview =
+        Array.isArray(data) &&
+        data.some((review) => review?.bookingId?.toLowerCase() === bookingId.toLowerCase());
     } catch {
       console.warn('[PatientReviewsPage] reviews endpoint not available — assuming no existing review.');
       this.hasExistingReview = false;

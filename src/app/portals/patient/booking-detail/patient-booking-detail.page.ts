@@ -299,13 +299,17 @@ function normalizeBookingRow(payload: unknown): Booking | null {
   const serviceName = trimOptionalString(row['serviceName'] ?? row['primary_service_name']) ?? serviceNames[0];
   const serviceId = trimOptionalString(row['serviceId'] ?? row['primary_service_id']) ?? serviceIds[0] ?? '';
   const payment = normalizePaymentRow(row['payment']);
+  const doctor = isRecord(row['doctor']) ? row['doctor'] : null;
+  const patient = isRecord(row['patient']) ? row['patient'] : null;
 
   return {
     id,
-    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
-    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
-    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
-    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? trimOptionalString(patient?.['id']) ?? '',
+    patientName:
+      trimOptionalString(row['patientName'] ?? row['patient_name']) ?? trimOptionalString(patient?.['fullName']) ?? 'Patient',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? trimOptionalString(doctor?.['id']) ?? '',
+    doctorName:
+      trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? trimOptionalString(doctor?.['fullName']) ?? 'Doctor',
     serviceId,
     serviceIds: serviceIds.length > 0 ? serviceIds : serviceId ? [serviceId] : [],
     serviceName,
