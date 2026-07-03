@@ -422,39 +422,12 @@ export class StaffBookingDetailPage implements OnInit {
       return;
     }
 
-    const paymentId = this.booking.payment?.id;
-    if (this.booking.paymentStatus !== 'Unpaid' && paymentId) {
-      this.isActing = true;
-      this.apiService.get<any>('payments/' + paymentId).pipe(
-        switchMap((paymentData) => {
-          const payment = paymentData ? normalizePaymentRow(paymentData as Record<string, unknown>) : undefined;
-          if (!payment) {
-            return of(buildEmptyReceipt());
-          }
-
-          const bookingId = payment.bookingId;
-          return (bookingId ? this.apiService.get<any>('bookings/' + bookingId) : of(undefined)).pipe(
-            map((bookingData) => {
-              const booking = bookingData ? normalizeBookingRow(bookingData as Record<string, unknown>) : undefined;
-              return buildReceiptFromPaymentAndBooking(payment, booking);
-            })
-          );
-        }),
-        catchError((error: unknown) =>
-          throwError(() => new Error(extractApiErrorMessage(error, 'Failed to load receipt.')))
-        )
-      ).subscribe({
-        next: async (receipt) => {
-          this.isActing = false;
-          this.receiptData = receipt;
-          this.printDocumentData = this.buildPrintDocument(receipt);
-          window.setTimeout(() => window.print(), 0);
-        },
-        error: async (error) => {
-          this.isActing = false;
-          await this.presentToast(extractApiErrorMessage(error, 'Failed to load receipt.'), 'danger');
-        }
-      });
+    const payment = this.booking.payment;
+    if (this.booking.paymentStatus !== 'Unpaid' && payment) {
+      const receipt = buildReceiptFromPaymentAndBooking(payment, this.booking);
+      this.receiptData = receipt;
+      this.printDocumentData = this.buildPrintDocument(receipt);
+      window.setTimeout(() => window.print(), 0);
       return;
     }
 
@@ -659,7 +632,7 @@ function normalizePaymentRow(payload: unknown): import('../../../core/models').P
   return {
     id,
     bookingId,
-    amount: normalizeNumber(row['amount']),
+    amount: normalizeNumber(row['amount'] ?? row['amountPaid'] ?? row['amount_paid']),
     paymentMethod: (trimOptionalString(row['paymentMethod'] ?? row['payment_method']) as import('../../../core/models').Payment['paymentMethod']) ?? 'PayAtClinic',
     referenceNumber: trimOptionalString(row['referenceNumber'] ?? row['reference_number']),
     proofImageUrl: trimOptionalString(row['proofImageUrl'] ?? row['proof_image_url']),

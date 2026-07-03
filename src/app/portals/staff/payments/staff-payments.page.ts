@@ -394,7 +394,7 @@ function normalizePaymentRow(payload: unknown): Payment | undefined {
   return {
     id,
     bookingId: trimOptionalString(row['bookingId'] ?? row['booking_id']) ?? '',
-    amount: normalizeNumber(row['amount'] ?? row['payment_amount']),
+    amount: normalizeNumber(row['amount'] ?? row['amountPaid'] ?? row['amount_paid'] ?? row['payment_amount']),
     paymentMethod: (trimOptionalString(row['paymentMethod'] ?? row['payment_method']) as Payment['paymentMethod']) ?? 'Cash',
     referenceNumber: trimOptionalString(row['referenceNumber'] ?? row['reference_number']) ?? undefined,
     orNumber: trimOptionalString(row['orNumber'] ?? row['or_number']) ?? undefined,
