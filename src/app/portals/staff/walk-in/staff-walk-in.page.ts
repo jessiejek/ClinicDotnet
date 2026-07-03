@@ -445,7 +445,10 @@ export class StaffWalkInPage implements OnInit {
       patientId: payload.patientId,
       doctorId: payload.doctorId,
       serviceId: payload.serviceId,
-      notes: payload.notes
+      notes: payload.notes,
+      appointmentDate: payload.appointmentDate,
+      slotStartTime: payload.slotStartTime,
+      slotEndTime: payload.slotEndTime
     }));
 
     const bookingId = booking?.id;
