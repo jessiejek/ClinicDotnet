@@ -397,7 +397,7 @@
               <button type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--outline" (click)="saveDraft(vm)">
                 Save Draft
               </button>
-              <button *ngIf="currentClinicalRole === 'physician'" type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--primary" (click)="requestCompletion(vm)" [disabled]="isCompleteActionDisabled(vm)">
+              <button *ngIf="currentClinicalRole === 'physician'" type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--primary" [class.cr-mobile-actions__btn--pending]="isCompleteActionDisabled(vm)" (click)="requestCompletion(vm)">
                 Complete ▶
               </button>
               <button *ngIf="currentClinicalRole !== 'physician'" type="button" class="cr-mobile-actions__btn cr-mobile-actions__btn--primary" disabled>
