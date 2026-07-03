@@ -437,12 +437,17 @@ function normalizeQueueBooking(row: Record<string, unknown>): Booking | undefine
   const slotStartTime = trimOptionalString(row['slotStartTime'] ?? row['slot_start_time']) ?? '';
   const slotEndTime = trimOptionalString(row['slotEndTime'] ?? row['slot_end_time']) ?? slotStartTime;
 
+  const patient = typeof row['patient'] === 'object' && row['patient'] !== null ? (row['patient'] as Record<string, unknown>) : null;
+  const doctor = typeof row['doctor'] === 'object' && row['doctor'] !== null ? (row['doctor'] as Record<string, unknown>) : null;
+
   return {
     id,
-    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? '',
-    patientName: trimOptionalString(row['patientName'] ?? row['patient_name']) ?? 'Patient',
-    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? '',
-    doctorName: trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? 'Doctor',
+    patientId: trimOptionalString(row['patientId'] ?? row['patient_id']) ?? trimOptionalString(patient?.['id']) ?? '',
+    patientName:
+      trimOptionalString(row['patientName'] ?? row['patient_name']) ?? trimOptionalString(patient?.['fullName']) ?? 'Patient',
+    doctorId: trimOptionalString(row['doctorId'] ?? row['doctor_id']) ?? trimOptionalString(doctor?.['id']) ?? '',
+    doctorName:
+      trimOptionalString(row['doctorName'] ?? row['doctor_name']) ?? trimOptionalString(doctor?.['fullName']) ?? 'Doctor',
     serviceId: trimOptionalString(row['serviceId'] ?? row['service_id']) ?? '',
     serviceName: trimOptionalString(row['serviceName'] ?? row['service_name']),
     serviceNames: normalizeTextArray(row['serviceNames'] ?? row['service_names']),

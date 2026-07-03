@@ -46,14 +46,18 @@ export class DoctorAppointmentDetailPage implements OnInit {
       return this.apiService.get<any>('bookings/' + bookingId).pipe(
         map((data) => normalizeBookingSnapshot(data)),
         catchError(() => of(undefined)),
-        map((booking) => {
+        switchMap((booking) => {
           if (!booking || !isOwnedByLoggedInDoctor(booking, user.id)) {
-            return null;
+            return of(null);
           }
 
           const patient = buildPatientFromBooking(booking);
           const service = buildFallbackService(booking);
-          return { booking, patient, service };
+          return this.apiService.get<any>('bookings/' + bookingId + '/consultation-record').pipe(
+            map((record) => (typeof record?.generalNotes === 'string' ? record.generalNotes.trim() : '')),
+            catchError(() => of('')),
+            map((doctorNotes) => ({ booking, patient, service, doctorNotes }))
+          );
         })
       );
     })
@@ -117,12 +121,25 @@ function normalizeBookingSnapshot(value: unknown): Booking | undefined {
     return undefined;
   }
 
+  const patient = typeof row['patient'] === 'object' && row['patient'] !== null ? (row['patient'] as Record<string, unknown>) : null;
+  const doctor = typeof row['doctor'] === 'object' && row['doctor'] !== null ? (row['doctor'] as Record<string, unknown>) : null;
+
   return {
     id,
-    patientId: normalizeOptionalString(asString(row['patientId'] ?? row['patient_id'])) ?? '',
-    patientName: normalizeOptionalString(asString(row['patientName'] ?? row['patient_name'])),
-    doctorId: normalizeOptionalString(asString(row['doctorId'] ?? row['doctor_id'])) ?? '',
-    doctorName: normalizeOptionalString(asString(row['doctorName'] ?? row['doctor_name'])),
+    patientId:
+      normalizeOptionalString(asString(row['patientId'] ?? row['patient_id'])) ??
+      normalizeOptionalString(asString(patient?.['id'])) ??
+      '',
+    patientName:
+      normalizeOptionalString(asString(row['patientName'] ?? row['patient_name'])) ??
+      normalizeOptionalString(asString(patient?.['fullName'])),
+    doctorId:
+      normalizeOptionalString(asString(row['doctorId'] ?? row['doctor_id'])) ??
+      normalizeOptionalString(asString(doctor?.['id'])) ??
+      '',
+    doctorName:
+      normalizeOptionalString(asString(row['doctorName'] ?? row['doctor_name'])) ??
+      normalizeOptionalString(asString(doctor?.['fullName'])),
     serviceId: normalizeOptionalString(asString(row['serviceId'] ?? row['service_id'])) ?? '',
     serviceIds: [],
     serviceName: normalizeOptionalString(asString(row['serviceName'] ?? row['service_name'])) ?? '',

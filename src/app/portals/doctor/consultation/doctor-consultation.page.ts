@@ -2419,7 +2419,10 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   private loadPatientClinicalHistory$(patientId: string): Observable<PatientClinicalHistoryDto | null> {
     return forkJoin({
       patientRow: this.apiService.get<any>('patients/' + patientId).pipe(catchError(() => of(null))),
-      bookingRows: this.apiService.get<any[]>('bookings?patientId=' + patientId + '&pageSize=50').pipe(catchError(() => of([] as Record<string, unknown>[]))),
+      bookingRows: this.apiService.get<any>('bookings?patientId=' + patientId + '&pageSize=50').pipe(
+        map((response) => (Array.isArray(response) ? response : (response?.items ?? [])) as Record<string, unknown>[]),
+        catchError(() => of([] as Record<string, unknown>[]))
+      ),
       records: this.loadPatientMedicalRecords$(patientId).pipe(catchError(() => of(EMPTY_RECORDS)))
     }).pipe(
       switchMap(({ patientRow, bookingRows, records }) =>

@@ -89,7 +89,7 @@
 
               <div class="clinic-card detail-card">
                 <h3>Doctor Notes</h3>
-                <p class="muted-text">Notes will be captured in the Phase 9 consultation workspace.</p>
+                <p class="muted-text">{{ detail.doctorNotes || 'No doctor notes recorded yet.' }}</p>
               </div>
 
               <div class="clinic-card detail-card patient-uploads-section" *ngIf="detail.booking.patientId">
