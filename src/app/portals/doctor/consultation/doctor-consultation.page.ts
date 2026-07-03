@@ -1334,6 +1334,9 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
 
     try {
       await firstValueFrom(this.updateConsultationRecord$(vm.booking.id, payload));
+      if (this.pendingVaccinations.length > 0) {
+        await this.savePendingVaccinations(vm.booking.patientId, vm.booking);
+      }
       await this.recordConsultationAmendmentAuditLogs(vm, changedSections);
       this.clearLocalDraft(vm.booking.id);
       this.exitAmendMode(true);
@@ -1437,20 +1440,21 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
       return;
     }
 
-    const performedBy = this.authState.snapshot?.fullName || vm.doctor.fullName || 'Doctor';
-    const performedAt = new Date().toISOString();
     const details = `Fields changed: ${sections.map((section) => this.getSectionDisplayName(section)).join(', ')}`;
+    const entityId = vm.consultation?.id || vm.booking.id;
 
     try {
-      await this.apiService.post('audit-logs', 
-        sections.map((section) => ({
-          entity_type: 'Consultation',
-          entity_id: vm.consultation?.id || vm.booking.id,
-          action: `Amended ${this.getSectionDisplayName(section)}`,
-          performed_by: performedBy,
-          performed_at: performedAt,
-          details: `${details}; section=${section}`
-        }))
+      await Promise.all(
+        sections.map((section) =>
+          firstValueFrom(
+            this.apiService.post('audit-logs', {
+              entityType: 'Consultation',
+              entityId,
+              action: `Amended ${this.getSectionDisplayName(section)}`,
+              details: `${details}; section=${section}`
+            })
+          )
+        )
       );
     } catch (error) {
       console.warn('[DoctorConsultation] Failed to record amendment audit log', error);
@@ -2300,6 +2304,7 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
   }
 
   private async savePendingVaccinations(patientId: string, booking: Booking): Promise<void> {
+    const failures: string[] = [];
     for (const payload of this.pendingVaccinations) {
       try {
         await firstValueFrom(
@@ -2311,7 +2316,15 @@ export class DoctorConsultationPage implements AfterViewChecked, OnInit, OnDestr
         );
       } catch (error) {
         console.error('Failed to save vaccination:', error);
+        failures.push(payload.vaccineName);
       }
+    }
+
+    if (failures.length > 0) {
+      await this.presentToast(
+        `Failed to save vaccination record(s): ${failures.join(', ')}. Please re-add them.`,
+        'danger'
+      );
     }
     this.pendingVaccinations = [];
   }

@@ -118,9 +118,17 @@
 
             <aside class="detail-side">
               <div class="clinic-card action-card detail-card detail-card--sticky">
-                <button type="button" class="btn-primary" (click)="openConsultation(detail.booking.id)">
+                <button
+                  type="button"
+                  class="btn-primary"
+                  [disabled]="!canOpenConsultation(detail.booking)"
+                  (click)="openConsultation(detail.booking.id)"
+                >
                   {{ consultationActionLabel(detail.booking) }}
                 </button>
+                <p *ngIf="detail.booking.status === 'Confirmed'" class="waiting-note">
+                  Waiting for front desk to check in the patient.
+                </p>
                 <button
                   *ngIf="detail.booking.status === 'Completed'"
                   type="button"

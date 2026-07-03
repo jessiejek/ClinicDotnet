@@ -1,29 +1,25 @@
-import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { ApiService } from './api.service';
 import {
   PatientVaccinationDto,
   CreatePatientVaccinationRequest,
   UpdatePatientVaccinationRequest
 } from '../models/vaccination.models';
 
-/**
- * Vaccination feature — .NET patient_vaccinations table is planned but not yet deployed.
- * Until the table is available, this service returns empty arrays and throws safe errors
- * for mutations to prevent old .NET API calls.
- */
 @Injectable({ providedIn: 'root' })
 export class PatientVaccinationsService {
+  private readonly apiService = inject(ApiService);
 
   getPatientVaccinations(patientId: string): Observable<PatientVaccinationDto[]> {
-    console.info('PatientVaccinationsService: not available yet — patient_vaccinations table not deployed.');
-    return of([]);
+    return this.apiService.get<PatientVaccinationDto[]>('patients/' + patientId + '/vaccinations');
   }
 
   createPatientVaccination(
     patientId: string,
     payload: CreatePatientVaccinationRequest
   ): Observable<PatientVaccinationDto> {
-    throw new Error('Vaccination create is not available until patient_vaccinations table is deployed.');
+    return this.apiService.post<PatientVaccinationDto>('patients/' + patientId + '/vaccinations', payload);
   }
 
   updatePatientVaccination(
@@ -31,15 +27,17 @@ export class PatientVaccinationsService {
     vaccinationId: string,
     payload: UpdatePatientVaccinationRequest
   ): Observable<PatientVaccinationDto> {
-    throw new Error('Vaccination update is not available until patient_vaccinations table is deployed.');
+    return this.apiService.put<PatientVaccinationDto>(
+      'patients/' + patientId + '/vaccinations/' + vaccinationId,
+      payload
+    );
   }
 
   deletePatientVaccination(patientId: string, vaccinationId: string): Observable<void> {
-    throw new Error('Vaccination delete is not available until patient_vaccinations table is deployed.');
+    return this.apiService.delete<void>('patients/' + patientId + '/vaccinations/' + vaccinationId);
   }
 
   getMyVaccinations(): Observable<PatientVaccinationDto[]> {
-    console.info('PatientVaccinationsService: not available yet — patient_vaccinations table not deployed.');
-    return of([]);
+    return this.apiService.get<PatientVaccinationDto[]>('patients/me/vaccinations');
   }
 }

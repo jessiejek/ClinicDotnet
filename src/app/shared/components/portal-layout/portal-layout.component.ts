@@ -188,9 +188,9 @@ export class PortalLayoutComponent implements OnInit {
   }
 
   private updatePageTitle(): void {
-    const route = this.getDeepestChild(this.route);
+    const route = this.getDeepestChild(this.router.routerState.root);
     this.pageTitle =
-      (route.snapshot.data['title'] as string | undefined) ?? this.portalTitle ?? 'Dashboard';
+      (route.snapshot?.data?.['title'] as string | undefined) ?? this.portalTitle ?? 'Dashboard';
     const currentUrl = this.router.url.split('?')[0];
     this.tightTopRoute = currentUrl.includes('/doctor/consultation/');
   }

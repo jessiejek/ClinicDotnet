@@ -93,13 +93,14 @@
                 <td>
                   <div class="action-row">
                     <button
-                      *ngIf="booking.status === 'Confirmed' || booking.status === 'CheckedIn' || booking.status === 'InProgress'"
+                      *ngIf="canStartConsultation(booking)"
                       type="button"
                       class="btn-primary"
                       (click)="consult(booking.id)"
                     >
                       Start Consultation
                     </button>
+                    <span *ngIf="booking.status === 'Confirmed'" class="waiting-note">Waiting for check-in</span>
 
                     <button type="button" class="btn-ghost" (click)="view(booking.id)">View</button>
                   </div>
@@ -143,13 +144,14 @@
 
             <div class="appointment-card__actions">
               <button
-                *ngIf="booking.status === 'Confirmed' || booking.status === 'CheckedIn' || booking.status === 'InProgress'"
+                *ngIf="canStartConsultation(booking)"
                 type="button"
                 class="btn-primary"
                 (click)="consult(booking.id)"
               >
                 Start Consultation
               </button>
+              <span *ngIf="booking.status === 'Confirmed'" class="waiting-note">Waiting for check-in</span>
 
             </div>
           </article>

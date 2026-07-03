@@ -2,6 +2,14 @@
   display: block;
 }
 
+.waiting-note {
+  margin: 4px 0 0;
+  font-size: var(--text-xs);
+  color: var(--clinic-text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
 .appointment-detail-page {
   display: grid;
   gap: 18px;

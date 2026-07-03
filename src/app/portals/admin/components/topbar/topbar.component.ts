@@ -51,7 +51,8 @@ export class TopbarComponent {
     }
 
     if (this.currentUser.role === 'Doctor') {
-      const parts = (this.currentUser.fullName || '').split(' ').filter(Boolean);
+      const namePart = (this.currentUser.fullName || '').split(',')[0].trim();
+      const parts = namePart.split(' ').filter(Boolean);
       const lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0] || 'Doctor';
       return `Dr. ${lastName}`;
     }

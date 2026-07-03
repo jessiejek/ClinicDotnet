@@ -67,6 +67,10 @@ export class DoctorAppointmentDetailPage implements OnInit {
     void this.router.navigate(['/doctor/consultation', bookingId], amend ? { queryParams: { amend: '1' } } : undefined);
   }
 
+  canOpenConsultation(booking: Booking): boolean {
+    return booking.status === 'CheckedIn' || booking.status === 'InProgress' || booking.status === 'Completed';
+  }
+
   back(): void {
     void this.router.navigate(['/doctor/appointments']);
   }

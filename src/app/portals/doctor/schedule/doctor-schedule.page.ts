@@ -155,7 +155,7 @@ export class DoctorSchedulePage implements OnInit {
     }
     this.isSaving = true;
     this.apiService.post<any>('doctors/' + this.doctorId + '/blocked-dates', {
-      date: blockedDate,
+      blockedDate: blockedDate,
       reason: reason || null
     }).pipe(
       map((data) => mapDoctorBlockedDateRow((data ?? {}) as Record<string, unknown>)),

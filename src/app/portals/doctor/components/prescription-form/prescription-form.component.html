@@ -7,7 +7,7 @@
 
       <div class="pf-banner pf-banner--warn" *ngIf="interactionCheckUnavailable" aria-live="polite">
         <strong>Interaction check unavailable</strong>
-        <span class="pf-banner__copy">Drug-interaction checks could not reach the backend. Review manually before prescribing.</span>
+        <span class="pf-banner__copy">The drug-interaction database is not configured for this clinic. Review manually before prescribing.</span>
       </div>
 
       <div class="pf-banner pf-banner--danger" *ngIf="activeAllergyConflict as conflict" aria-live="assertive">
